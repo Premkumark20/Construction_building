@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "python python/extract_frames.py",
     "dev": "concurrently \"vite --host --port 5173\" \"node app/server/server.js\"",
-    "build": "python python/extract_frames.py && vite build && node -e \"fs.cpSync('dist', '.', {recursive: true})\"",
+    "build": "python python/extract_frames.py && vite build",
     "preview": "vite preview --host",
     "server": "node app/server/server.js",
     "frames": "python python/extract_frames.py"
