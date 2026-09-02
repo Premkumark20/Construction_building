@@ -169,17 +169,17 @@ const WhyChooseUs = () => {
             {/* Right Main Card: What Our Clients Say */}
             <div
               ref={rightCardRef}
-              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 tilt-3d relative min-h-[220px] sm:min-h-[360px]"
+              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 relative min-h-[240px] sm:min-h-[360px] w-full overflow-hidden"
             >
               {/* Dynamic Specular Glare Layer */}
               <div className="specular-glare" />
 
-              <div className="preserve-3d relative z-10">
-                <h2 className="text-lg sm:text-3xl font-black text-white mb-2.5 sm:mb-6 translate-z-20">
+              <div className="relative z-10 w-full">
+                <h2 className="text-lg sm:text-3xl font-black text-white mb-3 sm:mb-6">
                   What Our Clients Say
                 </h2>
 
-                <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 translate-z-30 group-hover:border-amber-500/30 transition-all">
+                <div className="bg-[#18181c]/90 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 group-hover:border-amber-500/30 transition-all w-full">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2.5 sm:mb-4 shadow-md">
                     <Quote size={16} className="text-amber-400" />
                   </div>
@@ -193,7 +193,7 @@ const WhyChooseUs = () => {
               </div>
 
               {/* Interactive Pagination Dots */}
-              <div className="flex justify-center items-center gap-2 mt-4 sm:mt-8 relative z-10 translate-z-20">
+              <div className="flex justify-center items-center gap-2 mt-4 sm:mt-8 relative z-10">
                 {testimonials.map((_, i) => (
                   <button
                     key={i}
