@@ -1,0 +1,272 @@
+import React from 'react';
+import { 
+  Phone, 
+  MessageCircle, 
+  Home, 
+  MapPin, 
+  HardHat, 
+  Users, 
+  FileText, 
+  CheckCircle, 
+  Instagram, 
+  Facebook, 
+  ArrowRight,
+  BedDouble,
+  Maximize,
+  Clock,
+  LandPlot
+} from 'lucide-react';
+
+const SKBuildersLanding = () => {
+  // Theme Colors
+  const colors = {
+    purple: '#3b1a60',
+    orange: '#f97316',
+    yellow: '#fbbf24',
+    cream: '#fefaf2'
+  };
+
+  return (
+    <div className="font-sans text-slate-800 bg-white">
+      {/* --- HEADER --- */}
+      <header className="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="text-[#3b1a60]"><Home size={32} fill="#3b1a60" /></div>
+            <div>
+              <h1 className="text-2xl font-black text-[#3b1a60] leading-none">SK BUILDERS</h1>
+              <p className="text-[10px] tracking-widest text-orange-500 font-bold uppercase">& Property Consultant</p>
+            </div>
+          </div>
+          
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
+            <a href="#" className="text-orange-500">Home</a>
+            <a href="#" className="hover:text-orange-500 transition">About Us</a>
+            <a href="#" className="hover:text-orange-500 transition">Our Services</a>
+            <a href="#" className="hover:text-orange-500 transition">Properties</a>
+            <a href="#" className="hover:text-orange-500 transition">Projects</a>
+            <a href="#" className="hover:text-orange-500 transition">Gallery</a>
+            <a href="#" className="hover:text-orange-500 transition">Contact Us</a>
+          </nav>
+
+          <button className="bg-[#3b1a60] text-white px-6 py-2 rounded-full flex items-center gap-2 text-sm font-bold">
+            <Phone size={16} /> +91 9XXXXXXXX
+          </button>
+        </div>
+      </header>
+
+      {/* --- HERO SECTION --- */}
+      <section className="pt-32 pb-20 px-4 bg-gradient-to-br from-blue-50 to-white overflow-hidden">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+          <div className="space-y-6">
+            <p className="font-bold text-[#3b1a60] tracking-widest uppercase text-sm">Building Quality Homes.</p>
+            <h2 className="text-5xl md:text-6xl font-black leading-tight text-[#3b1a60]">
+              Helping You <span className="text-orange-500">Find</span> <br />
+              the <span className="text-orange-500">Right Property</span> <br />
+              & Build with <span className="text-orange-500">Confidence</span>
+            </h2>
+            <p className="text-gray-600 max-w-lg leading-relaxed">
+              We build and sell individual homes, offer residential plots, contract construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.
+            </p>
+            
+            <div className="flex flex-wrap gap-8 py-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-lg text-purple-800"><Users size={20}/></div>
+                <p className="text-xs font-bold leading-tight">Trust & <br/> Transparency</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-lg text-purple-800"><Home size={20}/></div>
+                <p className="text-xs font-bold leading-tight">Quality <br/> Construction</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-lg text-purple-800"><Users size={20}/></div>
+                <p className="text-xs font-bold leading-tight">Personalized <br/> Service</p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <button className="bg-[#3b1a60] text-white px-8 py-4 rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-purple-200">
+                <Phone size={20} /> Call Now
+              </button>
+              <button className="bg-orange-500 text-white px-8 py-4 rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-orange-200">
+                <MessageCircle size={20} /> WhatsApp
+              </button>
+            </div>
+          </div>
+
+          <div className="relative">
+             {/* Representing the colorful house image */}
+             <div className="rounded-3xl overflow-hidden border-[12px] border-white shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-500">
+                <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800" alt="Featured House" className="w-full h-[500px] object-cover" />
+             </div>
+             {/* Floating decorative elements to mimic the colorful graphics */}
+             <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-400 rounded-full opacity-20 blur-3xl"></div>
+          </div>
+        </div>
+      </section>
+
+      {/* --- WHAT WE DO --- */}
+      <section className="py-24 px-4 bg-white">
+        <div className="max-w-7xl mx-auto text-center space-y-4 mb-16">
+          <h2 className="text-3xl font-black text-[#3b1a60] relative inline-block">
+            What We Do
+            <div className="h-1 w-1/2 bg-orange-500 mx-auto mt-2"></div>
+          </h2>
+        </div>
+
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 lg:grid-cols-6 gap-6">
+          {[
+            { title: 'Houses for Sale', icon: <Home />, desc: 'Ready-to-move individual houses with quality and trust.' },
+            { title: 'Lands for Sale', icon: <MapPin />, desc: 'Residential plots in prime locations. DTCP approved.' },
+            { title: 'Contract House Construction', icon: <HardHat />, desc: 'We build your dream home on your land with on-time delivery.' },
+            { title: 'Property Consultant', icon: <Users />, desc: 'Expert help for buying or selling land and houses.' },
+            { title: 'Documentation Support', icon: <FileText />, desc: 'Assistance for all property related legal documents.' },
+            { title: 'Construction Consultation', icon: <HardHat />, desc: 'Planning, estimation, and site visit advice.' },
+          ].map((item, idx) => (
+            <div key={idx} className="p-6 rounded-2xl border border-gray-100 hover:border-orange-200 hover:shadow-xl transition-all group text-center flex flex-col items-center">
+              <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-[#3b1a60] mb-4 group-hover:bg-orange-500 group-hover:text-white transition">
+                {item.icon}
+              </div>
+              <h3 className="font-bold text-[#3b1a60] text-sm mb-3 h-10">{item.title}</h3>
+              <p className="text-xs text-gray-500 leading-relaxed mb-4">{item.desc}</p>
+              <a href="#" className="mt-auto text-orange-500 font-bold text-xs flex items-center gap-1">Explore <ArrowRight size={12}/></a>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* --- STATS BAR --- */}
+      <section className="bg-[#3b1a60] py-12 px-4 text-white">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { label: 'Homes Built', count: '40+', icon: <Home className="text-yellow-400"/> },
+            { label: 'Plots Sold', count: '75+', icon: <MapPin className="text-yellow-400"/> },
+            { label: 'Property Deals', count: '150+', icon: <FileText className="text-yellow-400"/> },
+            { label: 'Happy Families', count: '100+', icon: <Users className="text-yellow-400"/> },
+          ].map((stat, i) => (
+            <div key={i} className="flex items-center gap-4 justify-center">
+              <div className="text-3xl opacity-80">{stat.icon}</div>
+              <div>
+                <p className="text-3xl font-black">{stat.count}</p>
+                <p className="text-xs uppercase tracking-widest opacity-70 font-bold">{stat.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* --- FEATURED PROPERTIES --- */}
+      <section className="py-24 px-4 bg-gray-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-black text-[#3b1a60] mb-8">Featured Properties</h2>
+            <div className="inline-flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
+               <button className="px-8 py-3 rounded-lg bg-orange-500 text-white font-bold text-sm">Houses for Sale</button>
+               <button className="px-8 py-3 rounded-lg text-gray-500 font-bold text-sm">Lands for Sale</button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { title: 'Individual House', loc: 'Poonamallee', price: '58 Lakhs', bhk: '2 BHK', sqft: '1200', plot: '1000' },
+              { title: 'Individual House', loc: 'Mangadu', price: '52 Lakhs', bhk: '2 BHK', sqft: '1100', plot: '900' },
+              { title: 'Individual House', loc: 'Kundrathur', price: '72 Lakhs', bhk: '3 BHK', sqft: '1500', plot: '1200' },
+              { title: 'Residential Plot', loc: 'Poonamallee', price: '32 Lakhs', bhk: 'DTCP', sqft: '1200', plot: 'Approved' },
+            ].map((prop, i) => (
+              <div key={i} className="bg-white rounded-3xl overflow-hidden shadow-md border border-gray-100 hover:shadow-xl transition group">
+                <div className="h-48 bg-gray-200 overflow-hidden relative">
+                  <img src={`https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80`} alt={prop.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+                </div>
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-[#3b1a60]">{prop.title}</h4>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase"><MapPin size={10} className="text-orange-500"/> {prop.loc}</span>
+                  </div>
+                  <div className="flex gap-3 text-[10px] text-gray-500 font-bold mb-6 border-y py-3 border-gray-50">
+                    <span className="flex items-center gap-1"><BedDouble size={12}/> {prop.bhk}</span>
+                    <span className="flex items-center gap-1"><Maximize size={12}/> {prop.sqft} Sq.Ft</span>
+                    <span className="flex items-center gap-1"><LandPlot size={12}/> {prop.plot}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xl font-black text-orange-500">₹{prop.price}</p>
+                    <button className="bg-[#3b1a60] text-white text-[10px] font-bold px-4 py-2 rounded-lg">View Details</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-center mt-12">
+            <button className="bg-orange-500 text-white px-10 py-4 rounded-xl font-black text-sm shadow-lg shadow-orange-100">View All Properties</button>
+          </div>
+        </div>
+      </section>
+
+      {/* --- FOOTER --- */}
+      <footer className="bg-[#1a0b2e] text-gray-400 pt-20 pb-10 px-4">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-12 mb-16">
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 text-white">
+              <Home size={24} fill="currentColor"/>
+              <div>
+                <h1 className="text-xl font-black leading-none">SK BUILDERS</h1>
+                <p className="text-[8px] tracking-widest text-orange-500 font-bold uppercase">& Property Consultant</p>
+              </div>
+            </div>
+            <p className="text-sm leading-relaxed">
+              We build quality homes, sell residential plots and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.
+            </p>
+            <div className="flex gap-4">
+              <a href="#" className="bg-white/10 p-2 rounded-full hover:bg-orange-500 hover:text-white transition"><Facebook size={18}/></a>
+              <a href="#" className="bg-white/10 p-2 rounded-full hover:bg-orange-500 hover:text-white transition"><Instagram size={18}/></a>
+              <a href="#" className="bg-white/10 p-2 rounded-full hover:bg-orange-500 hover:text-white transition"><MessageCircle size={18}/></a>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-white font-bold mb-6">Quick Links</h4>
+            <ul className="space-y-3 text-sm">
+              <li><a href="#" className="hover:text-orange-500">Home</a></li>
+              <li><a href="#" className="hover:text-orange-500">About Us</a></li>
+              <li><a href="#" className="hover:text-orange-500">Our Services</a></li>
+              <li><a href="#" className="hover:text-orange-500">Properties</a></li>
+              <li><a href="#" className="hover:text-orange-500">Projects</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-white font-bold mb-6">Our Services</h4>
+            <ul className="space-y-3 text-sm">
+              <li className="flex items-center gap-2"> <CheckCircle size={12} className="text-orange-500"/> Houses for Sale</li>
+              <li className="flex items-center gap-2"> <CheckCircle size={12} className="text-orange-500"/> Lands for Sale</li>
+              <li className="flex items-center gap-2"> <CheckCircle size={12} className="text-orange-500"/> Construction</li>
+              <li className="flex items-center gap-2"> <CheckCircle size={12} className="text-orange-500"/> Documentation</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-white font-bold mb-6">Contact Us</h4>
+            <ul className="space-y-4 text-sm">
+              <li className="flex gap-3"><Phone size={16} className="text-orange-500 shrink-0"/> +91 9XXXXXXXXX</li>
+              <li className="flex gap-3"><FileText size={16} className="text-orange-500 shrink-0"/> info@skbuilders.com</li>
+              <li className="flex gap-3 leading-relaxed">
+                <MapPin size={16} className="text-orange-500 shrink-0"/> 
+                Poonamallee, Mangadu, Kundrathur, <br /> Tamil Nadu - 600056
+              </li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="border-t border-white/5 pt-8 text-center text-xs flex flex-col md:flex-row justify-between items-center gap-4">
+          <p>© 2024 SK Builders & Property Consultant. All Rights Reserved.</p>
+          <div className="flex gap-6">
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms & Conditions</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default SKBuildersLanding;

@@ -1,0 +1,328 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #09090b;
+    --bg-card: rgba(14, 14, 18, 0.60);
+    --bg-elevated: rgba(22, 22, 28, 0.70);
+    --gold-primary: #D4AF37;
+    --gold-light: #F59E0B;
+    --gold-dark: #B38728;
+    --color-cream: #F5F5F0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #09090b;
+    color: #f4f4f5;
+  }
+
+  body {
+    background-color: #09090b;
+    color: #f4f4f5;
+    overflow-x: hidden;
+  }
+
+  /* Visually hide scrollbars globally across the site while maintaining scroll functionality */
+  * {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0px;
+    height: 0px;
+    background: transparent;
+  }
+}
+
+/* ==========================================================================
+   Gold Gradient & Text Utilities
+   ========================================================================= */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #FFF5C0 0%, #FCD34D 25%, #F59E0B 50%, #D4AF37 75%, #AA771C 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gold-subtle {
+  color: #E5A93C;
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #F59E0B 0%, #D4AF37 50%, #B38728 100%);
+}
+
+.bg-gold-glass {
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+/* ==========================================================================
+   3D Spatial, Perspective & Multi-Layer Depth Tokens
+   ========================================================================= */
+.perspective-800 {
+  perspective: 800px;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.perspective-1200 {
+  perspective: 1200px;
+}
+
+.perspective-2000 {
+  perspective: 2000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+/* 3D Z-Axis Elevation for child elements within tilted 3D cards */
+.translate-z-10 {
+  transform: translateZ(6px);
+}
+
+.translate-z-20 {
+  transform: translateZ(10px);
+}
+
+.translate-z-30 {
+  transform: translateZ(15px);
+}
+
+.translate-z-40 {
+  transform: translateZ(20px);
+}
+
+/* ==========================================================================
+   3D Interactive Card Specular Glare & Crystal Frosted Glass
+   ========================================================================= */
+.tilt-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+/* Dynamic Radial Specular Reflection overlay controlled by JS coordinates */
+.specular-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(245, 158, 11, 0.14),
+    rgba(212, 175, 55, 0.04) 30%,
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 25;
+}
+
+.tilt-3d:hover .specular-glare {
+  opacity: 1;
+}
+
+/* Crystal-Translucent Frosted Glass Card with Gentle Hover */
+.gold-specular-card {
+  position: relative;
+  background: rgba(14, 14, 18, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.3s ease,
+              box-shadow 0.3s ease,
+              transform 0.3s ease;
+}
+
+.gold-specular-card:hover {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.7),
+              0 0 20px -5px rgba(245, 158, 11, 0.2);
+}
+
+/* ==========================================================================
+   Obsidian & 24K Gold Glassmorphism Styling
+   ========================================================================= */
+.glass-dark {
+  background: rgba(14, 14, 18, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.glass-dark-gold {
+  background: rgba(18, 16, 24, 0.70);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7),
+              0 0 20px -5px rgba(212, 175, 55, 0.2);
+}
+
+.glass-nav {
+  background: rgba(9, 9, 11, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+/* ==========================================================================
+   High-Tech Blueprint Lines & Grids
+   ========================================================================= */
+.bg-blueprint-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(212, 175, 55, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.06) 1px, transparent 1px);
+}
+
+.bg-blueprint-lines {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+}
+
+/* ==========================================================================
+   Gold Glowing Borders
+   ========================================================================= */
+.border-gold-glow {
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.12);
+}
+
+.border-gold-glow:hover {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+}
+
+/* 3D Continuous Octahedron / Diamond Rotation for Section Dividers */
+@keyframes rotatePrism3D {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(45deg);
+  }
+  50% {
+    transform: rotateX(180deg) rotateY(180deg) rotateZ(225deg);
+  }
+  100% {
+    transform: rotateX(360deg) rotateY(360deg) rotateZ(405deg);
+  }
+}
+
+.animate-prism-3d {
+  animation: rotatePrism3D 14s linear infinite;
+  transform-style: preserve-3d;
+}
+
+/* Magnetic Button Base */
+.magnetic-btn {
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ==========================================================================
+   Custom Gold Scrollbar
+   ========================================================================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #B38728 100%);
+}
+
+/* Hide Scrollbars when needed */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   Mobile Auto X-Axis Marquee & Horizontal Touch Scroll Utilities
+   ========================================================================= */
+@keyframes marqueeLeft {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-33.333333%, 0, 0);
+  }
+}
+
+@keyframes marqueeRight {
+  0% {
+    transform: translate3d(-33.333333%, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-marquee-left {
+  animation: marqueeLeft 28s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-right {
+  animation: marqueeRight 28s linear infinite;
+  will-change: transform;
+}
+
+/* Touch-optimized horizontal scrolling */
+.touch-carousel {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+}
+
+.touch-carousel > * {
+  scroll-snap-align: center;
+  flex-shrink: 0;
+}
+
+/* Mobile smooth scrolling & performance optimizations */
+@media (max-width: 768px) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Reduce GPU load on mobile cards for ultra-smooth 60fps scrolling */
+  .gold-specular-card {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    background-color: rgba(18, 18, 22, 0.92) !important;
+    contain: paint layout;
+  }
+}
+
