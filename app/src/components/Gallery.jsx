@@ -73,11 +73,11 @@ const Gallery = () => {
   const finalRow1 = row1Items.length > 0 ? row1Items : sourceItems;
   const finalRow2 = row2Items.length > 0 ? row2Items : sourceItems;
 
-  const isRow1Marquee = finalRow1.length > 0;
-  const isRow2Marquee = finalRow2.length > 0;
+  const isRow1Marquee = finalRow1.length >= 3;
+  const isRow2Marquee = finalRow2.length >= 3;
 
-  const loopRow1 = [...finalRow1, ...finalRow1, ...finalRow1, ...finalRow1];
-  const loopRow2 = [...finalRow2, ...finalRow2, ...finalRow2, ...finalRow2];
+  const loopRow1 = isRow1Marquee ? [...finalRow1, ...finalRow1, ...finalRow1] : finalRow1;
+  const loopRow2 = isRow2Marquee ? [...finalRow2, ...finalRow2, ...finalRow2] : finalRow2;
 
   // Smooth GSAP Desktop Pinned Section with gradual reveal and silky unpin transition
   useEffect(() => {
