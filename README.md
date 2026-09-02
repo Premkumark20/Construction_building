@@ -23,4 +23,4 @@ Configured via `.npmrc` to use `D:\Libraries\pnpm-store`.
 - **Scroll Construction Hero**: GSAP ScrollTrigger canvas animation rendering 121 WebP frames (`frames/frame_0001.webp` to `frames/frame_0121.webp`).
 - **Primary Design Reference**: Matches `reference/website-reference.png` and features `house/completed-house.jpg`.
 - **Verified Property Listings**: Houses & Land for sale in Poonamallee, Mangadu & Kundrathur.
-- **WhatsApp Integration**: Direct pre-filled WhatsApp enquiry links.
+- **WhatsApp Integration**: Direct pre-filled WhatsApp enquiry links."# Construction_building" 
