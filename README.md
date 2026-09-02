@@ -2,8 +2,6 @@
 
 A state-of-the-art, full-stack web application and interactive digital showcase built for **SK Builders & Property Consultant**, serving **Poonamallee, Mangadu, Kundrathur, and Greater Chennai**.
 
-![SK Builders Showcase](app/public/logo/sk-builders-logo.png)
-
 ---
 
 ## 🏢 About SK Builders & Property Consultant
