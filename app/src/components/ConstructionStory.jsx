@@ -72,7 +72,7 @@ const ConstructionStory = () => {
     for (let i = 1; i <= totalFrameCount; i++) {
       const img = new Image();
       const frameNum = String(i).padStart(4, '0');
-      img.src = `/frames/${frameFolder}/frame_${frameNum}.webp?v=${frameVersion}`;
+      img.src = `./frames/${frameFolder}/frame_${frameNum}.webp?v=${frameVersion}`;
 
       img.onload = () => {
         successCount++;

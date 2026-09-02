@@ -44,7 +44,7 @@ const getInitialSiteData = () => {
       facebook_url: 'https://facebook.com',
       instagram_url: 'https://instagram.com',
       whatsapp_number: '',
-      logo_url: '/logo/sk-builders-logo.png'
+      logo_url: './logo/sk-builders-logo.png'
     },
     services: defaultServices,
     properties: defaultProperties,

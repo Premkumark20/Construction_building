@@ -10,7 +10,7 @@ const MouseInteractiveBg = () => {
   const canvasRef = useRef(null);
   const spotlightInnerRef = useRef(null);
   const spotlightOuterRef = useRef(null);
-  const [bgVideoSrc, setBgVideoSrc] = useState('/videos/Background.mp4');
+  const [bgVideoSrc, setBgVideoSrc] = useState('./videos/Background.mp4');
   const [inHero, setInHero] = useState(false);
 
   // 1. Fetch active primary background video & listen for admin changes

@@ -133,7 +133,7 @@ const WhyChooseUs = () => {
               {/* Background Architectural House Sketch Image Container */}
               <div className="absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none rounded-2xl sm:rounded-3xl">
                 <img
-                  src="/house/house-sketch.png"
+                  src="./house/house-sketch.png"
                   alt="Architectural House Sketch Background"
                   className="w-full h-full object-cover object-center sm:object-right opacity-95 group-hover:scale-105 transition-transform duration-700 filter brightness-125 contrast-130"
                 />
