@@ -13,6 +13,8 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: [
+        '**/assets/**',
+        '**/dist/**',
         '**/uploads/**',
         '**/app/server/**',
         '**/frames/**',
