@@ -2,6 +2,8 @@
 
 A state-of-the-art, full-stack web application and interactive digital showcase built for **SK Builders & Property Consultant**, serving **Poonamallee, Mangadu, Kundrathur, and Greater Chennai**.
 
+🌐 **Live Website (GitHub Pages)**: [https://premkumark20.github.io/Construction_building/](https://premkumark20.github.io/Construction_building/)
+
 ---
 
 ## 🏢 About SK Builders & Property Consultant
@@ -84,10 +86,11 @@ Navigate to `http://localhost:5173/#admin` (or `http://localhost:5173/admin`) to
 
 ---
 
-## 🌐 Deployment Options
+## 🌐 Deployment & Live Links
 
-- **Static Hosting (GitHub Pages & Netlify)**: Pre-built production files are located in `dist/`.
-- **Full Stack Hosting (Render / Railway / VPS)**: Deploy Express server with Node.js and SQLite.
+- 🌐 **GitHub Pages Live Link**: [https://premkumark20.github.io/Construction_building/](https://premkumark20.github.io/Construction_building/)
+- **Static Hosting (GitHub Pages & Netlify)**: Production static bundle is located in `dist/`.
+- **Full Stack Hosting (Render / Railway / VPS)**: Deploy backend Express API server with Node.js and SQLite database.
 
 ---
 
