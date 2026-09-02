@@ -1,97 +1,101 @@
-# 🏗️ SK Builders & Property Consultant - Business Showcase & Admin Portal
+# SK Builders & Property Consultant - Business Showcase Website
 
-A full-stack, high-performance, scroll-animated web application and management portal for **SK Builders & Property Consultant**, serving **Poonamallee, Mangadu, Kundrathur, and Chennai**.
+A state-of-the-art, full-stack web application and interactive digital showcase built for **SK Builders & Property Consultant**, serving **Poonamallee, Mangadu, Kundrathur, and Greater Chennai**.
 
----
-
-## 🌟 Key Features
-
-### 🏢 **Public Showcase Website**
-- **Interactive 3D Frame Scrubbing (`ConstructionStory.jsx`)**: Canvas-rendered 121-frame 3D interactive video scrubbing that animates a house build step-by-step as visitors scroll down.
-- **Dual-Track Continuous Infinite Marquee (`Gallery.jsx`)**: Hardware-accelerated X-axis continuous marquee scrolling with dynamic row balancing (e.g. 11 images automatically split into two balanced 6-image rows).
-- **Cinematic Timeline Storyline (`Projects.jsx`)**: Slow-paced, pinned milestone progression (*1. Architectural Plan ➔ 2. Foundation ➔ 3. Column Structure ➔ 4. Finishing ➔ 5. Key Handover*) with sequential project card reveals.
-- **Featured Property Listings (`FeaturedProperties.jsx`)**: Filterable Individual House & DTCP Land Plot showcases with compound pricing (`₹58 Lakhs`), 3D specular card tilts, and detailed modal views.
-- **Instant Preloaded Cache Hydration**: 0ms latency page rendering on refresh via `sessionStorage` caching paired with silent background API re-validation.
-- **Zero-Flash Skeleton Loaders**: Shimmering skeleton placeholders during data fetching to prevent empty state layout shifts or "Not Found" flashes.
-- **Lenis & GSAP Momentum Scroll Engine**: Pinned stage containers (`WhyChooseUs`, `Gallery`, `Services`, `Properties`, `Projects`, `ContactCTA`) powered by Lenis smooth momentum scrolling and GSAP ScrollTrigger.
-
-### 🔐 **Admin Management Portal (`AdminDashboard.jsx`)**
-- **Full CRUD Control**: Manage Properties, Land Plots, Construction Projects, Photo Gallery, Customer Inquiry Leads, and Hero/Background Videos.
-- **Custom Multi-Step Property Form**: 7-step wizard with compound inputs (fixed `₹` symbol + editable number + denomination select; editable number + fixed `BHK` badge; area number + unit select).
-- **Media Management**: Single & batch image uploads, physical disk file unlinking on deletion, custom video file renaming, and instant primary video selection.
-- **Security & Session Management**: Session token authentication and credentials management (username/password update).
+![SK Builders Showcase](app/public/logo/sk-builders-logo.png)
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 🏢 About SK Builders & Property Consultant
 
-- **Frontend**: React 18, Vite 6, Tailwind CSS v4, GSAP (ScrollTrigger), Lenis Smooth Scroll, Lucide React icons.
-- **Backend**: Node.js, Express.js API server.
-- **Database**: SQLite3 (embedded relational database with automated migrations).
-- **Storage**: Multer file storage for images and videos, with physical `fs.unlinkSync` disk file deletion.
-- **Frame Pipeline**: Python OpenCV script (`python/extract_frames.py`) for automated 3D WebP frame extraction from uploaded hero construction videos.
+**SK Builders & Property Consultant** is a trusted construction company and property consultancy specializing in individual house construction, residential plot developments, and end-to-end real estate solutions.
 
----
-
-## 💡 Engineering & Problem Solving Solutions
-
-1. **Preventing Page Reloads on Admin Updates (Vite Watcher Optimization)**:
-   - *Problem*: Vite's dev server was watching the root directory `.`. Whenever an admin uploaded media to `uploads/` or updated SQLite `showcase.db`, Vite triggered a full page reload (`[vite] page reload`) in all open tabs.
-   - *Solution*: Configured `server.watch.ignored` in `vite.config.js` to ignore `uploads/**`, `app/server/**`, `frames/**`, and `*.db*`. Admin updates now update React state and trigger real-time events without refreshing the browser.
-
-2. **Eliminating Empty State "Not Found" Flashes on Refresh**:
-   - *Problem*: On page refresh, while async data was loading from API, components briefly flashed empty "No items found" containers.
-   - *Solution*: Implemented `sessionStorage` initial cache hydration in `useSiteData.js` for 0ms initial load, combined with sleek pulsing skeleton loaders across all public components and admin dashboard tabs while `loading` is true.
-
-3. **Smooth Infinite Marquee Sub-Pixel Math**:
-   - *Problem*: Marquee animations stuttered or jumped at the loop boundary.
-   - *Solution*: Aligned 3x duplicate loop arrays with keyframes `transform: translate3d(0, 0, 0)` to `transform: translate3d(-33.333333%, 0, 0)`. At `-33.333333%`, set 2 maps to set 1 with 100% sub-pixel accuracy for a seamless 60fps infinite loop.
-
-4. **Section Pinning & Layout Overlap Resolution**:
-   - *Problem*: GSAP section pinning caused adjacent sections to bleed or overlap into each other.
-   - *Solution*: Standardized stage container bounds (`min-h-0 sm:min-h-screen h-auto sm:h-screen`), expanded scroll distances (`end: '+=2000'` to `'+=3400'`), set `anticipatePin: 1`, and added automatic `ScrollTrigger.refresh()` on data load.
-
-5. **Physical Disk File Cleanup**:
-   - *Problem*: Deleting database records left orphan files taking up disk space.
-   - *Solution*: Implemented automated physical file unlinking using `fs.unlinkSync` across all API delete endpoints (`/api/properties`, `/api/land`, `/api/projects`, `/api/gallery`, `/api/media`).
+* **Primary Service Locations**: Poonamallee, Mangadu, Kundrathur, Kanchipuram District & Greater Chennai.
+* **Core Value**: Uncompromising structural quality, transparent pricing, quality-certified engineering, and on-time delivery.
 
 ---
 
-## 🚀 Development Setup
+## 🛠️ Key Services
 
-Run the project directly from the root directory:
+### 1. 🏡 Houses for Sale
+Ready-to-move and under-construction individual luxury houses, duplex villas, and independent homes designed with RCC column foundations, red brick masonry, and premium fittings.
 
+### 2. 🗺️ Lands & Plots for Sale
+DTCP & CMDA approved residential plots in prime, rapidly developing locations with clear legal titles and high appreciation potential.
+
+### 3. 🏗️ Contract House Construction
+Complete turnkey contract house construction on customer land. We handle everything from 2D/3D architectural floor plans, foundation engineering, red brick wall construction, waterproof concrete roofing, to final key handover.
+
+### 4. 👥 Property Consultation & Real Estate Guidance
+Expert assistance for buyers, sellers, and plot investors. Transparent pricing, site visits, and market valuation guidance.
+
+### 5. 📄 Documentation Support
+End-to-end assistance with legal documents, Patta transfers, Encumbrance Certificates (EC), parent document verification, and registration guidance.
+
+### 6. 📐 Construction Consultation & Estimation
+Detailed cost estimation, structural design planning, site supervision, and quality engineer certification.
+
+---
+
+## ✨ Key Website Features & Interactive Experiences
+
+- 🎬 **Interactive 3D Construction Hero Storyboard**: GSAP ScrollTrigger canvas frame scrubbing that renders 121 high-definition WebP frames as the user scrolls down, visually transforming vacant land into a finished home.
+- 🔄 **Dual-Track Continuous Infinite Marquee Gallery**: Dual X-axis auto-scrolling showcase highlighting completed houses, plot layouts, and site progress.
+- ⏱️ **5-Stage Construction Timeline Storyline**: Interactive step-by-step milestone progression (*1. Architectural Plan ➔ 2. Column Foundation ➔ 3. Red Brick Masonry ➔ 4. Waterproof Concrete Roof ➔ 5. Key Handover*).
+- 🔐 **Comprehensive Admin Portal (`/admin`)**: Secure dashboard for real-time CRUD management:
+  - Add, edit, or delete House Properties, Land Plots, and Construction Projects.
+  - Upload Gallery photos and hero/background construction videos.
+  - Review customer leads and enquiry messages.
+  - Update company branding, phone numbers, email, service areas, and tagline.
+- ⚡ **Instant Zero-Latency Data Hydration**: Uses `sessionStorage` caching with silent background synchronization for instant page reloads without empty state flashes.
+- 📞 **Direct One-Touch Contact & WhatsApp Integration**: Integrated phone call buttons and pre-filled WhatsApp enquiry links for direct customer leads.
+
+---
+
+## 💻 Tech Stack
+
+- **Frontend**: React 18, Vite 6, Tailwind CSS v4, GSAP 3 (ScrollTrigger), Lenis Smooth Scroll, Lucide React.
+- **Backend**: Node.js, Express.js, SQLite (`showcase.db`), Multer File Storage.
+- **Media Processing**: Python frame extraction script (`python/extract_frames.py` with OpenCV).
+
+---
+
+## 🚀 Quick Start & Local Setup
+
+### 1. Clone the repository
 ```bash
-# Using npm
+git clone https://github.com/Premkumark20/Construction_building.git
+cd Construction_building
+```
+
+### 2. Install dependencies
+```bash
+npm install
+```
+
+### 3. Run Development Server
+```bash
 npm run dev
-
-# OR using pnpm
-pnpm dev
 ```
+This concurrently starts:
+- **Frontend (Vite)**: `http://localhost:5173`
+- **Backend (Express API & SQLite)**: `http://localhost:5000`
 
-### Services Launched:
-- **Frontend (Vite)**: [http://localhost:5173](http://localhost:5173)
-- **Backend (Express + SQLite)**: [http://localhost:5000](http://localhost:5000)
+### 4. Admin Portal Access
+Navigate to `http://localhost:5173/#admin` (or `http://localhost:5173/admin`) to manage site content.
 
 ---
 
-## 📦 Production Build & Deployment
+## 🌐 Deployment Options
 
-Generate the production bundle:
+- **Static Hosting (GitHub Pages & Netlify)**: Pre-built production files are located in `dist/`.
+- **Full Stack Hosting (Render / Railway / VPS)**: Deploy Express server with Node.js and SQLite.
 
-```bash
-npm run build
-```
+---
 
-The output build files are generated in `dist/`.
+## 📞 Business Contact Information
 
-### 🌐 GitHub Pages Deployment
-1. Go to repository Settings ➔ **Pages** on GitHub.
-2. Select **Source**: `Deploy from a branch` ➔ **Branch**: `main` ➔ **Folder**: `/dist` (or root).
-3. Save to deploy live!
-
-### ⚡ Netlify / Vercel Deployment
-1. Import repository in Netlify/Vercel.
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-4. Deploy!
+- **Company Name**: SK Builders & Property Consultant
+- **Location**: Poonamallee, Mangadu, Kundrathur, Chennai, Tamil Nadu
+- **Email**: info@skbuilders.com
+- **Phone**: +91 98765 43210
