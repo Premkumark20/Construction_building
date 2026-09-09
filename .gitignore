@@ -35,6 +35,7 @@ app/public/videos/
 app/dist/
 dist/
 
-# Prompts & Notes
-*.txt
+# Private text and prompt files
 Animated Free Website Prompts.txt
+ai_studio_code.txt
+
