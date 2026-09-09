@@ -157,7 +157,7 @@ router.get('/background-video', (req, res) => {
         if (!err && fallbackRow) {
           return res.json({ videoUrl: `/videos/${fallbackRow.filename}`, filename: fallbackRow.filename, video: fallbackRow });
         }
-        res.json({ videoUrl: '/videos/Background.mp4', filename: 'Background.mp4', video: null });
+        res.json({ videoUrl: '', filename: '', video: null });
       });
     });
   });

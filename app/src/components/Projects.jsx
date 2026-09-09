@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, X, ExternalLink, MessageCircle, Phone, HardHat, CheckCircle2, Search } from 'lucide-react';
+import { MapPin, X, ExternalLink, MessageCircle, Phone, HardHat, CheckCircle2, Search, Home } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSiteData } from '../hooks/useSiteData.js';
@@ -70,6 +70,17 @@ const Projects = () => {
     return matchesStatus && matchesSearch;
   });
 
+  const handleFilterChange = (tab) => {
+    setActiveFilter(tab);
+    setActiveCardIndex(0);
+    if (trackRef.current) {
+      gsap.set(trackRef.current, { x: 0 });
+    }
+    requestAnimationFrame(() => {
+      ScrollTrigger.refresh();
+    });
+  };
+
   // Responsive Scroll Engine (Desktop Pinning & Sequential Retrieval vs Mobile Manual Horizontal Scroll)
   useEffect(() => {
     const section = sectionRef.current;
@@ -87,10 +98,8 @@ const Projects = () => {
 
     // 1. DESKTOP: Pinned Timeline Progression & Sequential Cards Retrieval
     mm.add('(min-width: 769px)', () => {
-      const cards = Array.from(track.children);
-      const totalCards = cards.length;
-
       const getScrollAmount = () => {
+        if (!track || !trackWrapper) return 0;
         const overflow = track.scrollWidth - trackWrapper.clientWidth;
         return Math.max(0, overflow + 80);
       };
@@ -99,18 +108,10 @@ const Projects = () => {
       if (header) gsap.set(header, { opacity: 0, y: 35 });
       if (timelineBox) gsap.set(timelineBox, { opacity: 0, y: 25 });
       if (filterPills) gsap.set(filterPills, { opacity: 0, y: 20 });
+      if (trackWrapper) gsap.set(trackWrapper, { opacity: 0, y: 30, scale: 0.98 });
       if (ctaBtn) gsap.set(ctaBtn, { opacity: 0, y: 25, scale: 0.95 });
-      cards.forEach((card) => {
-        gsap.set(card, { opacity: 0, scale: 0.85, y: 40 });
-      });
 
-      const scrollAmount = getScrollAmount();
-      // If scrollAmount > 0 (cards overflow screen width), pin dynamically proportional to overflow width
-      // If scrollAmount === 0 (empty card or cards fit screen), crisp smooth entrance pin (800px)
-      // Expanded scroll distance and slow scrub so TIMELINE STORYLINE glides deliberately and calmly
-      const scrollDistance = scrollAmount > 0
-        ? Math.max(3400, Math.floor(scrollAmount * 2.2 + totalCards * 340))
-        : 2600;
+      const scrollDistance = 2600;
 
       const tl = gsap.timeline({
         scrollTrigger: {
@@ -118,41 +119,42 @@ const Projects = () => {
           pin: pinContainer,
           start: 'top top',
           end: `+=${scrollDistance}`,
-          scrub: 1.5,
+          scrub: 1.6, // High damping for silky-smooth, deliberate scroll speed
           anticipatePin: 1,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
-            if (self.progress < 0.05) {
+            const cardCount = track.children.length || 1;
+            if (self.progress < 0.10) {
               setActiveStep(0);
               setActiveCardIndex(0);
             } else if (self.progress <= 0.65) {
-              // Gentle, slow paced progression through all 5 timeline milestones
-              const timelineProgress = Math.min(1, Math.max(0, (self.progress - 0.05) / (0.65 - 0.05)));
+              // Dedicated extended scroll range for TIMELINE STORYLINE milestones (0.10 to 0.65)
+              const timelineProgress = Math.min(1, Math.max(0, (self.progress - 0.10) / (0.65 - 0.10)));
               const stepIdx = Math.min(4, Math.floor(timelineProgress * 5));
               setActiveStep(stepIdx);
               setActiveCardIndex(0);
             } else {
               setActiveStep(4);
               const cardProgress = Math.min(1, Math.max(0, (self.progress - 0.65) / (0.94 - 0.65)));
-              const currentIdx = Math.min(totalCards - 1, Math.floor(cardProgress * totalCards));
+              const currentIdx = Math.min(cardCount - 1, Math.floor(cardProgress * cardCount));
               setActiveCardIndex(currentIdx);
             }
           },
         },
       });
 
-      // 0. Ensure all cards and elements are strictly locked hidden at time 0 of timeline
-      tl.set(cards, { opacity: 0, scale: 0.85, y: 40 }, 0);
+      // 0. Ensure all elements are strictly locked hidden at time 0 of timeline
       if (header) tl.set(header, { opacity: 0, y: 35 }, 0);
       if (timelineBox) tl.set(timelineBox, { opacity: 0, y: 25 }, 0);
       if (filterPills) tl.set(filterPills, { opacity: 0, y: 20 }, 0);
+      if (trackWrapper) tl.set(trackWrapper, { opacity: 0, y: 30, scale: 0.98 }, 0);
       if (ctaBtn) tl.set(ctaBtn, { opacity: 0, y: 25, scale: 0.95 }, 0);
 
       // STEP 1: Heading
       if (header) {
         tl.to(
           header,
-          { opacity: 1, y: 0, duration: 0.05, ease: 'power2.out' },
+          { opacity: 1, y: 0, duration: 0.08, ease: 'power2.out' },
           0
         );
       }
@@ -161,24 +163,31 @@ const Projects = () => {
       if (timelineBox) {
         tl.to(
           timelineBox,
-          { opacity: 1, y: 0, duration: 0.05, ease: 'power2.out' },
-          0.03
+          { opacity: 1, y: 0, duration: 0.08, ease: 'power2.out' },
+          0.04
         );
       }
 
       if (filterPills) {
         tl.to(
           filterPills,
-          { opacity: 1, y: 0, duration: 0.05, ease: 'power2.out' },
-          0.04
+          { opacity: 1, y: 0, duration: 0.06, ease: 'power2.out' },
+          0.08
         );
       }
 
-      // STEP 3 & 4: Cards retrieved sequentially
+      // STEP 3 & 4: Cards Track Reveal & Horizontal Scroll
       const cardStartProgress = 0.65;
       const cardEndProgress = 0.94;
       const cardSpan = cardEndProgress - cardStartProgress;
-      const stepDuration = cardSpan / totalCards;
+
+      if (trackWrapper) {
+        tl.to(
+          trackWrapper,
+          { opacity: 1, y: 0, scale: 1, duration: 0.12, ease: 'power2.out' },
+          cardStartProgress
+        );
+      }
 
       tl.to(
         track,
@@ -190,27 +199,12 @@ const Projects = () => {
         cardStartProgress
       );
 
-      cards.forEach((card, idx) => {
-        const cardEntry = cardStartProgress + idx * stepDuration;
-        tl.to(
-          card,
-          {
-            opacity: 1,
-            scale: 1,
-            y: 0,
-            duration: stepDuration * 0.85,
-            ease: 'power2.out',
-          },
-          cardEntry
-        );
-      });
-
       // STEP 5: CTA button
       if (ctaBtn) {
         tl.to(
           ctaBtn,
           { opacity: 1, y: 0, scale: 1, duration: 0.06, ease: 'back.out(1.4)' },
-          0.92
+          0.94
         );
       }
 
@@ -226,22 +220,20 @@ const Projects = () => {
       if (header) gsap.set(header, { clearProps: 'all' });
       if (timelineBox) gsap.set(timelineBox, { clearProps: 'all' });
       if (filterPills) gsap.set(filterPills, { clearProps: 'all' });
+      if (trackWrapper) gsap.set(trackWrapper, { clearProps: 'all' });
       if (ctaBtn) gsap.set(ctaBtn, { clearProps: 'all' });
       if (track) gsap.set(track, { clearProps: 'all' });
-      if (track?.children) {
-        gsap.set(Array.from(track.children), { clearProps: 'all' });
-      }
 
       // Infinite auto-cycle highlight across 5 milestones on mobile with relaxed slow pacing
       const interval = setInterval(() => {
         setActiveStep((prev) => (prev + 1) % 5);
-      }, 2800);
+      }, 4500);
 
       return () => clearInterval(interval);
     });
 
     return () => mm.revert();
-  }, [activeFilter, first10Projects.length]);
+  }, []);
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
@@ -265,7 +257,7 @@ const Projects = () => {
   };
 
   return (
-    <section ref={sectionRef} id="projects" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="projects" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10 min-h-screen">
       {/* Stage Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center gap-2 sm:gap-3 py-10 sm:py-20 relative">
         {/* Background Ambient Glow */}
@@ -342,7 +334,7 @@ const Projects = () => {
             {filterTabs.map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveFilter(tab)}
+                onClick={() => handleFilterChange(tab)}
                 className={`px-3 py-1 rounded-full text-[11px] sm:text-xs font-extrabold transition-all duration-300 ${activeFilter === tab
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/25 scale-105'
                     : 'bg-[#121216]/90 text-zinc-300 hover:bg-[#18181c] border border-white/10 hover:border-amber-500/30'
@@ -360,31 +352,26 @@ const Projects = () => {
             ref={trackRef}
             className={`py-1.5 sm:py-2 select-none perspective-1200 will-change-transform ${first10Projects.length === 0 ? 'w-full flex justify-center' : 'flex gap-3 sm:gap-5 w-max'}`}
           >
-            {loading && first10Projects.length === 0 ? (
-              <div className="flex gap-4 sm:gap-6 w-full max-w-7xl mx-auto px-4 justify-center">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="w-[250px] md:w-[270px] h-[340px] rounded-2xl bg-[#18181b]/70 border border-white/5 animate-pulse flex flex-col p-4 justify-between">
-                    <div className="w-full h-40 rounded-xl bg-zinc-800/60 animate-pulse" />
-                    <div className="space-y-2 mt-4">
-                      <div className="w-3/4 h-4 rounded bg-zinc-800/80 animate-pulse" />
-                      <div className="w-1/2 h-3 rounded bg-zinc-800/50 animate-pulse" />
-                    </div>
-                    <div className="w-full h-8 rounded-xl bg-zinc-800/40 animate-pulse mt-4" />
-                  </div>
-                ))}
-              </div>
-            ) : first10Projects.length === 0 ? (
-              <div className="w-full max-w-xl mx-auto py-10 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-2 relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
-                  <HardHat size={28} />
+            {first10Projects.length === 0 ? (
+              loading ? (
+                <div className="flex gap-3 sm:gap-5 w-max py-2">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="w-[300px] sm:w-[360px] h-[380px] rounded-2xl bg-zinc-900/60 border border-white/5 animate-pulse" />
+                  ))}
                 </div>
-                <h3 className="text-base font-black text-white uppercase tracking-wider mb-1.5">
-                  No Construction Projects Added Yet
-                </h3>
-                <p className="text-xs text-zinc-400 font-medium max-w-sm mx-auto">
-                  No construction project records found for this category. New projects added in the Admin Portal will automatically appear here.
-                </p>
-              </div>
+              ) : (
+                <div className="w-full max-w-xl mx-auto py-10 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-2 relative z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
+                    <HardHat size={28} />
+                  </div>
+                  <h3 className="text-base font-black text-white uppercase tracking-wider mb-1.5">
+                    No Construction Projects Added Yet
+                  </h3>
+                  <p className="text-xs text-zinc-400 font-medium max-w-sm mx-auto">
+                    No construction project records found for this category. New projects added in the Admin Portal will automatically appear here.
+                  </p>
+                </div>
+              )
             ) : (
               first10Projects.map((item, idx) => {
                 const isActive = activeCardIndex === idx;
@@ -400,12 +387,18 @@ const Projects = () => {
 
                     <div className="sm:preserve-3d relative z-10">
                       {/* Compact Image Container */}
-                      <div className="relative h-32 sm:h-36 md:h-40 w-full overflow-hidden bg-black border-b border-white/10">
-                        <img
-                          src={item.cover_image || item.image || '/house/completed-house.jpg'}
-                          alt={item.name || item.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                        />
+                      <div className="relative h-32 sm:h-36 md:h-40 w-full overflow-hidden bg-black border-b border-white/10 flex items-center justify-center">
+                        {(item.cover_image && item.cover_image !== '/house/completed-house.jpg' && !item.cover_image.includes('logo')) || (item.image && item.image !== '/house/completed-house.jpg' && !item.image.includes('logo')) ? (
+                          <img
+                            src={item.cover_image || item.image}
+                            alt={item.name || item.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center text-amber-400">
+                            <Home size={38} className="text-amber-400/80" />
+                          </div>
+                        )}
                         <div
                           className={`absolute top-2 right-2 text-[9px] sm:text-[9.5px] font-black px-2 py-0.5 rounded-full uppercase shadow-md sm:translate-z-30 ${item.status === 'Completed'
                               ? 'bg-green-500/90 text-white'
@@ -528,12 +521,18 @@ const Projects = () => {
                     <div className="specular-glare" />
 
                     <div className="relative z-10">
-                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-black border-b border-white/10">
-                        <img
-                          src={item.cover_image || item.image || '/house/completed-house.jpg'}
-                          alt={item.name || item.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                        />
+                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-black border-b border-white/10 flex items-center justify-center">
+                        {(item.cover_image && item.cover_image !== '/house/completed-house.jpg' && !item.cover_image.includes('logo')) || (item.image && item.image !== '/house/completed-house.jpg' && !item.image.includes('logo')) ? (
+                          <img
+                            src={item.cover_image || item.image}
+                            alt={item.name || item.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center text-amber-400">
+                            <Home size={48} className="text-amber-400/80" />
+                          </div>
+                        )}
                         <div
                           className={`absolute top-2.5 right-2.5 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase shadow-md ${item.status === 'Completed'
                               ? 'bg-green-500/90 text-white'
@@ -601,40 +600,49 @@ const Projects = () => {
 
             {/* Image Container with Thumbnails */}
             {(() => {
-              const imageList = selectedProjectDetails?.images && selectedProjectDetails.images.length > 0
+              const rawList = selectedProjectDetails?.images && selectedProjectDetails.images.length > 0
                 ? selectedProjectDetails.images.map(img => img.image_url)
-                : [selectedProject.cover_image || selectedProject.image || '/house/completed-house.jpg'];
+                : [(selectedProject.cover_image || selectedProject.image)];
+              const imageList = rawList.filter(url => url && !url.includes('logo') && url !== '/house/completed-house.jpg');
 
               return (
                 <div className="bg-[#121216] p-4 rounded-3xl border border-white/10 shadow-xl space-y-3">
-                  <div className="relative h-56 sm:h-64 w-full rounded-2xl overflow-hidden bg-black border border-white/10">
-                    <img
-                      src={selectedProject.cover_image || imageList[0]}
-                      alt={selectedProject.name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="relative h-56 sm:h-64 w-full rounded-2xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+                    {imageList.length > 0 ? (
+                      <img
+                        src={imageList[0]}
+                        alt={selectedProject.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center text-amber-400">
+                        <Home size={64} className="text-amber-400/80" />
+                      </div>
+                    )}
                     <div className="absolute top-3 left-3 bg-[#09090b]/90 border border-amber-500/30 text-amber-400 text-xs font-black px-3 py-1 rounded-full uppercase">
                       {selectedProject.status}
                     </div>
                   </div>
 
                   {/* Thumbnail Row */}
-                  <div className="flex items-center justify-between gap-3 text-xs font-bold pt-1">
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
-                      {imageList.map((imgUrl, i) => (
-                        <div key={i} className="relative rounded-lg overflow-hidden w-12 h-12 bg-black shrink-0 border border-white/10">
-                          <img src={imgUrl} alt="Thumb" className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
+                  {imageList.length > 1 && (
+                    <div className="flex items-center justify-between gap-3 text-xs font-bold pt-1">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                        {imageList.map((imgUrl, i) => (
+                          <div key={i} className="relative rounded-lg overflow-hidden w-12 h-12 bg-black shrink-0 border border-white/10">
+                            <img src={imgUrl} alt="Thumb" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
 
-                    <button
-                      onClick={() => setIsLightboxOpen(true)}
-                      className="bg-amber-500/20 hover:bg-amber-500 hover:text-black border border-amber-500/40 text-amber-300 font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-md"
-                    >
-                      📷 {imageList.length} Photos — View All
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => setIsLightboxOpen(true)}
+                        className="bg-amber-500/20 hover:bg-amber-500 hover:text-black border border-amber-500/40 text-amber-300 font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-md"
+                      >
+                        <ExternalLink size={13} /> View Gallery ({imageList.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -853,17 +861,23 @@ const Projects = () => {
           </div>
 
           <div className="flex-1 flex items-center justify-center py-6">
-            <img
-              src={selectedProject.cover_image || selectedProject.image || '/house/completed-house.jpg'}
-              alt="High-Res Site Preview"
-              className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/10"
-            />
+            {((selectedProjectDetails?.images && selectedProjectDetails.images.length > 0) || (selectedProject.cover_image && !selectedProject.cover_image.includes('logo'))) ? (
+              <img
+                src={selectedProjectDetails?.images?.[0]?.image_url || selectedProject.cover_image || selectedProject.image}
+                alt="High-Res Site Preview"
+                className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/10"
+              />
+            ) : (
+              <div className="w-48 h-48 bg-zinc-900 rounded-3xl flex items-center justify-center text-amber-400 border border-zinc-800">
+                <Home size={64} className="text-amber-400/80" />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 overflow-x-auto justify-center pb-2">
             {(selectedProjectDetails?.images && selectedProjectDetails.images.length > 0
-              ? selectedProjectDetails.images.map(img => img.image_url)
-              : [selectedProject.cover_image || selectedProject.image || '/house/completed-house.jpg']
+              ? selectedProjectDetails.images.map(img => img.image_url).filter(url => url && !url.includes('logo'))
+              : (selectedProject.cover_image && !selectedProject.cover_image.includes('logo') ? [selectedProject.cover_image] : [])
             ).map((imgUrl, i) => (
               <img
                 key={i}

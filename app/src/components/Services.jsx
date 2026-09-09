@@ -163,7 +163,7 @@ const Services = () => {
     });
 
     return () => mm.revert();
-  }, [safeServices.length]);
+  }, []);
 
   return (
     <section ref={sectionRef} id="services" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">

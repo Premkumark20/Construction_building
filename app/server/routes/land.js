@@ -102,7 +102,7 @@ router.post('/', (req, res) => {
     const total_price = body.total_price || body.price || 'Price on Request';
     const plot_area = body.plot_area || '1200';
     const location = body.location || body.area || 'Poonamallee';
-    const image = body.image || '/house/completed-house.jpg';
+    const image = body.image && body.image !== '/house/completed-house.jpg' && !body.image.includes('logo') ? body.image : '';
 
     const sql = `
       INSERT INTO land (
@@ -307,19 +307,98 @@ router.delete('/:id/images/:imageId', (req, res) => {
   });
 });
 
-// SET Cover Image for Land
-router.put('/:id/images/:imageId/cover', (req, res) => {
-  const { id, imageId } = req.params;
-  db.get('SELECT * FROM land_images WHERE id = ? AND land_id = ?', [imageId, id], (err, img) => {
-    if (err || !img) return res.status(404).json({ error: 'Image not found' });
+// Helper function to safely delete physical image file from filesystem
+const unlinkPhysicalLandImage = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
+  if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
 
-    db.run('UPDATE land_images SET is_cover = 0 WHERE land_id = ?', [id], () => {
-      db.run('UPDATE land_images SET is_cover = 1 WHERE id = ?', [imageId], () => {
-        db.run('UPDATE land SET image = ? WHERE id = ?', [img.image_url, id], () => {
-          res.json({ message: 'Cover image updated', cover: img.image_url });
-        });
+  const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
+  const fullPath = path.join(projectRoot, relativePath);
+  const filename = path.basename(imageUrl);
+  const candidatePaths = [
+    fullPath,
+    path.join(projectRoot, 'uploads/images/properties', filename),
+    path.join(projectRoot, 'uploads/images/land', filename),
+    path.join(projectRoot, 'uploads/images', filename)
+  ];
+
+  candidatePaths.forEach((p) => {
+    try {
+      if (fs.existsSync(p) && fs.lstatSync(p).isFile()) {
+        fs.unlinkSync(p);
+        console.log(`[Land Image Delete] Removed physical file: ${p}`);
+      }
+    } catch (e) {
+      console.error(`[Land Image Delete] Warning removing file ${p}:`, e.message);
+    }
+  });
+};
+
+// DELETE image directly from form (acts on physical filesystem & showcase.db)
+router.post('/delete-image', (req, res) => {
+  const { landId, imageUrl, imageId } = req.body;
+  if (!imageUrl && !imageId) {
+    return res.status(400).json({ error: 'imageUrl or imageId is required' });
+  }
+
+  // 1. Delete physical file from filesystem
+  if (imageUrl) {
+    unlinkPhysicalLandImage(imageUrl);
+  }
+
+  // 2. Delete from showcase.db database
+  db.serialize(() => {
+    if (imageId) {
+      db.get('SELECT image_url FROM land_images WHERE id = ?', [imageId], (err, row) => {
+        if (row?.image_url) unlinkPhysicalLandImage(row.image_url);
+        db.run('DELETE FROM land_images WHERE id = ?', [imageId]);
       });
-    });
+    }
+
+    if (imageUrl) {
+      db.run('DELETE FROM land_images WHERE image_url = ?', [imageUrl]);
+    }
+
+    if (landId) {
+      db.get('SELECT image FROM land WHERE id = ?', [landId], (err, landRow) => {
+        if (landRow && landRow.image === imageUrl) {
+          db.get(
+            'SELECT image_url FROM land_images WHERE land_id = ? AND image_url != ? ORDER BY is_cover DESC, sort_order ASC, id ASC LIMIT 1',
+            [landId, imageUrl],
+            (err, nextImg) => {
+              const newCover = nextImg ? nextImg.image_url : '';
+              db.run('UPDATE land SET image = ? WHERE id = ?', [newCover, landId]);
+            }
+          );
+        }
+      });
+    }
+  });
+
+  return res.json({ success: true, message: 'Land image deleted from physical disk and showcase.db' });
+});
+
+// SYNC & REORDER all Land Images
+router.put('/:id/images/sync', (req, res) => {
+  const landId = req.params.id;
+  const { images } = req.body;
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: 'images must be an array of URLs' });
+  }
+
+  db.serialize(() => {
+    db.run('DELETE FROM land_images WHERE land_id = ?', [landId]);
+    if (images.length > 0) {
+      const stmt = db.prepare('INSERT INTO land_images (land_id, image_url, sort_order, is_cover) VALUES (?, ?, ?, ?)');
+      images.forEach((url, idx) => {
+        stmt.run(landId, url, idx, idx === 0 ? 1 : 0);
+      });
+      stmt.finalize();
+      db.run('UPDATE land SET image = ? WHERE id = ?', [images[0], landId]);
+    } else {
+      db.run('UPDATE land SET image = ? WHERE id = ?', ['', landId]);
+    }
+    res.json({ message: 'Land images synchronized successfully', total: images.length });
   });
 });
 

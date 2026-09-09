@@ -101,7 +101,7 @@ router.post('/', (req, res) => {
     const status = body.status || 'Available';
     const price = body.price || 'Price on Request';
     const location = body.location || body.area || 'Poonamallee';
-    const image = body.image || '/house/completed-house.jpg';
+    const image = body.image && body.image !== '/house/completed-house.jpg' && !body.image.includes('logo') ? body.image : '';
 
     const sql = `
       INSERT INTO properties (
@@ -114,8 +114,8 @@ router.post('/', (req, res) => {
         borewell, overhead_tank, ground_water, road_access, facing, road_width, road_width_unit,
         road_type, corner_property, patta_status, ec_status, approved_plan_status,
         building_approval_status, property_tax_status, sale_deed_status, other_documents,
-        short_description, full_description, highlights, published, featured, category, location, image
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        short_description, full_description, description, highlights, published, featured, category, location, image
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
@@ -128,7 +128,7 @@ router.post('/', (req, res) => {
       body.borewell ? 1 : 0, body.overhead_tank ? 1 : 0, body.ground_water ? 1 : 0, body.road_access ? 1 : 0, body.facing || 'East', body.road_width || '30', body.road_width_unit || 'ft',
       body.road_type || 'Tar Road', body.corner_property || 'No', body.patta_status || 'Not Provided', body.ec_status || 'Not Provided', body.approved_plan_status || 'Not Provided',
       body.building_approval_status || 'Not Provided', body.property_tax_status || 'Not Provided', body.sale_deed_status || 'Not Provided', body.other_documents || '',
-      body.short_description || '', body.full_description || '', body.highlights || '', body.published !== undefined ? (body.published ? 1 : 0) : 1, body.featured !== undefined ? (body.featured ? 1 : 0) : 0,
+      body.short_description || '', body.full_description || '', body.description || body.full_description || body.short_description || '', body.highlights || '', body.published !== undefined ? (body.published ? 1 : 0) : 1, body.featured !== undefined ? (body.featured ? 1 : 0) : 0,
       body.category || 'Houses for Sale', location, image
     ];
 
@@ -207,6 +207,7 @@ router.put('/:id', (req, res) => {
       other_documents = COALESCE(?, other_documents),
       short_description = COALESCE(?, short_description),
       full_description = COALESCE(?, full_description),
+      description = COALESCE(?, description),
       highlights = COALESCE(?, highlights),
       published = COALESCE(?, published),
       featured = COALESCE(?, featured),
@@ -229,7 +230,9 @@ router.put('/:id', (req, res) => {
     body.ground_water !== undefined ? (body.ground_water ? 1 : 0) : null, body.road_access !== undefined ? (body.road_access ? 1 : 0) : null,
     body.facing, body.road_width, body.road_width_unit, body.road_type, body.corner_property,
     body.patta_status, body.ec_status, body.approved_plan_status, body.building_approval_status, body.property_tax_status,
-    body.sale_deed_status, body.other_documents, body.short_description, body.full_description, body.highlights,
+    body.sale_deed_status, body.other_documents, body.short_description, body.full_description,
+    body.description !== undefined ? body.description : (body.full_description !== undefined ? body.full_description : null),
+    body.highlights,
     body.published !== undefined ? (body.published ? 1 : 0) : null, body.featured !== undefined ? (body.featured ? 1 : 0) : null,
     body.location, body.image, id
   ];
@@ -304,10 +307,85 @@ router.post('/:id/images', upload.array('images', 20), (req, res) => {
   });
 });
 
-// DELETE single Property image
+// Helper function to safely delete physical image file from filesystem
+const unlinkPhysicalPropertyImage = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
+  // Ignore system logo or default images
+  if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
+
+  const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
+  const fullPath = path.join(projectRoot, relativePath);
+  const filename = path.basename(imageUrl);
+  const candidatePaths = [
+    fullPath,
+    path.join(projectRoot, 'uploads/images/properties', filename),
+    path.join(projectRoot, 'uploads/images', filename)
+  ];
+
+  candidatePaths.forEach((p) => {
+    try {
+      if (fs.existsSync(p) && fs.lstatSync(p).isFile()) {
+        fs.unlinkSync(p);
+        console.log(`[Property Image Delete] Removed physical file: ${p}`);
+      }
+    } catch (e) {
+      console.error(`[Property Image Delete] Warning removing file ${p}:`, e.message);
+    }
+  });
+};
+
+// DELETE image directly from form (acts on physical filesystem & showcase.db)
+router.post('/delete-image', (req, res) => {
+  const { propertyId, imageUrl, imageId } = req.body;
+  if (!imageUrl && !imageId) {
+    return res.status(400).json({ error: 'imageUrl or imageId is required' });
+  }
+
+  // 1. Delete physical file from filesystem
+  if (imageUrl) {
+    unlinkPhysicalPropertyImage(imageUrl);
+  }
+
+  // 2. Delete from showcase.db database
+  db.serialize(() => {
+    if (imageId) {
+      // Find url first to also delete physical file if not passed
+      db.get('SELECT image_url FROM property_images WHERE id = ?', [imageId], (err, row) => {
+        if (row?.image_url) unlinkPhysicalPropertyImage(row.image_url);
+        db.run('DELETE FROM property_images WHERE id = ?', [imageId]);
+      });
+    }
+
+    if (imageUrl) {
+      db.run('DELETE FROM property_images WHERE image_url = ?', [imageUrl]);
+    }
+
+    if (propertyId) {
+      // If the property's main cover image was deleted, assign next available image or set to ''
+      db.get('SELECT image FROM properties WHERE id = ?', [propertyId], (err, prop) => {
+        if (prop && prop.image === imageUrl) {
+          db.get(
+            'SELECT image_url FROM property_images WHERE property_id = ? AND image_url != ? ORDER BY is_cover DESC, sort_order ASC, id ASC LIMIT 1',
+            [propertyId, imageUrl],
+            (err, nextImg) => {
+              const newCover = nextImg ? nextImg.image_url : '';
+              db.run('UPDATE properties SET image = ? WHERE id = ?', [newCover, propertyId]);
+            }
+          );
+        }
+      });
+    }
+  });
+
+  return res.json({ success: true, message: 'Image deleted from physical disk and showcase.db' });
+});
+
+// DELETE single Property image by ID
 router.delete('/:id/images/:imageId', (req, res) => {
   db.get('SELECT * FROM property_images WHERE id = ? AND property_id = ?', [req.params.imageId, req.params.id], (err, img) => {
     if (err || !img) return res.status(404).json({ error: 'Image not found' });
+
+    unlinkPhysicalPropertyImage(img.image_url);
 
     db.run('DELETE FROM property_images WHERE id = ?', [req.params.imageId], () => {
       // If deleted image was cover, automatically assign new cover
@@ -316,10 +394,12 @@ router.delete('/:id/images/:imageId', (req, res) => {
           if (nextImg) {
             db.run('UPDATE property_images SET is_cover = 1 WHERE id = ?', [nextImg.id]);
             db.run('UPDATE properties SET image = ? WHERE id = ?', [nextImg.image_url, req.params.id]);
+          } else {
+            db.run('UPDATE properties SET image = ? WHERE id = ?', ['', req.params.id]);
           }
         });
       }
-      res.json({ message: 'Image deleted' });
+      res.json({ message: 'Image deleted from disk and database' });
     });
   });
 });
@@ -337,6 +417,30 @@ router.put('/:id/images/:imageId/cover', (req, res) => {
         });
       });
     });
+  });
+});
+
+// SYNC & REORDER all Property Images
+router.put('/:id/images/sync', (req, res) => {
+  const propertyId = req.params.id;
+  const { images } = req.body;
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: 'images must be an array of URLs' });
+  }
+
+  db.serialize(() => {
+    db.run('DELETE FROM property_images WHERE property_id = ?', [propertyId]);
+    if (images.length > 0) {
+      const stmt = db.prepare('INSERT INTO property_images (property_id, image_url, sort_order, is_cover) VALUES (?, ?, ?, ?)');
+      images.forEach((url, idx) => {
+        stmt.run(propertyId, url, idx, idx === 0 ? 1 : 0);
+      });
+      stmt.finalize();
+      db.run('UPDATE properties SET image = ? WHERE id = ?', [images[0], propertyId]);
+    } else {
+      db.run('UPDATE properties SET image = ? WHERE id = ?', ['', propertyId]);
+    }
+    res.json({ message: 'Images synchronized successfully', total: images.length });
   });
 });
 

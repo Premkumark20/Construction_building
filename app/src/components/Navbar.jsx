@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Menu, X, ChevronDown, Sparkles } from 'lucide-react';
+import { Home, Users, Image, Wrench, Building, Briefcase, Star, Phone } from 'lucide-react';
 import { useSiteData } from '../hooks/useSiteData.js';
 import { handlePhoneCall } from '../utils/phoneUtils.js';
 
@@ -10,12 +10,23 @@ const navItems = [
   { id: 'services', label: 'Our Services' },
   { id: 'properties', label: 'Properties' },
   { id: 'projects', label: 'Projects' },
+  { id: 'feedback', label: 'Feedback', href: '/feedback', isNewTab: true },
+];
+
+const mobileNavItems = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'about', label: 'About Us', icon: Users },
+  { id: 'gallery', label: 'Gallery', icon: Image },
+  { id: 'services', label: 'Services', icon: Wrench },
+  { id: 'properties', label: 'Properties', icon: Building },
+  { id: 'projects', label: 'Projects', icon: Briefcase },
+  { id: 'contact', label: 'Contact', icon: Phone },
+  { id: 'feedback', label: 'Feedback', icon: Star, href: '/feedback', isNewTab: true },
 ];
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { settings } = useSiteData();
 
   useEffect(() => {
@@ -23,7 +34,7 @@ const Navbar = () => {
       setScrolled(window.scrollY > 20);
 
       const sectionIds = ['home', 'about', 'gallery', 'services', 'properties', 'projects', 'contact'];
-      const scrollPosition = window.scrollY + 200; // Offset for navbar
+      const scrollPosition = window.scrollY + 200;
 
       for (let i = sectionIds.length - 1; i >= 0; i--) {
         const section = document.getElementById(sectionIds[i]);
@@ -42,135 +53,170 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Determine active index for mobile bottom navigation cutout animation
+  const activeMobileIndex = Math.max(
+    0,
+    mobileNavItems.findIndex(item => item.id === activeSection)
+  );
+
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? 'bg-[#09090b]/92 backdrop-blur-2xl border-b border-amber-500/30 py-2.5 shadow-2xl shadow-black/90'
-          : 'bg-[#09090b]/80 backdrop-blur-md py-3.5 border-b border-white/10'
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-        {/* Dynamic Brand Logo */}
-        <a href="#home" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-lg group-hover:border-amber-400 group-hover:scale-105 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all duration-300">
-            <img
-              src={settings.logo_url || '/logo/sk-builders-logo.png'}
-              alt={`${settings.company_name || 'Company'} Logo`}
-              className="w-8 h-8 object-contain"
-            />
-          </div>
-          <div>
-            <span className="block text-xs sm:text-lg font-black tracking-tight text-white leading-none uppercase group-hover:text-amber-400 transition-colors">
-              {settings.company_name || ''}
-            </span>
-            <span className="block text-[8px] sm:text-[10px] font-bold text-amber-400 tracking-wider sm:tracking-widest uppercase mt-0.5">
-              {settings.company_subtitle || ''}
-            </span>
-          </div>
-        </a>
-
-        {/* Navigation Links with Active Indicator Line */}
-        <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-bold">
-          {navItems.map((item) => {
-            const isActive = activeSection === item.id;
-            return (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                className={`py-1 relative transition-colors ${
-                  isActive ? 'text-amber-400 font-extrabold' : 'text-zinc-300 hover:text-amber-400'
-                }`}
-              >
-                {item.label}
-                {/* Active Indicator Underline Line */}
-                <span
-                  className={`absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-300 shadow-[0_0_8px_rgba(245,158,11,0.8)] ${
-                    isActive ? 'w-full' : 'w-0 group-hover:w-full'
-                  }`}
-                />
-              </a>
-            );
-          })}
-        </nav>
-
-        {/* Contact Us Button */}
-        <div className="hidden sm:flex items-center gap-4">
-          <a
-            href="#contact"
-            className={`magnetic-btn px-5 py-2 rounded-full text-xs flex items-center gap-2 transition-all border ${
-              activeSection === 'contact'
-                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black font-black ring-2 ring-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.9)] scale-105 border-amber-300'
-                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold shadow-lg shadow-amber-500/20 active:scale-95 border-amber-300/40'
-            }`}
-          >
-            <Phone size={14} className="text-black" />
-            <span>Contact Us</span>
+    <>
+      {/* 1. TOP HEADER (Desktop full navbar & Mobile clean brand bar) */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? 'bg-[#09090b]/95 backdrop-blur-2xl border-b border-amber-500/30 py-2 sm:py-2.5 shadow-2xl shadow-black/90'
+            : 'bg-[#09090b]/85 backdrop-blur-md py-3 border-b border-white/10'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          {/* Dynamic Brand Logo */}
+          <a href="#home" className="flex items-center gap-2.5 sm:gap-3 group">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-lg group-hover:border-amber-400 group-hover:scale-105 transition-all duration-300">
+              <img
+                src={settings.logo_url || '/logo/sk-builders-logo.png'}
+                alt={`${settings.company_name || 'Company'} Logo`}
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
+              />
+            </div>
+            <div>
+              <span className="block text-xs sm:text-lg font-black tracking-tight text-white leading-none uppercase group-hover:text-amber-400 transition-colors">
+                {settings.company_name || 'SK BUILDERS'}
+              </span>
+              <span className="block text-[8px] sm:text-[10px] font-bold text-amber-400 tracking-wider sm:tracking-widest uppercase mt-0.5">
+                {settings.company_subtitle || '& PROPERTY CONSULTANT'}
+              </span>
+            </div>
           </a>
-        </div>
 
-        {/* Mobile Hamburger Menu */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden p-2 text-zinc-300 hover:text-amber-400 focus:outline-none transition-colors"
-          aria-label="Toggle Navigation Menu"
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
-
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-[#09090b]/98 backdrop-blur-2xl border-b border-amber-500/20 px-6 pt-4 pb-6 space-y-4 shadow-2xl animate-fadeIn text-zinc-200">
-          <nav className="flex flex-col gap-3 font-semibold text-xs sm:text-sm">
+          {/* Desktop Navigation Links */}
+          <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-bold">
             {navItems.map((item) => {
               const isActive = activeSection === item.id;
+              if (item.isNewTab) {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-1 relative text-zinc-300 hover:text-amber-400 transition-colors flex items-center gap-1 group"
+                  >
+                    <span>{item.label}</span>
+                    <span className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-300 w-0 group-hover:w-full" />
+                  </a>
+                );
+              }
               return (
                 <a
                   key={item.id}
                   href={`#${item.id}`}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`py-1.5 flex items-center justify-between border-b border-white/5 transition-colors ${
-                    isActive ? 'text-amber-400 font-black' : 'text-zinc-300 hover:text-amber-400'
+                  className={`py-1 relative transition-colors ${
+                    isActive ? 'text-amber-400 font-extrabold' : 'text-zinc-300 hover:text-amber-400'
                   }`}
                 >
-                  <span>{item.label}</span>
-                  {isActive && <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,1)]" />}
+                  {item.label}
+                  <span
+                    className={`absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-300 ${
+                      isActive ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`}
+                  />
                 </a>
               );
             })}
-            <a
-              href="#contact"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`py-1.5 flex items-center justify-between transition-colors ${
-                activeSection === 'contact' ? 'text-amber-400 font-black' : 'text-zinc-300 hover:text-amber-400'
-              }`}
-            >
-              <span>Contact Us</span>
-              {activeSection === 'contact' && <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,1)]" />}
-            </a>
           </nav>
-          <div className="pt-2 border-t border-white/10">
-            {settings.phone ? (
-              <a
-                href={`tel:+91${settings.phone.replace(/[^0-9]/g, '')}`}
-                onClick={(e) => handlePhoneCall(e, settings.phone)}
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold py-3 rounded-xl text-center text-xs flex items-center justify-center gap-2 shadow-lg"
-              >
-                <Phone size={15} /> Call +91 {settings.phone}
-              </a>
-            ) : (
-              <a
-                href="#contact"
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold py-3 rounded-xl text-center text-xs flex items-center justify-center gap-2 shadow-lg"
-              >
-                <Phone size={15} /> Contact Support
-              </a>
-            )}
+
+          {/* Top Right Quick Call Action (Desktop & Mobile) */}
+          <div className="flex items-center gap-3">
+            <a
+              href={settings.phone ? `tel:+91${settings.phone.replace(/[^0-9]/g, '')}` : '#contact'}
+              onClick={(e) => handlePhoneCall(e, settings.phone)}
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all border border-amber-300/40"
+            >
+              <Phone size={13} className="text-black" />
+              <span>Contact Us</span>
+            </a>
           </div>
         </div>
-      )}
-    </header>
+      </header>
+
+      {/* 2. MOBILE BOTTOM NAVIGATION BAR (8 SECTIONS, ICONS ONLY, CONTINUOUS CURVE & FLOATING CIRCLE WITH GAP) */}
+      <div className="block lg:hidden fixed bottom-0 left-0 right-0 z-50 select-none pb-safe">
+        <div className="relative bg-[#09090b]/95 backdrop-blur-2xl border-t border-amber-500/40 shadow-[0_-10px_35px_rgba(0,0,0,0.95)] h-14">
+          {/* Animated Curve Notch & Floating Active Circle Container */}
+          <div
+            className="absolute top-0 h-full transition-all duration-300 ease-out pointer-events-none z-20"
+            style={{
+              left: `${activeMobileIndex * (100 / mobileNavItems.length)}%`,
+              width: `${100 / mobileNavItems.length}%`
+            }}
+          >
+            {/* Continuous SVG Curve Dip Notch (Dips 32px deep underneath circle with large clear gap) */}
+            <svg
+              className="w-24 h-10 absolute -top-[1px] left-1/2 -translate-x-1/2 pointer-events-none"
+              viewBox="0 0 96 40"
+              fill="none"
+            >
+              {/* Dark fill erases straight top border line behind active tab */}
+              <path d="M 0 0 L 12 0 C 24 0 28 32 48 32 C 68 32 72 0 84 0 L 96 0 L 96 40 L 0 40 Z" fill="#09090b" />
+              {/* Continuous Amber Line following deep curve notch underneath circle */}
+              <path
+                d="M 0 0 L 12 0 C 24 0 28 32 48 32 C 68 32 72 0 84 0 L 96 0"
+                stroke="#f59e0b"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
+
+            {/* Floating Golden Active Circle: Floating at -top-6 for a distinct, highly visible 16px gap above curve */}
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 via-amber-500 to-amber-600 text-black font-black flex items-center justify-center shadow-[0_0_22px_rgba(245,158,11,0.95)] border-none transition-transform duration-300 scale-105">
+              {(() => {
+                const ActiveIcon = mobileNavItems[activeMobileIndex]?.icon || Home;
+                return <ActiveIcon size={20} strokeWidth={2.5} className="text-black" />;
+              })()}
+            </div>
+          </div>
+
+          {/* Mobile Bottom Navigation Grid Items (Icons Only - All 8 Sections) */}
+          <nav className="grid grid-cols-8 h-14 relative z-10 items-center">
+            {mobileNavItems.map((item, index) => {
+              const isActive = activeMobileIndex === index;
+              const Icon = item.icon;
+
+              if (item.isNewTab) {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center h-full transition-all duration-300 relative group"
+                    title={item.label}
+                  >
+                    <div className={`transition-all duration-300 ${isActive ? 'opacity-0 scale-75' : 'opacity-100 scale-100'}`}>
+                      <Icon size={19} className="text-zinc-400 group-hover:text-amber-400" />
+                    </div>
+                  </a>
+                );
+              }
+
+              return (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className="flex items-center justify-center h-full transition-all duration-300 relative group"
+                  title={item.label}
+                >
+                  <div className={`transition-all duration-300 ${isActive ? 'opacity-0 scale-75' : 'opacity-100 scale-100'}`}>
+                    <Icon size={19} className="text-zinc-400 group-hover:text-amber-400" />
+                  </div>
+                </a>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+    </>
   );
 };
 

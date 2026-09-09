@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Quote } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useSiteData } from '../hooks/useSiteData.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -15,18 +16,24 @@ const reasons = [
   'Trusted by Many Families'
 ];
 
-const testimonials = [
+const fallbackTestimonials = [
   {
     quote: "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.",
-    author: "Ramesh & Family, Poonamallee"
+    client_name: "Ramesh & Family",
+    location: "Poonamallee",
+    rating: 5
   },
   {
     quote: "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!",
-    author: "Karthik Raja, Mangadu"
+    client_name: "Karthik Raja",
+    location: "Mangadu",
+    rating: 5
   },
   {
     quote: "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.",
-    author: "Suresh Kumar, Kundrathur"
+    client_name: "Suresh Kumar",
+    location: "Kundrathur",
+    rating: 5
   }
 ];
 
@@ -37,15 +44,21 @@ const WhyChooseUs = () => {
   const rightCardRef = useRef(null);
   const reasonsContainerRef = useRef(null);
 
+  const { testimonials: dbTestimonials } = useSiteData();
+  const safeTestimonials = Array.isArray(dbTestimonials) && dbTestimonials.length > 0
+    ? dbTestimonials
+    : fallbackTestimonials;
+
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   // Auto-change reviews every 4 seconds
   useEffect(() => {
+    if (safeTestimonials.length === 0) return;
     const timer = setInterval(() => {
-      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 4000);
+      setActiveTestimonial((prev) => (prev + 1) % safeTestimonials.length);
+    }, 4500);
     return () => clearInterval(timer);
-  }, []);
+  }, [safeTestimonials.length]);
 
   // Section Pinning & Scroll-Scrubbed Animation Engine (Desktop only)
   useEffect(() => {
@@ -133,7 +146,7 @@ const WhyChooseUs = () => {
               {/* Background Architectural House Sketch Image Container */}
               <div className="absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none rounded-2xl sm:rounded-3xl">
                 <img
-                  src="./house/house-sketch.png"
+                  src="/house/house-sketch.png"
                   alt="Architectural House Sketch Background"
                   className="w-full h-full object-cover object-center sm:object-right opacity-95 group-hover:scale-105 transition-transform duration-700 filter brightness-125 contrast-130"
                 />
@@ -169,37 +182,45 @@ const WhyChooseUs = () => {
             {/* Right Main Card: What Our Clients Say */}
             <div
               ref={rightCardRef}
-              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 relative min-h-[240px] sm:min-h-[360px] w-full overflow-hidden"
+              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 tilt-3d relative min-h-[220px] sm:min-h-[360px]"
             >
               {/* Dynamic Specular Glare Layer */}
               <div className="specular-glare" />
 
-              <div className="relative z-10 w-full">
-                <h2 className="text-lg sm:text-3xl font-black text-white mb-3 sm:mb-6">
+              <div className="preserve-3d relative z-10">
+                <h2 className="text-lg sm:text-3xl font-black text-white mb-2.5 sm:mb-6 translate-z-20">
                   What Our Clients Say
                 </h2>
 
-                <div className="bg-[#18181c]/90 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 group-hover:border-amber-500/30 transition-all w-full">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2.5 sm:mb-4 shadow-md">
-                    <Quote size={16} className="text-amber-400" />
+                <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 translate-z-30 group-hover:border-amber-500/30 transition-all">
+                  <div className="flex items-center justify-between mb-2.5 sm:mb-4">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-md">
+                      <Quote size={16} className="text-amber-400" />
+                    </div>
+                    {safeTestimonials[activeTestimonial % safeTestimonials.length]?.rating && (
+                      <span className="text-amber-400 text-xs sm:text-sm tracking-widest font-black">
+                        {'★'.repeat(Math.min(5, Math.max(1, safeTestimonials[activeTestimonial % safeTestimonials.length].rating || 5)))}
+                      </span>
+                    )}
                   </div>
                   <p className="text-zinc-200 text-xs sm:text-base italic leading-relaxed mb-2.5 sm:mb-4 font-medium min-h-[50px] sm:min-h-[72px] transition-all duration-500">
-                    "{testimonials[activeTestimonial].quote}"
+                    "{safeTestimonials[activeTestimonial % safeTestimonials.length]?.quote}"
                   </p>
                   <div className="font-extrabold text-[11px] sm:text-sm text-amber-400 transition-all duration-500">
-                    – {testimonials[activeTestimonial].author}
+                    – {safeTestimonials[activeTestimonial % safeTestimonials.length]?.client_name || safeTestimonials[activeTestimonial % safeTestimonials.length]?.author || 'Happy Client'}
+                    {safeTestimonials[activeTestimonial % safeTestimonials.length]?.location ? `, ${safeTestimonials[activeTestimonial % safeTestimonials.length].location}` : ''}
                   </div>
                 </div>
               </div>
 
               {/* Interactive Pagination Dots */}
-              <div className="flex justify-center items-center gap-2 mt-4 sm:mt-8 relative z-10">
-                {testimonials.map((_, i) => (
+              <div className="flex justify-center items-center gap-2 mt-4 sm:mt-8 relative z-10 translate-z-20">
+                {safeTestimonials.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setActiveTestimonial(i)}
-                    className={`transition-all duration-300 rounded-full ${
-                      activeTestimonial === i
+                    className={`transition-all duration-300 rounded-full cursor-pointer ${
+                      activeTestimonial % safeTestimonials.length === i
                         ? 'w-6 h-2.5 bg-gradient-to-r from-amber-400 to-amber-600 shadow-md shadow-amber-500/30'
                         : 'w-2.5 h-2.5 bg-white/20 hover:bg-white/40'
                     }`}

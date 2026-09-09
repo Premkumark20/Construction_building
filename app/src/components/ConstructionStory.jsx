@@ -58,8 +58,15 @@ const ConstructionStory = () => {
     };
   }, []);
 
-  // Adaptive Frame Preloading with Cache-Buster for Instant Primary Video Switching
+  // Adaptive Frame Preloading for Desktop View
   useEffect(() => {
+    if (isMobile) {
+      setIsPreloading(false);
+      setShowContent(true);
+      setHasFramesAvailable(true);
+      return;
+    }
+
     let successCount = 0;
     let finishedCount = 0;
     loadedImagesMapRef.current = {};
@@ -69,10 +76,10 @@ const ConstructionStory = () => {
       setIsPreloading(false);
     }, 400);
 
-    for (let i = 1; i <= totalFrameCount; i++) {
+    for (let i = 1; i <= 121; i++) {
       const img = new Image();
       const frameNum = String(i).padStart(4, '0');
-      img.src = `./frames/${frameFolder}/frame_${frameNum}.webp?v=${frameVersion}`;
+      img.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
 
       img.onload = () => {
         successCount++;
@@ -85,7 +92,7 @@ const ConstructionStory = () => {
           setIsPreloading(false);
           clearTimeout(safetyTimeout);
         }
-        if (finishedCount >= (isMobile ? 3 : 5)) {
+        if (finishedCount >= 5) {
           setIsPreloading(false);
           clearTimeout(safetyTimeout);
         }
@@ -98,7 +105,7 @@ const ConstructionStory = () => {
 
       img.onerror = () => {
         finishedCount++;
-        if (finishedCount === totalFrameCount && successCount === 0) {
+        if (finishedCount === 121 && successCount === 0) {
           setHasFramesAvailable(false);
           setShowContent(true);
           setIsPreloading(false);
@@ -108,7 +115,7 @@ const ConstructionStory = () => {
     }
 
     return () => clearTimeout(safetyTimeout);
-  }, [isMobile, totalFrameCount, frameFolder, frameVersion]);
+  }, [isMobile, frameVersion]);
 
   // Find nearest loaded frame for ultra-smooth scrubbing fallback
   const getClosestLoadedImage = (targetIndex) => {
@@ -295,70 +302,71 @@ const ConstructionStory = () => {
       id="home"
       className="relative z-10 w-full bg-transparent text-white overflow-hidden"
     >
-      {/* 1. MOBILE VIEW: Pinned Stage (Top House Card + Stacked Content Below) */}
-      <div
-        ref={pinMobileRef}
-        className="flex md:hidden w-full h-auto min-h-0 flex-col justify-start pt-16 pb-4 px-4 relative z-10 bg-transparent"
-      >
-        {/* Top House Frame Card */}
-        <div className="w-full max-w-sm mx-auto aspect-[16/10] rounded-2xl overflow-hidden border border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.25)] relative bg-black/85 backdrop-blur-md mb-3 shrink-0">
-          <canvas
-            ref={canvasMobileRef}
-            className="w-full h-full object-cover block select-none pointer-events-none"
-          />
-          <div className="absolute top-2 left-2 bg-[#09090b]/90 backdrop-blur-md border border-amber-500/40 text-amber-300 text-[8px] font-black px-2 py-0.5 rounded-full uppercase shadow-md flex items-center gap-1">
-            ✨ Interactive Construction Story
-          </div>
-        </div>
+      {/* 1. MOBILE VIEW: Full-Bleed High-Visibility Stage (Bright Vivid House Background + Left-Aligned Overlay Content) */}
+      <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-black">
+        {/* Full-bleed Vivid Completed House Background Image */}
+        <img
+          src={`/frames/mobile/frame_last.webp?v=${frameVersion}`}
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = `/frames/desktop/frame_0121.webp?v=${frameVersion}`;
+          }}
+          alt="Completed Dream Home"
+          className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-115 contrast-105"
+        />
 
-        {/* Hero Content Stacked Below - Positioned right below top card with zero huge gap */}
-        <div
-          className={`w-full max-w-sm mx-auto text-left flex flex-col mt-1 transition-all duration-500 transform ${
-            showContent || prefersReducedMotion
-              ? 'opacity-100 translate-y-0'
-              : 'opacity-0 translate-y-4 pointer-events-none'
-          }`}
-        >
-          <div className="inline-flex items-center gap-1 text-[8.5px] font-black uppercase tracking-widest text-amber-400 mb-1.5 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full w-fit backdrop-blur-md">
+        {/* Subtle Dark Gradient Focused on Left Side to Keep House Highly Visible on Center/Right */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-transparent z-10 pointer-events-none w-[85%]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 z-10 pointer-events-none" />
+
+        {/* Hero Overlay Content Container - Positioned Strictly on Left Side */}
+        <div className="relative z-20 w-full max-w-[340px] sm:max-w-md mr-auto flex flex-col justify-end text-left items-start">
+          {/* Top Tagline Badge */}
+          <div className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-amber-300 mb-2 bg-black/75 border border-amber-500/40 px-3 py-1 rounded-full w-fit backdrop-blur-md shadow-lg">
             <span>✨ {settings.hero_tagline || 'BUILDING QUALITY HOMES.'}</span>
           </div>
 
-          <h1 className="text-xl font-black text-white leading-tight mb-1.5">
-            Helping You <span className="text-gold-gradient">Buy, Sell & Build</span><br />
-            with <span className="text-gold-gradient">Absolute Confidence</span>
+          {/* Hero Main Heading */}
+          <h1 className="text-2xl sm:text-3xl font-black text-white leading-[1.2] mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)]">
+            Helping You <span className="text-gold-gradient">Buy, Sell &</span><br />
+            <span className="text-gold-gradient">Build</span> with <span className="text-gold-gradient">Absolute</span><br />
+            <span className="text-gold-gradient">Confidence</span>
           </h1>
 
-          <div className="w-10 h-0.5 bg-gradient-to-r from-amber-500 to-amber-300 rounded-full mb-2 shadow-sm shadow-amber-500/50"></div>
+          {/* Golden Underline Accent */}
+          <div className="w-12 h-1 bg-gradient-to-r from-amber-500 to-amber-300 rounded-full mb-2.5 shadow-md shadow-amber-500/50"></div>
 
-          <p className="text-[11px] text-zinc-300 font-medium leading-relaxed mb-3">
+          {/* Subtitle */}
+          <p className="text-[11.5px] sm:text-xs text-zinc-100 font-semibold leading-relaxed mb-3.5 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
             {settings.hero_subtitle ||
-              'We build and sell individual homes, offer residential plots, contract construction, and provide expert property consultation.'}
+              'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation.'}
           </p>
 
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 shadow-sm border border-amber-500/30">
+          {/* 3 Feature Pillars */}
+          <div className="grid grid-cols-3 gap-1.5 w-full mb-4">
+            <div className="flex items-center gap-1.5 bg-black/65 backdrop-blur-md border border-amber-500/30 rounded-xl p-1.5 shadow-lg">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/25 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/40 shadow-sm">
                 <ShieldCheck size={13} />
               </div>
-              <div className="text-[8.5px] font-extrabold text-zinc-200 leading-tight">
+              <div className="text-[8px] sm:text-[8.5px] font-black text-zinc-100 leading-tight">
                 Trust & <br /> Transparency
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 shadow-sm border border-amber-500/30">
+            <div className="flex items-center gap-1.5 bg-black/65 backdrop-blur-md border border-amber-500/30 rounded-xl p-1.5 shadow-lg">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/25 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/40 shadow-sm">
                 <Home size={13} />
               </div>
-              <div className="text-[8.5px] font-extrabold text-zinc-200 leading-tight">
+              <div className="text-[8px] sm:text-[8.5px] font-black text-zinc-100 leading-tight">
                 Quality <br /> Construction
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 shadow-sm border border-amber-500/30">
+            <div className="flex items-center gap-1.5 bg-black/65 backdrop-blur-md border border-amber-500/30 rounded-xl p-1.5 shadow-lg">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/25 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/40 shadow-sm">
                 <Users size={13} />
               </div>
-              <div className="text-[8.5px] font-extrabold text-zinc-200 leading-tight">
+              <div className="text-[8px] sm:text-[8.5px] font-black text-zinc-100 leading-tight">
                 Personalized <br /> Service
               </div>
             </div>
@@ -369,18 +377,18 @@ const ConstructionStory = () => {
             <a
               href={settings.phone ? `tel:+91${settings.phone.replace(/[^0-9]/g, '')}` : '#contact'}
               onClick={(e) => handlePhoneCall(e, settings.phone)}
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-lg text-[10.5px] flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 border border-amber-300/40"
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xl shadow-amber-500/30 transition-all active:scale-95 border border-amber-300/40"
             >
-              <Phone size={12} /> Call Now
+              <Phone size={14} /> Call Now
             </a>
 
             <a
               href={getWhatsAppUrl(settings.whatsapp_number || settings.phone, "Hi, I want to know more about properties/construction.")}
               target={settings.whatsapp_number || settings.phone ? '_blank' : '_self'}
               rel="noopener noreferrer"
-              className="bg-zinc-900/90 hover:bg-zinc-800 text-amber-400 border border-amber-500/30 font-extrabold px-4 py-2 rounded-lg text-[10.5px] flex items-center gap-1.5 shadow-lg transition-all active:scale-95"
+              className="bg-black/85 hover:bg-black/95 text-amber-400 border border-amber-500/40 font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xl backdrop-blur-md transition-all active:scale-95"
             >
-              <MessageCircle size={12} /> WhatsApp
+              <MessageCircle size={14} /> WhatsApp
             </a>
           </div>
         </div>

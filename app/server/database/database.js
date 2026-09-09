@@ -344,7 +344,38 @@ function seedInitialData() {
     }
   });
 
-  // Do not seed mock properties, land, or projects - tables remain clean for real admin data
+  // Seed testimonials
+  db.get("SELECT COUNT(*) as count FROM testimonials", [], (err, row) => {
+    if (!err && (!row || row.count === 0)) {
+      const insert = db.prepare(`
+        INSERT INTO testimonials (client_name, location, quote, rating)
+        VALUES (?, ?, ?, ?)
+      `);
+      const list = [
+        ["Ramesh & Family", "Poonamallee", "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.", 5],
+        ["Karthik Raja", "Mangadu", "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!", 5],
+        ["Suresh Kumar", "Kundrathur", "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.", 5]
+      ];
+      list.forEach(t => insert.run(t[0], t[1], t[2], t[3]));
+      insert.finalize();
+    }
+  });
+
+  // Ensure client feedback table (clean table, no seed data)
+  db.run(`CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_name TEXT NOT NULL,
+    phone TEXT,
+    location TEXT,
+    service TEXT DEFAULT 'General Feedback',
+    rating INTEGER DEFAULT 5,
+    message TEXT NOT NULL,
+    approved INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Do not seed mock properties, land, projects, or feedback - tables remain clean for real user/admin data
 }
 
 export default db;
+

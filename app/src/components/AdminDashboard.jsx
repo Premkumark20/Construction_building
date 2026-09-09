@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User } from 'lucide-react';
+import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote } from 'lucide-react';
 
 const notifySiteDataUpdated = () => {
   try {
@@ -42,6 +42,23 @@ const getServiceAreaOptions = (serviceAreasStr, locationStr) => {
 
   return [...new Set(list)];
 };
+
+const AdminLoadingSkeleton = () => (
+  <div className="space-y-3 py-4">
+    {[1, 2, 3].map((n) => (
+      <div key={n} className="bg-[#18181b]/70 p-4 rounded-2xl border border-zinc-800/80 animate-pulse flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-xl bg-zinc-800/60 shrink-0" />
+          <div className="space-y-2">
+            <div className="w-36 h-3.5 bg-zinc-800/80 rounded" />
+            <div className="w-48 h-3 bg-zinc-800/40 rounded" />
+          </div>
+        </div>
+        <div className="w-16 h-8 bg-zinc-800/50 rounded-xl shrink-0" />
+      </div>
+    ))}
+  </div>
+);
 
 const LoginBackgroundCanvas = () => {
   const canvasRef = useRef(null);
@@ -101,6 +118,442 @@ const LoginBackgroundCanvas = () => {
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-70" />;
 };
 
+const generatePropertyDescription = (prop) => {
+  if (!prop) return '';
+  const sentences = [];
+
+  // Title / Type & Location
+  const titleText = String(prop.title || '').trim();
+  const typeText = String(prop.type || 'Individual House');
+  const locText = String(prop.location || prop.area || '');
+
+  if (titleText) {
+    sentences.push(`${titleText}${locText ? ` located in ${locText}` : ''}.`);
+  } else {
+    sentences.push(`Premium ${prop.bedrooms ? `${prop.bedrooms} ` : ''}${typeText}${locText ? ` in ${locText}` : ''}.`);
+  }
+
+  // Specifications
+  const specs = [];
+  if (prop.bedrooms) {
+    const bedStr = String(prop.bedrooms).trim();
+    const bed = bedStr.includes('BHK') ? bedStr : `${bedStr} BHK`;
+    specs.push(bed);
+  }
+  if (prop.builtup_area) {
+    const builtUnit = String(prop.builtup_area).match(/[a-zA-Z]/) ? '' : ` ${prop.builtup_area_unit || 'sq.ft'}`;
+    specs.push(`${prop.builtup_area}${builtUnit} built-up area`);
+  }
+  if (prop.plot_area) {
+    const plotUnit = String(prop.plot_area).match(/[a-zA-Z]/) ? '' : ` ${prop.plot_area_unit || 'sq.ft'}`;
+    specs.push(`${prop.plot_area}${plotUnit} plot area`);
+  }
+  if (prop.facing) specs.push(`${prop.facing} facing`);
+  if (prop.floors) specs.push(`${prop.floors} floor${Number(prop.floors) > 1 ? 's' : ''}`);
+  if (specs.length > 0) {
+    sentences.push(`Featuring ${specs.join(', ')}.`);
+  }
+
+  // Construction & Quality
+  const constr = [];
+  if (prop.construction_status) constr.push(`Status: ${prop.construction_status}`);
+  if (prop.construction_type) constr.push(prop.construction_type);
+  if (prop.roof_type) constr.push(prop.roof_type);
+  if (prop.year_built) constr.push(`Built year: ${prop.year_built}`);
+  if (constr.length > 0) {
+    sentences.push(`High-quality construction with ${constr.join(', ')}.`);
+  }
+
+  // Amenities & Features
+  const features = [];
+  if (prop.compound_wall) features.push('Compound Wall');
+  if (prop.gate) features.push('Dedicated Gate');
+  if (prop.borewell) features.push('Borewell');
+  if (prop.overhead_tank) features.push('Overhead Water Tank');
+  if (prop.water_connection) features.push('Drinking Water Connection');
+  if (prop.eb_connection) features.push('EB 3-Phase Connection');
+  if (prop.sewer_connection) features.push('Drainage/Sewer Facility');
+  if (prop.ground_water) features.push('Potable Ground Water');
+  if (prop.road_access) features.push(`Direct Road Access${prop.road_width ? ` (${prop.road_width} ${prop.road_width_unit || 'ft'} ${prop.road_type || ''})` : ''}`);
+  if (prop.parking_available === 'Yes') features.push('Vehicle Parking');
+  if (features.length > 0) {
+    sentences.push(`Key Features & Amenities: ${features.join(', ')}.`);
+  }
+
+  // Price & Negotiation
+  if (prop.price) {
+    sentences.push(`Offered at an attractive price of ${prop.price}${prop.negotiable === 'Yes' ? ' (Negotiable)' : ''}.`);
+  }
+
+  // Documentation / Legal
+  const legal = [];
+  if (prop.patta_status === 'Available') legal.push('Clear Patta');
+  if (prop.ec_status === 'Available') legal.push('Verified EC');
+  if (prop.approved_plan_status === 'Available') legal.push('Approved Building Plan');
+  if (prop.sale_deed_status === 'Available') legal.push('Clear Sale Deed');
+  if (legal.length > 0) {
+    sentences.push(`Documentation: ${legal.join(', ')} available with 100% clear title.`);
+  }
+
+  if (prop.other_documents && String(prop.other_documents).trim()) {
+    sentences.push(`Registration / Legal Notes: ${String(prop.other_documents).trim()}`);
+  }
+
+  return sentences.join('\n\n');
+};
+
+const landTitleOptions = [
+  'DTCP Approved Residential Plot',
+  'CMDA Approved Residential Plot',
+  'Residential Land Plot for Sale',
+  'Gated Community Villa Plot',
+  'Corner Residential Plot for Sale',
+  'Prime House Site for Sale',
+  'Commercial Land / Plot',
+  'Farm Land / Agriculture Plot'
+];
+
+const projectTitleOptions = [
+  'Individual Villa Construction',
+  'Residential House Construction',
+  'Duplex Home Construction',
+  'Independent House Project',
+  'Commercial Building Construction',
+  'Modern Villa Project',
+  'Turnkey House Construction',
+  'Home Renovation & Remodeling'
+];
+
+const generateLandDescription = (l) => {
+  const parts = [];
+  const titleStr = (l.title || '').trim() || (l.land_type || 'Residential Plot');
+  const locStr = (l.location || l.area || '').trim();
+  const approvalStr = (l.approval_status && l.approval_status !== 'Not Provided') ? l.approval_status : '';
+  const areaStr = l.plot_area ? `${l.plot_area} ${l.plot_area_unit || 'sq.ft'}` : '';
+  const lengthStr = l.length ? `${l.length} ft` : '';
+  const widthStr = l.width ? `${l.width} ft` : '';
+  const dimensionsStr = (lengthStr && widthStr) ? ` (${lengthStr} x ${widthStr})` : (l.frontage ? ` (${l.frontage})` : '');
+
+  // Sentence 1: Intro (Approval + Title + Area + Location)
+  let intro = '';
+  if (approvalStr) {
+    intro += `Prime ${approvalStr} `;
+  } else {
+    intro += 'Prime ';
+  }
+  intro += titleStr;
+  if (areaStr) {
+    intro += ` spanning ${areaStr}${dimensionsStr}`;
+  }
+  intro += ' for sale';
+  if (locStr) {
+    intro += ` in a prime, developing location of ${locStr}, Chennai`;
+  }
+  intro += '.';
+  parts.push(intro);
+
+  // Sentence 2: Facing, Road, Corner
+  const facingStr = l.facing ? `${l.facing} facing` : '';
+  const roadWidthStr = l.road_width ? `${l.road_width} ${l.road_width_unit || 'ft'}` : '';
+  const roadTypeStr = l.road_type || '';
+  const roadDetail = (roadWidthStr && roadTypeStr) ? `${roadWidthStr} ${roadTypeStr}` : (roadWidthStr || roadTypeStr);
+
+  const featurePhrases = [];
+  if (facingStr) featurePhrases.push(`is ${facingStr}`);
+  if (roadDetail) featurePhrases.push(`has direct access to a ${roadDetail}`);
+  if (l.corner_plot === 'Yes') featurePhrases.push('features premium corner plot frontage with dual road access');
+
+  if (featurePhrases.length > 0) {
+    parts.push(`The property ${featurePhrases.join(' and ')}.`);
+  }
+
+  // Sentence 3: Utilities & Infrastructure Checkboxes
+  const facilities = [];
+  if (l.eb_available) facilities.push('EB Electricity power line');
+  if (l.water_available) facilities.push('Drinking water facility');
+  if (l.drainage_available) facilities.push('Drainage / Sewerage system');
+  if (l.borewell_available) facilities.push('Sweet ground water');
+  if (l.gated_community) facilities.push('Gated community boundary');
+  if (l.street_lights) facilities.push('Street lights');
+
+  if (facilities.length > 0) {
+    parts.push(`Utilities & Infrastructure: ${facilities.join(', ')}.`);
+  }
+
+  // Sentence 4: Documents & Legal
+  const docs = [];
+  if (l.patta_status === 'Available') docs.push('Clear Patta');
+  if (l.ec_status === 'Available' || l.ec_status === 'Clear EC') docs.push('Clear Encumbrance (EC)');
+  if (l.parent_documents_status === 'Available' || l.parent_documents_status === 'Verified') docs.push('Parent Documents Verified');
+  if (l.approval_documents_status === 'Available') docs.push(`${approvalStr || 'Approval'} Order Copy`);
+  if (l.sale_deed_status === 'Available' || l.sale_deed_status === 'Clear Title') docs.push('Clear Sale Deed Title');
+
+  if (docs.length > 0) {
+    parts.push(`Documentation & Legal: ${docs.join(', ')} with 100% verified legal titles, ready for immediate registration.`);
+  }
+
+  return parts.filter(Boolean).join('\n\n');
+};
+
+const generateProjectDescription = (pr) => {
+  const parts = [];
+  const nameStr = (pr.name || pr.title || '').trim() || 'Residential Construction Project';
+  const typeStr = pr.project_type || '';
+  const locStr = (pr.location || pr.area || '').trim();
+  const builtStr = pr.builtup_area ? `${pr.builtup_area} ${pr.builtup_area_unit || 'sq.ft'}` : '';
+  const plotStr = pr.plot_area ? `${pr.plot_area} ${pr.plot_area_unit || 'sq.ft'}` : '';
+  const floorsStr = pr.floors ? `${pr.floors} ${Number(pr.floors) === 1 ? 'floor' : 'floors'}` : '';
+  const bhkStr = pr.bedrooms ? `${pr.bedrooms} BHK` : '';
+  const bathsStr = pr.bathrooms ? `${pr.bathrooms} Bathrooms` : '';
+
+  // Sentence 1: Project Title + Type + Location
+  let intro = `Turnkey construction project: ${nameStr}`;
+  if (typeStr && !nameStr.toLowerCase().includes(typeStr.toLowerCase())) {
+    intro += ` (${typeStr})`;
+  }
+  if (locStr) {
+    intro += ` situated in ${locStr}, Chennai`;
+  }
+  intro += '.';
+  parts.push(intro);
+
+  // Sentence 2: Specs (Builtup area, Plot area, Floors, BHK, Bathrooms)
+  const specs = [];
+  if (builtStr) specs.push(`${builtStr} built-up area`);
+  if (plotStr) specs.push(`${plotStr} plot area`);
+  if (floorsStr) specs.push(`${floorsStr}`);
+  if (bhkStr) specs.push(`spacious ${bhkStr} layout`);
+  if (bathsStr) specs.push(bathsStr);
+
+  if (specs.length > 0) {
+    parts.push(`Designed and executed with premium architectural engineering spanning ${specs.join(', ')}.`);
+  }
+
+  // Sentence 3: Scope of Construction & Work Checkboxes
+  const works = [];
+  if (pr.rcc_structure) works.push('High-grade RCC Framed Structure');
+  if (pr.concrete_roof) works.push('Reinforced Concrete Roof Slab');
+  if (pr.compound_wall) works.push('Architectural Compound Wall');
+  if (pr.gate) works.push('Custom Steel Main Gate');
+  if (pr.parking) works.push('Covered Car & Bike Parking');
+  if (pr.water_connection) works.push('Water Line Connection');
+  if (pr.electrical_work) works.push('Concealed Copper Wiring & Modular Switches');
+  if (pr.plumbing) works.push('CPVC Plumbing & Branded Sanitaryware');
+  if (pr.painting) works.push('Weatherproof Exterior & Putty Interior Finish');
+  if (pr.interior_work) works.push('Interior Woodwork & Modular Kitchen');
+
+  if (works.length > 0) {
+    parts.push(`Scope of Construction & Quality Highlights: ${works.join(', ')}.`);
+  }
+
+  // Sentence 4: Special Features
+  if (pr.special_features && pr.special_features.trim()) {
+    parts.push(`Special Features: ${pr.special_features.trim()}.`);
+  }
+
+  // Sentence 5: Project Status & Completion
+  if (pr.status === 'Completed') {
+    const compStr = pr.completion_date || pr.actual_completion_date ? ` in ${pr.completion_date || pr.actual_completion_date}` : '';
+    parts.push(`Status: Successfully completed and handed over${compStr} with 100% structural quality compliance.`);
+  } else if (pr.status === 'Under Construction') {
+    parts.push('Status: Construction currently in progress adhering to strict timelines and structural engineering standards.');
+  } else if (pr.status === 'Planning & Approvals') {
+    parts.push('Status: Planning and approvals stage with customized architectural blueprint design.');
+  }
+
+  return parts.filter(Boolean).join('\n\n');
+};
+
+const defaultPropertyState = {
+  id: null,
+  property_id: '',
+  title: 'Individual House for Sale',
+  type: 'Individual House',
+  listing_type: 'For Sale',
+  status: 'Available',
+  address: '',
+  area: 'Poonamallee',
+  city: 'Chennai',
+  pincode: '',
+  maps_url: '',
+  latitude: '',
+  longitude: '',
+  landmark: '',
+  price: '',
+  price_amount: '',
+  price_unit: 'Lakhs',
+  price_display_type: 'Exact Price',
+  negotiable: 'Yes',
+  price_per_sqft: '',
+  plot_area: '',
+  plot_area_unit: 'sq.ft',
+  builtup_area: '',
+  builtup_area_unit: 'sq.ft',
+  floor_area: '',
+  floors: '',
+  bedrooms: '',
+  bathrooms: '',
+  balconies: '',
+  kitchens: '',
+  living_room: '',
+  dining_area: '',
+  pooja_room: '',
+  construction_status: 'Completed',
+  year_built: '',
+  construction_type: 'RCC / Concrete',
+  roof_type: 'RCC Flat Concrete Roof',
+  parking_available: 'Yes',
+  parking_type: 'Car + Bike',
+  cars: '',
+  bikes: '',
+  compound_wall: false,
+  gate: false,
+  water_connection: false,
+  eb_connection: false,
+  sewer_connection: false,
+  borewell: false,
+  overhead_tank: false,
+  ground_water: false,
+  road_access: false,
+  facing: 'East',
+  road_width: '',
+  road_width_unit: 'ft',
+  road_type: 'Tar Road',
+  corner_property: 'No',
+  patta_status: 'Available',
+  ec_status: 'Available',
+  approved_plan_status: 'Available',
+  building_approval_status: 'Available',
+  property_tax_status: 'Available',
+  sale_deed_status: 'Available',
+  other_documents: '',
+  short_description: '',
+  full_description: '',
+  description: '',
+  highlights: '',
+  published: true,
+  featured: false,
+  location: 'Poonamallee',
+  image: '',
+  images: [],
+  isDescriptionCustomized: false
+};
+
+const defaultLandState = {
+  id: null,
+  land_id: '',
+  title: 'DTCP Approved Residential Plot',
+  land_type: 'Residential Plot',
+  listing_type: 'For Sale',
+  status: 'Available',
+  address: '',
+  area: 'Poonamallee',
+  city: 'Chennai',
+  pincode: '',
+  maps_url: '',
+  latitude: '',
+  longitude: '',
+  landmark: '',
+  plot_area: '',
+  plot_area_unit: 'sq.ft',
+  frontage: '',
+  length: '',
+  width: '',
+  total_price: '',
+  price_amount: '',
+  price_unit: 'Lakhs',
+  price_per_sqft: '',
+  negotiable: 'Yes',
+  price_display_type: 'Exact Price',
+  approval_status: 'DTCP Approved',
+  facing: 'East',
+  road_width: '',
+  road_width_unit: 'ft',
+  road_type: 'Tar Road',
+  road_facing: 'North',
+  corner_plot: 'No',
+  eb_available: false,
+  water_available: false,
+  drainage_available: false,
+  borewell_available: false,
+  gated_community: false,
+  street_lights: false,
+  patta_status: 'Available',
+  ec_status: 'Available',
+  parent_documents_status: 'Available',
+  sale_deed_status: 'Available',
+  approval_documents_status: 'Available',
+  other_documents: '',
+  nearby_school: '',
+  nearby_hospital: '',
+  nearby_bus_stop: '',
+  nearby_railway: '',
+  nearby_main_road: '',
+  nearby_shopping: '',
+  short_description: '',
+  full_description: '',
+  description: '',
+  highlights: '',
+  published: true,
+  featured: false,
+  location: 'Poonamallee',
+  image: '',
+  images: [],
+  isDescriptionCustomized: false
+};
+
+const defaultProjectState = {
+  id: null,
+  project_id: '',
+  name: 'Individual Villa Construction',
+  title: 'Individual Villa Construction',
+  project_type: 'Individual House',
+  status: 'Completed',
+  address: '',
+  area: 'Poonamallee',
+  city: 'Chennai',
+  pincode: '',
+  maps_url: '',
+  latitude: '',
+  longitude: '',
+  plot_area: '',
+  plot_area_unit: 'sq.ft',
+  builtup_area: '',
+  builtup_area_unit: 'sq.ft',
+  floors: '',
+  bedrooms: '',
+  bathrooms: '',
+  start_date: '',
+  expected_completion_date: '',
+  actual_completion_date: '',
+  completion_date: '',
+  rcc_structure: false,
+  concrete_roof: false,
+  compound_wall: false,
+  gate: false,
+  parking: false,
+  water_connection: false,
+  electrical_work: false,
+  plumbing: false,
+  painting: false,
+  interior_work: false,
+  overview: '',
+  description: '',
+  construction_details: '',
+  special_features: '',
+  challenges: '',
+  solutions: '',
+  client_requirements: '',
+  final_outcome: '',
+  cover_image: '',
+  image: '',
+  published: true,
+  featured: false,
+  location: 'Poonamallee',
+  images: [],
+  isDescriptionCustomized: false
+};
+
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!sessionStorage.getItem('sk_admin_token');
@@ -118,7 +571,7 @@ const AdminDashboard = () => {
   const [credErrorMsg, setCredErrorMsg] = useState('');
   const [settingStatusMsg, setSettingStatusMsg] = useState('');
 
-  const VALID_TABS = ['dashboard', 'properties', 'land', 'projects', 'gallery', 'leads', 'settings', 'videos'];
+  const VALID_TABS = ['dashboard', 'properties', 'land', 'projects', 'gallery', 'feedbacks', 'testimonials', 'leads', 'settings', 'videos'];
 
   // Persist active section tab across reloads in sessionStorage
   const [activeTab, setActiveTab] = useState(() => {
@@ -141,6 +594,7 @@ const AdminDashboard = () => {
   const [propSearch, setPropSearch] = useState('');
   const [landSearch, setLandSearch] = useState('');
   const [projSearch, setProjSearch] = useState('');
+  const [feedSearch, setFeedSearch] = useState('');
 
   // Database Data States
   const defaultSettingsState = {
@@ -151,7 +605,9 @@ const AdminDashboard = () => {
     email: 'info@skbuilders.com',
     location: 'Poonamallee, Chennai',
     service_areas: 'Poonamallee, Mangadu, Kundrathur',
-    logo_url: '/logo/sk-builders-logo.png'
+    logo_url: '/logo/sk-builders-logo.png',
+    site_title: 'SK Builders & Property Consultant',
+    meta_description: 'Builder & Property Consultant in Poonamallee, Mangadu & Kundrathur. Houses for sale, residential land, contract construction, and property guidance.'
   };
 
   const [settings, setSettings] = useState(defaultSettingsState);
@@ -162,11 +618,13 @@ const AdminDashboard = () => {
   const [land, setLand] = useState([]);
   const [projects, setProjects] = useState([]);
   const [gallery, setGallery] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
   const [leads, setLeads] = useState([]);
   const [videos, setVideos] = useState([]);
   const [statusNotice, setStatusNotice] = useState('');
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
 
   // Dynamically compute location selection options from Admin Settings -> Service Areas
   const serviceAreaOptions = getServiceAreaOptions(settingsForm.service_areas || settings?.service_areas, settingsForm.location || settings?.location);
@@ -176,42 +634,686 @@ const AdminDashboard = () => {
     document.title = `${settings?.company_name || 'Admin'} - Admin Portal`;
   }, [settings?.company_name]);
 
-  // Form State Containers
-  const [formProp, setFormProp] = useState({
-    id: null, property_id: '', title: '', type: 'Individual House', listing_type: 'For Sale', status: 'Available',
-    address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-    price: '₹58 Lakhs', price_display_type: 'Exact Price', negotiable: 'Yes', price_per_sqft: '',
-    plot_area: '1000', plot_area_unit: 'sq.ft', builtup_area: '1200', builtup_area_unit: 'sq.ft', floor_area: '',
-    floors: '2', bedrooms: '2 BHK', bathrooms: '2', balconies: '1', kitchens: '1', living_room: '1', dining_area: '1', pooja_room: '1',
-    construction_status: 'Completed', year_built: '2024', construction_type: 'RCC / Concrete', roof_type: 'RCC Flat Concrete Roof',
-    parking_available: 'Yes', parking_type: 'Car + Bike', cars: '1', bikes: '2',
-    compound_wall: true, gate: true, water_connection: true, eb_connection: true, sewer_connection: true, borewell: true, overhead_tank: true, ground_water: true, road_access: true,
-    facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', corner_property: 'No',
-    patta_status: 'Available', ec_status: 'Available', approved_plan_status: 'Available', building_approval_status: 'Available', property_tax_status: 'Available', sale_deed_status: 'Available', other_documents: '',
-    short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-  });
+  const [formProp, setFormProp] = useState(defaultPropertyState);
+  const [formTestimonial, setFormTestimonial] = useState({ id: null, client_name: '', location: '', quote: '', rating: 5 });
+  const [testSearch, setTestSearch] = useState('');
+  const [propertyImagesList, setPropertyImagesList] = useState([]);
+  const [stagedDeletedPropertyImages, setStagedDeletedPropertyImages] = useState([]);
+  const [selectedImageFiles, setSelectedImageFiles] = useState([]);
+  const [uploadingBasicImage, setUploadingBasicImage] = useState(false);
+  const [isSavingProperty, setIsSavingProperty] = useState(false);
+  const [propertyFormError, setPropertyFormError] = useState('');
+  const [isCustomPropertyTitle, setIsCustomPropertyTitle] = useState(false);
+  const [draggedImgIdx, setDraggedImgIdx] = useState(null);
+  const [dragOverImgIdx, setDragOverImgIdx] = useState(null);
 
-  const [formLand, setFormLand] = useState({
-    id: null, land_id: '', title: '', land_type: 'Residential Plot', listing_type: 'For Sale', status: 'Available',
-    address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-    plot_area: '1200', plot_area_unit: 'sq.ft', frontage: '30 ft', length: '40', width: '30',
-    total_price: '₹32 Lakhs', price_per_sqft: '₹2,666', negotiable: 'Yes', price_display_type: 'Exact Price',
-    approval_status: 'DTCP Approved', facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', road_facing: 'North', corner_plot: 'No',
-    eb_available: true, water_available: true, drainage_available: true, borewell_available: true,
-    patta_status: 'Available', ec_status: 'Available', parent_documents_status: 'Available', sale_deed_status: 'Available', approval_documents_status: 'Available', other_documents: '',
-    nearby_school: '1.2 km', nearby_hospital: '2 km', nearby_bus_stop: '500m', nearby_railway: '3 km', nearby_main_road: '300m', nearby_shopping: '1 km',
-    short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-  });
+  const updateFormProp = (updates) => {
+    setFormProp(prev => {
+      const next = { ...prev, ...updates };
+      if (!next.isDescriptionCustomized) {
+        next.description = generatePropertyDescription(next);
+      }
+      return next;
+    });
+  };
 
-  const [formProj, setFormProj] = useState({
-    id: null, project_id: '', name: '', title: '', project_type: 'Individual House', status: 'Completed',
-    address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '',
-    plot_area: '1200', plot_area_unit: 'sq.ft', builtup_area: '1500', builtup_area_unit: 'sq.ft', floors: '2', bedrooms: '3 BHK', bathrooms: '3',
-    start_date: '2023-01-15', expected_completion_date: '2024-03-30', actual_completion_date: '2024-03-15',
-    rcc_structure: true, concrete_roof: true, compound_wall: true, gate: true, parking: true, water_connection: true, electrical_work: true, plumbing: true, painting: true, interior_work: true,
-    overview: '', description: '', construction_details: '', special_features: '', challenges: '', solutions: '', client_requirements: '', final_outcome: '',
-    completion_date: '2024', cover_image: '/house/completed-house.jpg', published: true, featured: true, location: 'Poonamallee', images: []
-  });
+  const handleSelectMultipleImages = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setUploadingBasicImage(true);
+
+    const newItems = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/api/media/upload-image?section=properties', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.imageUrl) {
+          newItems.push({
+            id: `upl-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+            url: data.imageUrl,
+            file
+          });
+        } else {
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.readAsDataURL(file);
+          });
+          newItems.push({
+            id: `upl-${Date.now()}-${i}`,
+            url: dataUrl,
+            file
+          });
+        }
+      } catch (err) {
+        console.error('Upload failed, using data url fallback:', err);
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.readAsDataURL(file);
+        });
+        newItems.push({
+          id: `upl-${Date.now()}-${i}`,
+          url: dataUrl,
+          file
+        });
+      }
+    }
+
+    setUploadingBasicImage(false);
+    const updatedList = [...propertyImagesList, ...newItems];
+    setPropertyImagesList(updatedList);
+    if (updatedList.length > 0) {
+      updateFormProp({ image: updatedList[0].url });
+    }
+    e.target.value = '';
+  };
+
+  const handleImageDragStart = (e, index) => {
+    setDraggedImgIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', String(index));
+    } catch (err) {}
+  };
+
+  const handleImageDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverImgIdx !== index) {
+      setDragOverImgIdx(index);
+    }
+  };
+
+  const handleImageDragLeave = (e, index) => {
+    if (dragOverImgIdx === index) {
+      setDragOverImgIdx(null);
+    }
+  };
+
+  const handleImageDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedImgIdx === null || draggedImgIdx === targetIndex) {
+      setDraggedImgIdx(null);
+      setDragOverImgIdx(null);
+      return;
+    }
+
+    const list = [...propertyImagesList];
+    const [draggedItem] = list.splice(draggedImgIdx, 1);
+    list.splice(targetIndex, 0, draggedItem);
+
+    setPropertyImagesList(list);
+    if (list.length > 0) {
+      updateFormProp({ image: list[0].url });
+    }
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
+
+  const handleImageDragEnd = () => {
+    setDraggedImgIdx(null);
+    setDragOverImgIdx(null);
+  };
+
+  const setPropertyCoverImage = (index) => {
+    if (index === 0 || index >= propertyImagesList.length) return;
+    const list = [...propertyImagesList];
+    const item = list.splice(index, 1)[0];
+    list.unshift(item);
+    setPropertyImagesList(list);
+    updateFormProp({ image: list[0].url });
+  };
+
+  const removePropertyImage = (index) => {
+    const itemToRemove = propertyImagesList[index];
+    const list = propertyImagesList.filter((_, i) => i !== index);
+    setPropertyImagesList(list);
+    const newCover = list.length > 0 ? list[0].url : '';
+    updateFormProp({ image: newCover });
+
+    // Stage image for deletion on Save Property ONLY (do NOT delete physically or from DB on "X" click)
+    if (itemToRemove && itemToRemove.url && !itemToRemove.url.startsWith('data:')) {
+      setStagedDeletedPropertyImages(prev => [...prev, itemToRemove]);
+    }
+  };
+
+  const propertyTitleOptions = [
+    'Individual House for Sale',
+    'Independent Villa for Sale',
+    'Duplex Villa',
+    'Luxury Villa for Sale',
+    'Modern Residential House',
+    'Contemporary House for Sale',
+    'Premium Independent House',
+    'Residential Building',
+    'Commercial Building',
+    'Independent House'
+  ];
+
+  const openCreateProperty = () => {
+    setFormStep(1);
+    setFormProp({
+      ...defaultPropertyState,
+      location: serviceAreaOptions[0] || 'Poonamallee'
+    });
+    setPropertyImagesList([]);
+    setStagedDeletedPropertyImages([]);
+    setSelectedImageFiles([]);
+    setPropertyFormError('');
+    setIsCustomPropertyTitle(false);
+    setModalType('property_form');
+  };
+
+  const openEditProperty = async (p) => {
+    const isCustom = !propertyTitleOptions.includes(p.title);
+    setIsCustomPropertyTitle(isCustom);
+    setStagedDeletedPropertyImages([]);
+
+    let cleanPlotArea = '';
+    let cleanPlotUnit = p.plot_area_unit || 'sq.ft';
+    if (p.plot_area) {
+      const rawPlot = String(p.plot_area);
+      if (rawPlot.toLowerCase().includes('sq.m')) cleanPlotUnit = 'sq.m';
+      else if (rawPlot.toLowerCase().includes('cent')) cleanPlotUnit = 'Cent';
+      else if (rawPlot.toLowerCase().includes('ground')) cleanPlotUnit = 'Ground';
+      else if (rawPlot.toLowerCase().includes('acre')) cleanPlotUnit = 'Acre';
+      else if (rawPlot.toLowerCase().includes('sq')) cleanPlotUnit = 'sq.ft';
+      const match = rawPlot.replace(/sq\.ft|sqft|sq\.m|sqm/gi, '').match(/[\d]+(?:\.[\d]+)?/);
+      cleanPlotArea = match ? match[0] : rawPlot.replace(/[^0-9.]/g, '');
+    }
+
+    let cleanBuiltupArea = '';
+    let cleanBuiltupUnit = p.builtup_area_unit || 'sq.ft';
+    if (p.builtup_area) {
+      const rawBuilt = String(p.builtup_area);
+      if (rawBuilt.toLowerCase().includes('sq.m')) cleanBuiltupUnit = 'sq.m';
+      else if (rawBuilt.toLowerCase().includes('cent')) cleanBuiltupUnit = 'Cent';
+      else if (rawBuilt.toLowerCase().includes('ground')) cleanBuiltupUnit = 'Ground';
+      else if (rawBuilt.toLowerCase().includes('sq')) cleanBuiltupUnit = 'sq.ft';
+      const match = rawBuilt.replace(/sq\.ft|sqft|sq\.m|sqm/gi, '').match(/[\d]+(?:\.[\d]+)?/);
+      cleanBuiltupArea = match ? match[0] : rawBuilt.replace(/[^0-9.]/g, '');
+    }
+
+    let cleanBedrooms = '';
+    if (p.bedrooms) {
+      const match = String(p.bedrooms).match(/\d+/);
+      cleanBedrooms = match ? match[0] : '';
+    }
+
+    let cleanRoadWidth = '';
+    let cleanRoadUnit = p.road_width_unit || 'ft';
+    if (p.road_width) {
+      const rawRoad = String(p.road_width);
+      if (rawRoad.toLowerCase().includes('inch')) cleanRoadUnit = 'inch';
+      else if (rawRoad.toLowerCase().includes('meter')) cleanRoadUnit = 'meter';
+      else if (rawRoad.toLowerCase().includes('ft')) cleanRoadUnit = 'ft';
+      const match = rawRoad.match(/[\d]+(?:\.[\d]+)?/);
+      cleanRoadWidth = match ? match[0] : '';
+    }
+
+    const priceMatch = (p.price || '').replace(/[^0-9.]/g, '');
+    const priceUnit = (p.price || '').includes('Crore') ? 'Crores' : (p.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs';
+
+    setFormProp({
+      ...defaultPropertyState,
+      ...p,
+      plot_area: cleanPlotArea,
+      plot_area_unit: cleanPlotUnit,
+      builtup_area: cleanBuiltupArea,
+      builtup_area_unit: cleanBuiltupUnit,
+      bedrooms: cleanBedrooms,
+      road_width: cleanRoadWidth,
+      road_width_unit: cleanRoadUnit,
+      price_amount: priceMatch,
+      price_unit: priceUnit,
+      published: !!p.published,
+      featured: !!p.featured,
+      isDescriptionCustomized: !!(p.description || p.full_description)
+    });
+    setPropertyFormError('');
+    setFormStep(1);
+    setSelectedImageFiles([]);
+    setModalType('property_form');
+
+    const initialImgs = [];
+    if (p.image && p.image !== '/house/completed-house.jpg' && !p.image.includes('logo')) {
+      initialImgs.push({ id: `main-${p.id}`, url: p.image, isCover: true });
+    }
+    setPropertyImagesList(initialImgs);
+
+    try {
+      const res = await fetch(`/api/properties/${p.id}`);
+      const data = await res.json();
+      if (data.property && Array.isArray(data.property.images) && data.property.images.length > 0) {
+        const mapped = data.property.images.map((img, i) => ({
+          id: img.id,
+          url: img.image_url,
+          isCover: !!img.is_cover || i === 0
+        }));
+        setPropertyImagesList(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching property images:', err);
+    }
+  };
+
+  // Land Form State
+  const [formLand, setFormLand] = useState(defaultLandState);
+  const [landImagesList, setLandImagesList] = useState([]);
+  const [stagedDeletedLandImages, setStagedDeletedLandImages] = useState([]);
+  const [uploadingLandImage, setUploadingLandImage] = useState(false);
+  const [isSavingLand, setIsSavingLand] = useState(false);
+  const [landFormError, setLandFormError] = useState('');
+  const [isCustomLandTitle, setIsCustomLandTitle] = useState(false);
+  const [draggedLandImgIdx, setDraggedLandImgIdx] = useState(null);
+  const [dragOverLandImgIdx, setDragOverLandImgIdx] = useState(null);
+
+  const updateFormLand = (updates) => {
+    setFormLand(prev => {
+      const next = { ...prev, ...updates };
+      if (!next.isDescriptionCustomized) {
+        next.description = generateLandDescription(next);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectMultipleLandImages = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setUploadingLandImage(true);
+
+    const newItems = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/api/media/upload-image?section=land', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.imageUrl) {
+          newItems.push({
+            id: `upl-land-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+            url: data.imageUrl,
+            file
+          });
+        }
+      } catch (err) {
+        console.error('Land image upload error:', err);
+      }
+    }
+
+    setUploadingLandImage(false);
+    const updatedList = [...landImagesList, ...newItems];
+    setLandImagesList(updatedList);
+    if (updatedList.length > 0) {
+      updateFormLand({ image: updatedList[0].url });
+    }
+    e.target.value = '';
+  };
+
+  const handleLandImageDragStart = (e, index) => {
+    setDraggedLandImgIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) {}
+  };
+
+  const handleLandImageDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverLandImgIdx !== index) setDragOverLandImgIdx(index);
+  };
+
+  const handleLandImageDragLeave = (e, index) => {
+    if (dragOverLandImgIdx === index) setDragOverLandImgIdx(null);
+  };
+
+  const handleLandImageDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedLandImgIdx === null || draggedLandImgIdx === targetIndex) {
+      setDraggedLandImgIdx(null);
+      setDragOverLandImgIdx(null);
+      return;
+    }
+    const list = [...landImagesList];
+    const [draggedItem] = list.splice(draggedLandImgIdx, 1);
+    list.splice(targetIndex, 0, draggedItem);
+    setLandImagesList(list);
+    if (list.length > 0) updateFormLand({ image: list[0].url });
+    setDraggedLandImgIdx(null);
+    setDragOverLandImgIdx(null);
+  };
+
+  const handleLandImageDragEnd = () => {
+    setDraggedLandImgIdx(null);
+    setDragOverLandImgIdx(null);
+  };
+
+  const setLandCoverImage = (index) => {
+    if (index === 0 || index >= landImagesList.length) return;
+    const list = [...landImagesList];
+    const item = list.splice(index, 1)[0];
+    list.unshift(item);
+    setLandImagesList(list);
+    updateFormLand({ image: list[0].url });
+  };
+
+  const removeLandImage = (index) => {
+    const itemToRemove = landImagesList[index];
+    const list = landImagesList.filter((_, i) => i !== index);
+    setLandImagesList(list);
+    const newCover = list.length > 0 ? list[0].url : '';
+    updateFormLand({ image: newCover });
+    if (itemToRemove && itemToRemove.url && !itemToRemove.url.startsWith('data:')) {
+      setStagedDeletedLandImages(prev => [...prev, itemToRemove]);
+    }
+  };
+
+  const openCreateLand = () => {
+    setFormStep(1);
+    const initialLand = {
+      ...defaultLandState,
+      location: serviceAreaOptions[0] || 'Poonamallee'
+    };
+    initialLand.description = generateLandDescription(initialLand);
+    setFormLand(initialLand);
+    setLandImagesList([]);
+    setStagedDeletedLandImages([]);
+    setLandFormError('');
+    setIsCustomLandTitle(false);
+    setModalType('land_form');
+  };
+
+  const openEditLand = async (l) => {
+    const isCustom = !landTitleOptions.includes(l.title);
+    setIsCustomLandTitle(isCustom);
+    setStagedDeletedLandImages([]);
+
+    let cleanPlotArea = '';
+    let cleanPlotUnit = l.plot_area_unit || 'sq.ft';
+    if (l.plot_area) {
+      const rawPlot = String(l.plot_area);
+      if (rawPlot.toLowerCase().includes('sq.m')) cleanPlotUnit = 'sq.m';
+      else if (rawPlot.toLowerCase().includes('cent')) cleanPlotUnit = 'Cent';
+      else if (rawPlot.toLowerCase().includes('ground')) cleanPlotUnit = 'Ground';
+      else if (rawPlot.toLowerCase().includes('acre')) cleanPlotUnit = 'Acre';
+      else if (rawPlot.toLowerCase().includes('sq')) cleanPlotUnit = 'sq.ft';
+      const match = rawPlot.replace(/sq\.ft|sqft|sq\.m|sqm/gi, '').match(/[\d]+(?:\.[\d]+)?/);
+      cleanPlotArea = match ? match[0] : rawPlot.replace(/[^0-9.]/g, '');
+    }
+
+    let cleanRoadWidth = '';
+    let cleanRoadUnit = l.road_width_unit || 'ft';
+    if (l.road_width) {
+      const rawRoad = String(l.road_width);
+      if (rawRoad.toLowerCase().includes('meter')) cleanRoadUnit = 'meter';
+      else if (rawRoad.toLowerCase().includes('ft')) cleanRoadUnit = 'ft';
+      const match = rawRoad.match(/[\d]+(?:\.[\d]+)?/);
+      cleanRoadWidth = match ? match[0] : '';
+    }
+
+    let cleanLength = l.length ? String(l.length).replace(/[^0-9.]/g, '') : '';
+    let cleanWidth = l.width ? String(l.width).replace(/[^0-9.]/g, '') : '';
+
+    const priceMatch = (l.total_price || l.price || '').replace(/[^0-9.]/g, '');
+    const priceUnit = (l.total_price || l.price || '').includes('Crore') ? 'Crores' : (l.total_price || l.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs';
+
+    setFormLand({
+      ...defaultLandState,
+      ...l,
+      plot_area: cleanPlotArea,
+      plot_area_unit: cleanPlotUnit,
+      length: cleanLength,
+      width: cleanWidth,
+      road_width: cleanRoadWidth,
+      road_width_unit: cleanRoadUnit,
+      price_amount: priceMatch,
+      price_unit: priceUnit,
+      published: !!l.published,
+      featured: !!l.featured,
+      isDescriptionCustomized: !!(l.description || l.full_description)
+    });
+    setLandFormError('');
+    setFormStep(1);
+    setModalType('land_form');
+
+    const initialImgs = [];
+    if (l.image && l.image !== '/house/completed-house.jpg' && !l.image.includes('logo')) {
+      initialImgs.push({ id: `main-land-${l.id}`, url: l.image, isCover: true });
+    }
+    setLandImagesList(initialImgs);
+
+    try {
+      const res = await fetch(`/api/land/${l.id}`);
+      const data = await res.json();
+      if (data.land && Array.isArray(data.land.images) && data.land.images.length > 0) {
+        const mapped = data.land.images.map((img, i) => ({
+          id: img.id,
+          url: img.image_url,
+          isCover: !!img.is_cover || i === 0
+        }));
+        setLandImagesList(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching land images:', err);
+    }
+  };
+
+  // Projects Form State
+  const [formProj, setFormProj] = useState(defaultProjectState);
+  const [projectImagesList, setProjectImagesList] = useState([]);
+  const [stagedDeletedProjectImages, setStagedDeletedProjectImages] = useState([]);
+  const [uploadingProjectImage, setUploadingProjectImage] = useState(false);
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [projectFormError, setProjectFormError] = useState('');
+  const [isCustomProjectTitle, setIsCustomProjectTitle] = useState(false);
+  const [draggedProjImgIdx, setDraggedProjImgIdx] = useState(null);
+  const [dragOverProjImgIdx, setDragOverProjImgIdx] = useState(null);
+
+  const updateFormProj = (updates) => {
+    setFormProj(prev => {
+      const next = { ...prev, ...updates };
+      if (!next.isDescriptionCustomized) {
+        const desc = generateProjectDescription(next);
+        next.description = desc;
+        next.overview = desc;
+      }
+      return next;
+    });
+  };
+
+  const handleSelectMultipleProjectImages = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setUploadingProjectImage(true);
+
+    const newItems = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/api/media/upload-image?section=projects', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.imageUrl) {
+          newItems.push({
+            id: `upl-proj-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+            url: data.imageUrl,
+            file
+          });
+        }
+      } catch (err) {
+        console.error('Project image upload error:', err);
+      }
+    }
+
+    setUploadingProjectImage(false);
+    const updatedList = [...projectImagesList, ...newItems];
+    setProjectImagesList(updatedList);
+    if (updatedList.length > 0) {
+      updateFormProj({ cover_image: updatedList[0].url, image: updatedList[0].url });
+    }
+    e.target.value = '';
+  };
+
+  const handleProjImageDragStart = (e, index) => {
+    setDraggedProjImgIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) {}
+  };
+
+  const handleProjImageDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverProjImgIdx !== index) setDragOverProjImgIdx(index);
+  };
+
+  const handleProjImageDragLeave = (e, index) => {
+    if (dragOverProjImgIdx === index) setDragOverProjImgIdx(null);
+  };
+
+  const handleProjImageDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedProjImgIdx === null || draggedProjImgIdx === targetIndex) {
+      setDraggedProjImgIdx(null);
+      setDragOverProjImgIdx(null);
+      return;
+    }
+    const list = [...projectImagesList];
+    const [draggedItem] = list.splice(draggedProjImgIdx, 1);
+    list.splice(targetIndex, 0, draggedItem);
+    setProjectImagesList(list);
+    if (list.length > 0) updateFormProj({ cover_image: list[0].url, image: list[0].url });
+    setDraggedProjImgIdx(null);
+    setDragOverProjImgIdx(null);
+  };
+
+  const handleProjImageDragEnd = () => {
+    setDraggedProjImgIdx(null);
+    setDragOverProjImgIdx(null);
+  };
+
+  const setProjectCoverImage = (index) => {
+    if (index === 0 || index >= projectImagesList.length) return;
+    const list = [...projectImagesList];
+    const item = list.splice(index, 1)[0];
+    list.unshift(item);
+    setProjectImagesList(list);
+    updateFormProj({ cover_image: list[0].url, image: list[0].url });
+  };
+
+  const removeProjectImage = (index) => {
+    const itemToRemove = projectImagesList[index];
+    const list = projectImagesList.filter((_, i) => i !== index);
+    setProjectImagesList(list);
+    const newCover = list.length > 0 ? list[0].url : '';
+    updateFormProj({ cover_image: newCover, image: newCover });
+    if (itemToRemove && itemToRemove.url && !itemToRemove.url.startsWith('data:')) {
+      setStagedDeletedProjectImages(prev => [...prev, itemToRemove]);
+    }
+  };
+
+  const openCreateProject = () => {
+    setFormStep(1);
+    const initialProj = {
+      ...defaultProjectState,
+      location: serviceAreaOptions[0] || 'Poonamallee'
+    };
+    initialProj.description = generateProjectDescription(initialProj);
+    initialProj.overview = initialProj.description;
+    setFormProj(initialProj);
+    setProjectImagesList([]);
+    setStagedDeletedProjectImages([]);
+    setProjectFormError('');
+    setIsCustomProjectTitle(false);
+    setModalType('project_form');
+  };
+
+  const openEditProject = async (pr) => {
+    const currentName = pr.name || pr.title || 'Individual Villa Construction';
+    const isCustom = !projectTitleOptions.includes(currentName);
+    setIsCustomProjectTitle(isCustom);
+    setStagedDeletedProjectImages([]);
+
+    let cleanBuiltupArea = '';
+    let cleanBuiltupUnit = pr.builtup_area_unit || 'sq.ft';
+    if (pr.builtup_area) {
+      const rawBuilt = String(pr.builtup_area);
+      if (rawBuilt.toLowerCase().includes('sq.m')) cleanBuiltupUnit = 'sq.m';
+      else if (rawBuilt.toLowerCase().includes('sq')) cleanBuiltupUnit = 'sq.ft';
+      const match = rawBuilt.match(/[\d]+(?:\.[\d]+)?/);
+      cleanBuiltupArea = match ? match[0] : rawBuilt.replace(/[^0-9.]/g, '');
+    }
+
+    let cleanPlotArea = '';
+    let cleanPlotUnit = pr.plot_area_unit || 'sq.ft';
+    if (pr.plot_area) {
+      const rawPlot = String(pr.plot_area);
+      if (rawPlot.toLowerCase().includes('sq.m')) cleanPlotUnit = 'sq.m';
+      else if (rawPlot.toLowerCase().includes('sq')) cleanPlotUnit = 'sq.ft';
+      const match = rawPlot.match(/[\d]+(?:\.[\d]+)?/);
+      cleanPlotArea = match ? match[0] : rawPlot.replace(/[^0-9.]/g, '');
+    }
+
+    let cleanFloors = pr.floors ? String(pr.floors).replace(/[^0-9]/g, '') : '';
+    let cleanBedrooms = pr.bedrooms ? String(pr.bedrooms).replace(/[^0-9]/g, '') : '';
+    let cleanBathrooms = pr.bathrooms ? String(pr.bathrooms).replace(/[^0-9]/g, '') : '';
+
+    setFormProj({
+      ...defaultProjectState,
+      ...pr,
+      name: currentName,
+      title: currentName,
+      builtup_area: cleanBuiltupArea,
+      builtup_area_unit: cleanBuiltupUnit,
+      plot_area: cleanPlotArea,
+      plot_area_unit: cleanPlotUnit,
+      floors: cleanFloors,
+      bedrooms: cleanBedrooms,
+      bathrooms: cleanBathrooms,
+      published: !!pr.published,
+      featured: !!pr.featured,
+      isDescriptionCustomized: !!(pr.description || pr.overview)
+    });
+    setProjectFormError('');
+    setFormStep(1);
+    setModalType('project_form');
+
+    const initialImgs = [];
+    const cover = pr.cover_image || pr.image;
+    if (cover && cover !== '/house/completed-house.jpg' && !cover.includes('logo')) {
+      initialImgs.push({ id: `main-proj-${pr.id}`, url: cover, isCover: true });
+    }
+    setProjectImagesList(initialImgs);
+
+    try {
+      const res = await fetch(`/api/projects/${pr.id}`);
+      const data = await res.json();
+      if (data.project && Array.isArray(data.project.images) && data.project.images.length > 0) {
+        const mapped = data.project.images.map((img, i) => ({
+          id: img.id,
+          url: img.image_url,
+          isCover: i === 0
+        }));
+        setProjectImagesList(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching project images:', err);
+    }
+  };
 
   const [formSrv, setFormSrv] = useState({ id: null, title: '', description: '', icon_name: 'Home', link_url: '#properties', display_order: 1 });
   const [formGal, setFormGal] = useState({ id: null, image: '' });
@@ -242,13 +1344,14 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [sRes, srvRes, propRes, landRes, projRes, galRes, testRes, leadRes, vidRes] = await Promise.all([
+      const [sRes, srvRes, propRes, landRes, projRes, galRes, feedRes, testRes, leadRes, vidRes] = await Promise.all([
         fetch('/api/settings').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/services').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/properties').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/land').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/projects').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/gallery').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/feedback?all=true').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/testimonials').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/media/videos').then(r => r.ok ? r.json() : null).catch(() => null)
@@ -274,13 +1377,14 @@ const AdminDashboard = () => {
       setLand(Array.isArray(landRes?.land) ? landRes.land : (Array.isArray(landRes) ? landRes : []));
       setProjects(Array.isArray(projRes?.projects) ? projRes.projects : (Array.isArray(projRes) ? projRes : []));
       setGallery(Array.isArray(galRes) ? galRes : []);
+      setFeedbacks(Array.isArray(feedRes) ? feedRes : []);
       setTestimonials(Array.isArray(testRes) ? testRes : []);
       setLeads(Array.isArray(leadRes) ? leadRes : []);
       setVideos(Array.isArray(vidRes) ? vidRes : []);
     } catch (e) {
       console.error('Error fetching admin data:', e);
     } finally {
-      setIsLoadingData(false);
+      setIsInitialLoading(false);
     }
   };
 
@@ -296,6 +1400,8 @@ const AdminDashboard = () => {
       const data = await res.json();
       if (res.ok && data.success) {
         sessionStorage.setItem('sk_admin_token', data.token);
+        sessionStorage.setItem('sk_admin_active_tab', 'dashboard');
+        setActiveTab('dashboard');
         setIsAuthenticated(true);
         setLoginError('');
         fetchData();
@@ -306,6 +1412,7 @@ const AdminDashboard = () => {
       setLoginError('Unable to connect to backend server.');
     }
   };
+
 
   const handleUpdateCredentials = async (e) => {
     e.preventDefault();
@@ -347,15 +1454,26 @@ const AdminDashboard = () => {
     setSettingStatusMsg('');
 
     try {
+      const company = settingsForm.company_name ?? settings.company_name ?? 'SK BUILDERS';
+      const subtitle = settingsForm.company_subtitle ?? settings.company_subtitle ?? '& PROPERTY CONSULTANT';
+      const defaultTitle = `${company} ${subtitle}`.trim();
+      const payload = {
+        ...settingsForm,
+        company_name: company,
+        company_subtitle: subtitle,
+        site_title: settingsForm.site_title || defaultTitle,
+        meta_description: settingsForm.meta_description ?? settings.meta_description ?? ''
+      };
+
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settingsForm)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
         setIsSettingsFormDirty(false);
-        setSettings(settingsForm);
+        setSettings(payload);
         setSettingStatusMsg('Website settings saved successfully!');
         fetchData();
         notifySiteDataUpdated();
@@ -447,31 +1565,115 @@ const AdminDashboard = () => {
 
   // Save Property Submit
   const handleSaveProperty = async (e) => {
-    e.preventDefault();
-    const isEdit = !!formProp.id;
-    const url = isEdit ? `/api/properties/${formProp.id}` : '/api/properties';
-    const method = isEdit ? 'PUT' : 'POST';
+    if (e && e.preventDefault) e.preventDefault();
+    setPropertyFormError('');
+    setIsSavingProperty(true);
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formProp)
-    });
+    try {
+      const isEdit = !!formProp.id;
+      const url = isEdit ? `/api/properties/${formProp.id}` : '/api/properties';
+      const method = isEdit ? 'PUT' : 'POST';
 
-    if (res.ok) {
+      const coverImg = (propertyImagesList.length > 0 && propertyImagesList[0].url)
+        ? propertyImagesList[0].url
+        : (formProp.image && formProp.image !== '/house/completed-house.jpg' && !formProp.image.includes('logo') ? formProp.image : '');
+
+      const finalDesc = formProp.description || generatePropertyDescription(formProp);
+      const finalPrice = formProp.price_amount
+        ? `₹${formProp.price_amount} ${formProp.price_unit || 'Lakhs'}`
+        : (formProp.price?.trim() || 'Price on Request');
+
+      const cleanPlot = formProp.plot_area ? String(formProp.plot_area).trim() : '';
+      const cleanBuilt = formProp.builtup_area ? String(formProp.builtup_area).trim() : '';
+      const cleanBed = formProp.bedrooms ? (String(formProp.bedrooms).includes('BHK') ? formProp.bedrooms : `${formProp.bedrooms} BHK`) : '';
+      const cleanRoad = formProp.road_width ? String(formProp.road_width).trim() : '';
+
+      const payload = {
+        ...formProp,
+        title: formProp.title?.trim() || 'Individual House for Sale',
+        price: finalPrice,
+        bedrooms: cleanBed,
+        plot_area: cleanPlot,
+        plot_area_unit: formProp.plot_area_unit || 'sq.ft',
+        builtup_area: cleanBuilt,
+        builtup_area_unit: formProp.builtup_area_unit || 'sq.ft',
+        road_width: cleanRoad,
+        road_width_unit: formProp.road_width_unit || 'ft',
+        image: coverImg,
+        description: finalDesc,
+        full_description: finalDesc,
+        short_description: finalDesc.split('\n\n')[0] || ''
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
       const data = await res.json();
-      const recordId = isEdit ? formProp.id : data.id;
 
-      if (selectedImageFiles.length > 0 && recordId) {
-        await handleBatchImageUpload('/api/properties', recordId, selectedImageFiles);
+      if (!res.ok) {
+        throw new Error(data.error || 'Server error saving property to database.');
       }
 
-      fetchData();
+      const recordId = isEdit ? formProp.id : data.id;
+
+      // Execute physical file & DB deletion for images removed with "X" ONLY upon Save Property
+      if (stagedDeletedPropertyImages.length > 0) {
+        for (const itemToRemove of stagedDeletedPropertyImages) {
+          if (itemToRemove && itemToRemove.url && !itemToRemove.url.startsWith('data:')) {
+            try {
+              await fetch('/api/properties/delete-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  propertyId: recordId || formProp.id || null,
+                  imageUrl: itemToRemove.url,
+                  imageId: typeof itemToRemove.id === 'number' ? itemToRemove.id : null
+                })
+              });
+            } catch (delErr) {
+              console.error('Error deleting staged image from server & database:', delErr);
+            }
+          }
+        }
+        setStagedDeletedPropertyImages([]);
+      }
+
+      // Sync ordered images with backend
+      if (propertyImagesList.length > 0 && recordId) {
+        try {
+          await fetch(`/api/properties/${recordId}/images/sync`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ images: propertyImagesList.map(item => item.url) })
+          });
+        } catch (syncErr) {
+          console.error('Batch image sync warning:', syncErr);
+        }
+      }
+
+      if (Array.isArray(selectedImageFiles) && selectedImageFiles.length > 0 && recordId) {
+        try {
+          await handleBatchImageUpload('/api/properties', recordId, selectedImageFiles);
+        } catch (imgErr) {
+          console.error('Batch image upload warning:', imgErr);
+        }
+      }
+
+      await fetchData();
       notifySiteDataUpdated();
       setModalType(null);
       setSelectedImageFiles([]);
-      setStatusNotice(isEdit ? 'Property updated successfully!' : 'New Property created!');
-      setTimeout(() => setStatusNotice(''), 3000);
+      setPropertyImagesList([]);
+      setStatusNotice(isEdit ? 'Property updated successfully!' : 'New Property saved successfully to database!');
+      setTimeout(() => setStatusNotice(''), 4000);
+    } catch (err) {
+      console.error('Error saving property:', err);
+      setPropertyFormError(err.message || 'Failed to save property. Please check input fields.');
+    } finally {
+      setIsSavingProperty(false);
     }
   };
 
@@ -490,31 +1692,100 @@ const AdminDashboard = () => {
 
   // Save Land Submit
   const handleSaveLand = async (e) => {
-    e.preventDefault();
-    const isEdit = !!formLand.id;
-    const url = isEdit ? `/api/land/${formLand.id}` : '/api/land';
-    const method = isEdit ? 'PUT' : 'POST';
+    if (e && e.preventDefault) e.preventDefault();
+    setLandFormError('');
+    setIsSavingLand(true);
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formLand)
-    });
+    try {
+      const isEdit = !!formLand.id;
+      const url = isEdit ? `/api/land/${formLand.id}` : '/api/land';
+      const method = isEdit ? 'PUT' : 'POST';
 
-    if (res.ok) {
+      const coverImg = (landImagesList.length > 0 && landImagesList[0].url)
+        ? landImagesList[0].url
+        : (formLand.image && formLand.image !== '/house/completed-house.jpg' && !formLand.image.includes('logo') ? formLand.image : '');
+
+      const finalDesc = formLand.description || generateLandDescription(formLand);
+      const finalPrice = formLand.price_amount
+        ? `₹${formLand.price_amount} ${formLand.price_unit || 'Lakhs'}`
+        : (formLand.total_price?.trim() || formLand.price?.trim() || 'Price on Request');
+
+      const cleanPlot = formLand.plot_area ? String(formLand.plot_area).trim() : '1200';
+      const cleanRoad = formLand.road_width ? String(formLand.road_width).trim() : '30';
+
+      const payload = {
+        ...formLand,
+        title: formLand.title?.trim() || 'DTCP Approved Residential Plot',
+        total_price: finalPrice,
+        price: finalPrice,
+        plot_area: cleanPlot,
+        plot_area_unit: formLand.plot_area_unit || 'sq.ft',
+        road_width: cleanRoad,
+        road_width_unit: formLand.road_width_unit || 'ft',
+        image: coverImg,
+        description: finalDesc,
+        full_description: finalDesc,
+        short_description: finalDesc.split('\n\n')[0] || ''
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
       const data = await res.json();
-      const recordId = isEdit ? formLand.id : data.id;
-
-      if (selectedImageFiles.length > 0 && recordId) {
-        await handleBatchImageUpload('/api/land', recordId, selectedImageFiles);
+      if (!res.ok) {
+        throw new Error(data.error || 'Server error saving land plot.');
       }
 
-      fetchData();
+      const recordId = isEdit ? formLand.id : data.id;
+
+      // Physically delete staged removed images from disk and database
+      if (Array.isArray(stagedDeletedLandImages) && stagedDeletedLandImages.length > 0) {
+        for (const imgToDelete of stagedDeletedLandImages) {
+          try {
+            await fetch('/api/land/delete-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                landId: recordId,
+                imageUrl: imgToDelete.url,
+                imageId: typeof imgToDelete.id === 'number' ? imgToDelete.id : undefined
+              })
+            });
+          } catch (delErr) {
+            console.error('Physical land image deletion warning:', delErr);
+          }
+        }
+        setStagedDeletedLandImages([]);
+      }
+
+      // Sync and reorder remaining images in land_images table
+      if (recordId && Array.isArray(landImagesList)) {
+        try {
+          const validUrls = landImagesList.map(item => item.url).filter(Boolean);
+          await fetch(`/api/land/${recordId}/images/sync`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ images: validUrls })
+          });
+        } catch (syncErr) {
+          console.error('Land image sync error:', syncErr);
+        }
+      }
+
+      await fetchData();
       notifySiteDataUpdated();
       setModalType(null);
-      setSelectedImageFiles([]);
-      setStatusNotice(isEdit ? 'Land record updated!' : 'New Land plot added!');
-      setTimeout(() => setStatusNotice(''), 3000);
+      setLandImagesList([]);
+      setStatusNotice(isEdit ? 'Land plot updated successfully!' : 'New Land plot saved successfully to database!');
+      setTimeout(() => setStatusNotice(''), 4000);
+    } catch (err) {
+      console.error('Error saving land plot:', err);
+      setLandFormError(err.message || 'Failed to save land plot. Please check input fields.');
+    } finally {
+      setIsSavingLand(false);
     }
   };
 
@@ -533,31 +1804,97 @@ const AdminDashboard = () => {
 
   // Save Project Submit
   const handleSaveProject = async (e) => {
-    e.preventDefault();
-    const isEdit = !!formProj.id;
-    const url = isEdit ? `/api/projects/${formProj.id}` : '/api/projects';
-    const method = isEdit ? 'PUT' : 'POST';
+    if (e && e.preventDefault) e.preventDefault();
+    setProjectFormError('');
+    setIsSavingProject(true);
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formProj)
-    });
+    try {
+      const isEdit = !!formProj.id;
+      const url = isEdit ? `/api/projects/${formProj.id}` : '/api/projects';
+      const method = isEdit ? 'PUT' : 'POST';
 
-    if (res.ok) {
+      const coverImg = (projectImagesList.length > 0 && projectImagesList[0].url)
+        ? projectImagesList[0].url
+        : (formProj.cover_image && formProj.cover_image !== '/house/completed-house.jpg' && !formProj.cover_image.includes('logo') ? formProj.cover_image : '');
+
+      const finalDesc = formProj.description || generateProjectDescription(formProj);
+      const cleanBuilt = formProj.builtup_area ? String(formProj.builtup_area).trim() : '1500';
+      const cleanPlot = formProj.plot_area ? String(formProj.plot_area).trim() : '1200';
+      const cleanBed = formProj.bedrooms ? (String(formProj.bedrooms).includes('BHK') ? formProj.bedrooms : `${formProj.bedrooms} BHK`) : '3 BHK';
+
+      const payload = {
+        ...formProj,
+        name: formProj.name?.trim() || formProj.title?.trim() || 'Individual Villa Construction',
+        title: formProj.name?.trim() || formProj.title?.trim() || 'Individual Villa Construction',
+        builtup_area: cleanBuilt,
+        builtup_area_unit: formProj.builtup_area_unit || 'sq.ft',
+        plot_area: cleanPlot,
+        plot_area_unit: formProj.plot_area_unit || 'sq.ft',
+        bedrooms: cleanBed,
+        cover_image: coverImg,
+        image: coverImg,
+        description: finalDesc,
+        overview: finalDesc
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
       const data = await res.json();
-      const recordId = isEdit ? formProj.id : data.id;
-
-      if (selectedImageFiles.length > 0 && recordId) {
-        await handleBatchImageUpload('/api/projects', recordId, selectedImageFiles, imageCategory);
+      if (!res.ok) {
+        throw new Error(data.error || 'Server error saving project.');
       }
 
-      fetchData();
+      const recordId = isEdit ? formProj.id : data.id;
+
+      // Physically delete staged removed images from disk and database
+      if (Array.isArray(stagedDeletedProjectImages) && stagedDeletedProjectImages.length > 0) {
+        for (const imgToDelete of stagedDeletedProjectImages) {
+          try {
+            await fetch('/api/projects/delete-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                projectId: recordId,
+                imageUrl: imgToDelete.url,
+                imageId: typeof imgToDelete.id === 'number' ? imgToDelete.id : undefined
+              })
+            });
+          } catch (delErr) {
+            console.error('Physical project image deletion warning:', delErr);
+          }
+        }
+        setStagedDeletedProjectImages([]);
+      }
+
+      // Sync and reorder remaining images in project_images table
+      if (recordId && Array.isArray(projectImagesList)) {
+        try {
+          const validUrls = projectImagesList.map(item => item.url).filter(Boolean);
+          await fetch(`/api/projects/${recordId}/images/sync`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ images: validUrls })
+          });
+        } catch (syncErr) {
+          console.error('Project image sync error:', syncErr);
+        }
+      }
+
+      await fetchData();
       notifySiteDataUpdated();
       setModalType(null);
-      setSelectedImageFiles([]);
-      setStatusNotice(isEdit ? 'Project updated!' : 'New Project created!');
-      setTimeout(() => setStatusNotice(''), 3000);
+      setProjectImagesList([]);
+      setStatusNotice(isEdit ? 'Construction project updated successfully!' : 'New Construction project saved successfully to database!');
+      setTimeout(() => setStatusNotice(''), 4000);
+    } catch (err) {
+      console.error('Error saving project:', err);
+      setProjectFormError(err.message || 'Failed to save project. Please check input fields.');
+    } finally {
+      setIsSavingProject(false);
     }
   };
 
@@ -760,18 +2097,129 @@ const AdminDashboard = () => {
     setModalType('confirm_delete');
   };
 
+  const openCreateTestimonial = () => {
+    setFormTestimonial({ id: null, client_name: '', location: '', quote: '', rating: 5 });
+    setModalType('testimonial_form');
+  };
+
+  const openEditTestimonial = (t) => {
+    setFormTestimonial({ id: t.id, client_name: t.client_name, location: t.location, quote: t.quote, rating: t.rating || 5 });
+    setModalType('testimonial_form');
+  };
+
+  const handleSaveTestimonial = async (e) => {
+    e.preventDefault();
+    try {
+      const url = formTestimonial.id ? `/api/testimonials/${formTestimonial.id}` : '/api/testimonials';
+      const method = formTestimonial.id ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formTestimonial)
+      });
+      if (res.ok) {
+        setModalType(null);
+        fetchData();
+        notifySiteDataUpdated();
+        setStatusNotice(formTestimonial.id ? 'Testimonial updated successfully!' : 'Testimonial added successfully!');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    } catch (err) {
+      console.error('Error saving testimonial:', err);
+    }
+  };
+
+  const requestDeleteTestimonial = (id, name) => {
+    setDeleteConfig({
+      title: `Are you sure you want to delete the testimonial by "${name}"?`,
+      onConfirm: async () => {
+        await fetch(`/api/testimonials/${id}`, { method: 'DELETE' });
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice('Testimonial deleted successfully.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    });
+    setModalType('confirm_delete');
+  };
+
+  const handleToggleFeedbackApproval = async (id, currentStatus) => {
+    try {
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved: !currentStatus })
+      });
+      if (res.ok) {
+        fetchData();
+        notifySiteDataUpdated();
+        setStatusNotice(!currentStatus ? 'Feedback approved & published on website!' : 'Feedback hidden from website.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    } catch (err) {
+      console.error('Error toggling feedback status:', err);
+    }
+  };
+
+  const requestDeleteFeedback = (id, name) => {
+    setDeleteConfig({
+      title: `Are you sure you want to permanently delete the feedback from "${name}"?`,
+      onConfirm: async () => {
+        await fetch(`/api/feedback/${id}`, { method: 'DELETE' });
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice('Feedback review deleted successfully.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    });
+    setModalType('confirm_delete');
+  };
+
+  const requestDeleteLead = (id, name) => {
+    setDeleteConfig({
+      title: `Are you sure you want to delete the inquiry from "${name}"?`,
+      onConfirm: async () => {
+        await fetch(`/api/leads/${id}`, { method: 'DELETE' }).catch(() => {});
+        setLeads(prev => prev.filter(l => l.id !== id));
+        fetchData();
+        setModalType(null);
+        setStatusNotice('Customer inquiry deleted.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    });
+    setModalType('confirm_delete');
+  };
+
   // Safe Arrays
   const safeProperties = Array.isArray(properties) ? properties : [];
   const safeLand = Array.isArray(land) ? land : [];
   const safeProjects = Array.isArray(projects) ? projects : [];
   const safeServices = Array.isArray(services) ? services : [];
   const safeGallery = Array.isArray(gallery) ? gallery : [];
+  const safeFeedbacks = Array.isArray(feedbacks) ? feedbacks : [];
+  const safeTestimonials = Array.isArray(testimonials) ? testimonials : [];
   const safeLeads = Array.isArray(leads) ? leads : [];
   const safeVideos = Array.isArray(videos) ? videos : [];
   const heroVideos = safeVideos.filter(v => (v.video_type || 'hero') === 'hero');
   const bgVideos = safeVideos.filter(v => v.video_type === 'background');
 
   // Filtered lists
+  const filteredFeedbacks = safeFeedbacks.filter(f =>
+    (f.client_name || '').toLowerCase().includes(feedSearch.toLowerCase()) ||
+    (f.location || '').toLowerCase().includes(feedSearch.toLowerCase()) ||
+    (f.service || '').toLowerCase().includes(feedSearch.toLowerCase()) ||
+    (f.message || '').toLowerCase().includes(feedSearch.toLowerCase())
+  );
+
+  const filteredTestimonials = safeTestimonials.filter(t =>
+    (t.client_name || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+    (t.location || '').toLowerCase().includes(testSearch.toLowerCase()) ||
+    (t.quote || '').toLowerCase().includes(testSearch.toLowerCase())
+  );
+
+
   const filteredProperties = safeProperties.filter(p =>
     (p.title || '').toLowerCase().includes(propSearch.toLowerCase()) ||
     (p.location || '').toLowerCase().includes(propSearch.toLowerCase()) ||
@@ -795,7 +2243,8 @@ const AdminDashboard = () => {
   const availableLandCount = safeLand.filter(l => l.status === 'Available').length;
   const soldCount = safeProperties.filter(p => p.status === 'Sold').length + safeLand.filter(l => l.status === 'Sold').length;
   const completedProjectsCount = safeProjects.filter(p => p.status === 'Completed').length;
-  const ongoingProjectsCount = safeProjects.filter(p => p.status === 'Under Construction').length;
+  const ongoingProjectsCount = safeProjects.filter(p => p.status === 'Under Construction' || p.status === 'Ongoing').length;
+  const startedProjectsCount = safeProjects.filter(p => p.status === 'Planning & Approvals' || p.status === 'Planned' || p.status === 'Started' || p.status === 'Approval').length;
 
   // 1. LOGIN SCREEN
   if (!isAuthenticated) {
@@ -850,7 +2299,7 @@ const AdminDashboard = () => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder="Enter Username"
                   className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
                   required
                 />
@@ -869,7 +2318,7 @@ const AdminDashboard = () => {
                   type={showLoginPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter Password"
                   className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-10 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
                   required
                 />
@@ -917,12 +2366,25 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="bg-red-500/15 hover:bg-red-500/30 text-red-400 hover:text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border border-red-500/30"
-        >
-          <LogOut size={14} /> Logout
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleTabChange('settings')}
+            className={`font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${
+              activeTab === 'settings'
+                ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
+                : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-amber-400 border-zinc-700/70'
+            }`}
+          >
+            <Settings size={14} /> Admin Settings
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="bg-red-500/15 hover:bg-red-500/30 text-red-400 hover:text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border border-red-500/30 cursor-pointer"
+          >
+            <LogOut size={14} /> Logout
+          </button>
+        </div>
       </header>
 
       {/* Main Container */}
@@ -941,10 +2403,12 @@ const AdminDashboard = () => {
             { id: 'land', label: 'Land / Plots', icon: <MapPin size={15} /> },
             { id: 'projects', label: 'Projects', icon: <Home size={15} /> },
             { id: 'gallery', label: 'Gallery', icon: <ImageIcon size={15} /> },
+            { id: 'feedbacks', label: 'Feedbacks', icon: <Star size={15} /> },
+            { id: 'testimonials', label: 'Testimonials', icon: <Quote size={15} /> },
             { id: 'leads', label: 'Leads', icon: <Users size={15} /> },
-            { id: 'settings', label: 'Admin Settings', icon: <Settings size={15} /> },
             { id: 'videos', label: 'Video & Frames Manager', icon: <Video size={15} /> }
           ].map((tab) => (
+
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
@@ -962,7 +2426,7 @@ const AdminDashboard = () => {
         {/* TAB 0: DASHBOARD SUMMARY */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
                 <div>
                   <div className="text-2xl font-black text-white">{safeProperties.length}</div>
@@ -989,7 +2453,10 @@ const AdminDashboard = () => {
                 <div>
                   <div className="text-2xl font-black text-white">{safeProjects.length}</div>
                   <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Total Projects</div>
-                  <div className="text-[11px] text-amber-300 font-bold mt-1">{completedProjectsCount} Completed • {ongoingProjectsCount} Ongoing</div>
+                  <div className="text-[10.5px] text-amber-300 font-bold mt-1 leading-snug">
+                    <div>{completedProjectsCount} Completed • {ongoingProjectsCount} Ongoing</div>
+                    <div>{startedProjectsCount} Started</div>
+                  </div>
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
                   <Home size={24} />
@@ -999,14 +2466,28 @@ const AdminDashboard = () => {
               <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
                 <div>
                   <div className="text-2xl font-black text-white">{safeLeads.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">New Inquiries</div>
+                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Customer Leads</div>
                   <div className="text-[11px] text-zinc-400 font-bold mt-1">{soldCount} Properties Sold</div>
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
                   <Users size={24} />
                 </div>
               </div>
+
+              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
+                <div>
+                  <div className="text-2xl font-black text-white">{safeFeedbacks.length}</div>
+                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Client Feedbacks</div>
+                  <div className="text-[11px] text-amber-400 font-bold mt-1">
+                    ★ {safeFeedbacks.length > 0 ? (safeFeedbacks.reduce((a, b) => a + (b.rating || 5), 0) / safeFeedbacks.length).toFixed(1) : '5.0'} / 5.0 Rating
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                  <Star size={24} />
+                </div>
+              </div>
             </div>
+
 
             {/* Quick Actions Bar */}
             <div className="bg-[#18181b] border border-amber-500/30 text-white p-6 rounded-3xl shadow-xl flex flex-wrap items-center justify-between gap-4">
@@ -1016,64 +2497,22 @@ const AdminDashboard = () => {
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormProp({
-                      id: null, property_id: '', title: '', type: 'Individual House', listing_type: 'For Sale', status: 'Available',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                      price: '₹58 Lakhs', price_display_type: 'Exact Price', negotiable: 'Yes', price_per_sqft: '',
-                      plot_area: '1000', plot_area_unit: 'sq.ft', builtup_area: '1200', builtup_area_unit: 'sq.ft', floor_area: '',
-                      floors: '2', bedrooms: '2 BHK', bathrooms: '2', balconies: '1', kitchens: '1', living_room: '1', dining_area: '1', pooja_room: '1',
-                      construction_status: 'Completed', year_built: '2024', construction_type: 'RCC / Concrete', roof_type: 'RCC Flat Concrete Roof',
-                      parking_available: 'Yes', parking_type: 'Car + Bike', cars: '1', bikes: '2',
-                      compound_wall: true, gate: true, water_connection: true, eb_connection: true, sewer_connection: true, borewell: true, overhead_tank: true, ground_water: true, road_access: true,
-                      facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', corner_property: 'No',
-                      patta_status: 'Available', ec_status: 'Available', approved_plan_status: 'Available', building_approval_status: 'Available', property_tax_status: 'Available', sale_deed_status: 'Available', other_documents: '',
-                      short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                    });
-                    setModalType('property_form');
-                  }}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md border border-amber-300/40"
+                  onClick={openCreateProperty}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md border border-amber-300/40 cursor-pointer"
                 >
                   <Plus size={15} /> Add House Property
                 </button>
 
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormLand({
-                      id: null, land_id: '', title: '', land_type: 'Residential Plot', listing_type: 'For Sale', status: 'Available',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                      plot_area: '1200', plot_area_unit: 'sq.ft', frontage: '30 ft', length: '40', width: '30',
-                      total_price: '₹32 Lakhs', price_per_sqft: '₹2,666', negotiable: 'Yes', price_display_type: 'Exact Price',
-                      approval_status: 'DTCP Approved', facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', road_facing: 'North', corner_plot: 'No',
-                      eb_available: true, water_available: true, drainage_available: true, borewell_available: true,
-                      patta_status: 'Available', ec_status: 'Available', parent_documents_status: 'Available', sale_deed_status: 'Available', approval_documents_status: 'Available', other_documents: '',
-                      nearby_school: '1.2 km', nearby_hospital: '2 km', nearby_bus_stop: '500m', nearby_railway: '3 km', nearby_main_road: '300m', nearby_shopping: '1 km',
-                      short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                    });
-                    setModalType('land_form');
-                  }}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md"
+                  onClick={openCreateLand}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Plus size={15} /> Add Land Plot
                 </button>
 
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormProj({
-                      id: null, project_id: '', name: '', title: '', project_type: 'Individual House', status: 'Completed',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '',
-                      plot_area: '1200', plot_area_unit: 'sq.ft', builtup_area: '1500', builtup_area_unit: 'sq.ft', floors: '2', bedrooms: '3 BHK', bathrooms: '3',
-                      start_date: '2023-01-15', expected_completion_date: '2024-03-30', actual_completion_date: '2024-03-15',
-                      rcc_structure: true, concrete_roof: true, compound_wall: true, gate: true, parking: true, water_connection: true, electrical_work: true, plumbing: true, painting: true, interior_work: true,
-                      overview: '', description: '', construction_details: '', special_features: '', challenges: '', solutions: '', client_requirements: '', final_outcome: '',
-                      completion_date: '2024', cover_image: '/house/completed-house.jpg', published: true, featured: true, location: 'Poonamallee', images: []
-                    });
-                    setModalType('project_form');
-                  }}
-                  className="bg-zinc-900 hover:bg-zinc-800 border border-amber-500/30 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md"
+                  onClick={openCreateProject}
+                  className="bg-zinc-900 hover:bg-zinc-800 border border-amber-500/30 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Plus size={15} /> Add Construction Project
                 </button>
@@ -1094,7 +2533,7 @@ const AdminDashboard = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Search property title, ID or location..."
+                  placeholder="Search property title or location..."
                   value={propSearch}
                   onChange={(e) => setPropSearch(e.target.value)}
                   className="bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2 text-xs w-64 text-white focus:border-amber-500 focus:outline-none"
@@ -1102,24 +2541,8 @@ const AdminDashboard = () => {
 
                 {filteredProperties.length > 0 && (
                   <button
-                    onClick={() => {
-                      setFormStep(1);
-                      setFormProp({
-                        id: null, property_id: '', title: '', type: 'Individual House', listing_type: 'For Sale', status: 'Available',
-                        address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                        price: '₹58 Lakhs', price_display_type: 'Exact Price', negotiable: 'Yes', price_per_sqft: '',
-                        plot_area: '1000', plot_area_unit: 'sq.ft', builtup_area: '1200', builtup_area_unit: 'sq.ft', floor_area: '',
-                        floors: '2', bedrooms: '2 BHK', bathrooms: '2', balconies: '1', kitchens: '1', living_room: '1', dining_area: '1', pooja_room: '1',
-                        construction_status: 'Completed', year_built: '2024', construction_type: 'RCC / Concrete', roof_type: 'RCC Flat Concrete Roof',
-                        parking_available: 'Yes', parking_type: 'Car + Bike', cars: '1', bikes: '2',
-                        compound_wall: true, gate: true, water_connection: true, eb_connection: true, sewer_connection: true, borewell: true, overhead_tank: true, ground_water: true, road_access: true,
-                        facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', corner_property: 'No',
-                        patta_status: 'Available', ec_status: 'Available', approved_plan_status: 'Available', building_approval_status: 'Available', property_tax_status: 'Available', sale_deed_status: 'Available', other_documents: '',
-                        short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                      });
-                      setModalType('property_form');
-                    }}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0"
+                    onClick={openCreateProperty}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
                   >
                     <Plus size={15} /> Add New Property
                   </button>
@@ -1128,12 +2551,8 @@ const AdminDashboard = () => {
             </div>
 
             {/* List / Empty State */}
-            {isLoadingData && filteredProperties.length === 0 ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-24 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
-                ))}
-              </div>
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
             ) : filteredProperties.length === 0 ? (
               <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -1146,24 +2565,8 @@ const AdminDashboard = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormProp({
-                      id: null, property_id: '', title: '', type: 'Individual House', listing_type: 'For Sale', status: 'Available',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                      price: '₹58 Lakhs', price_display_type: 'Exact Price', negotiable: 'Yes', price_per_sqft: '',
-                      plot_area: '1000', plot_area_unit: 'sq.ft', builtup_area: '1200', builtup_area_unit: 'sq.ft', floor_area: '',
-                      floors: '2', bedrooms: '2 BHK', bathrooms: '2', balconies: '1', kitchens: '1', living_room: '1', dining_area: '1', pooja_room: '1',
-                      construction_status: 'Completed', year_built: '2024', construction_type: 'RCC / Concrete', roof_type: 'RCC Flat Concrete Roof',
-                      parking_available: 'Yes', parking_type: 'Car + Bike', cars: '1', bikes: '2',
-                      compound_wall: true, gate: true, water_connection: true, eb_connection: true, sewer_connection: true, borewell: true, overhead_tank: true, ground_water: true, road_access: true,
-                      facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', corner_property: 'No',
-                      patta_status: 'Available', ec_status: 'Available', approved_plan_status: 'Available', building_approval_status: 'Available', property_tax_status: 'Available', sale_deed_status: 'Available', other_documents: '',
-                      short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                    });
-                    setModalType('property_form');
-                  }}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  onClick={openCreateProperty}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
                 >
                   <Plus size={16} /> Add First Property
                 </button>
@@ -1173,53 +2576,79 @@ const AdminDashboard = () => {
                 {filteredProperties.map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => {
-                      setFormProp({ ...p, published: !!p.published, featured: !!p.featured });
-                      setFormStep(1);
-                      setModalType('property_form');
-                    }}
-                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                    onClick={() => openEditProperty(p)}
+                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] md:items-center gap-4 group"
                   >
-                    {/* Left: Image & Info */}
+                    {/* Left: Image & Detailed Info */}
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative">
-                        <img
-                          src={p.image || '/house/completed-house.jpg'}
-                          alt={p.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <span className="absolute bottom-1 left-1 bg-black/80 text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded border border-amber-500/30">
-                          {p.bedrooms || '2 BHK'}
-                        </span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative flex items-center justify-center">
+                        {p.image && p.image !== '/house/completed-house.jpg' && !p.image.includes('logo') ? (
+                          <img
+                            src={p.image}
+                            alt={p.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-[#18181b] flex items-center justify-center text-amber-400">
+                            <Home size={28} className="text-amber-400" />
+                          </div>
+                        )}
+                        {p.bedrooms && p.image && p.image !== '/house/completed-house.jpg' && !p.image.includes('logo') ? (
+                          <span className="absolute bottom-1 left-1 bg-black/80 text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded border border-amber-500/30">
+                            {p.bedrooms.toString().includes('BHK') ? p.bedrooms : `${p.bedrooms} BHK`}
+                          </span>
+                        ) : null}
                       </div>
 
-                      <div className="min-w-0 space-y-1">
+                      <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-black text-amber-400 uppercase tracking-wide bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
-                            {p.property_id || `HOUSE-${p.id}`}
+                          <span className="text-[10px] font-extrabold text-zinc-300 bg-zinc-800/90 px-2 py-0.5 rounded-md border border-zinc-700/50">
+                            {p.type || 'Individual House'}
                           </span>
-                          <span className="text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md">
-                            {p.type}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${p.status === 'Available' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                            {p.status || 'Available'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${p.status === 'Available' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}>
-                            {p.status}
-                          </span>
+                          {p.bedrooms && (
+                            <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                              {p.bedrooms.toString().includes('BHK') ? p.bedrooms : `${p.bedrooms} BHK`}
+                            </span>
+                          )}
+                          {p.facing && (
+                            <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                              {p.facing} Facing
+                            </span>
+                          )}
                         </div>
 
                         <h3 className="font-extrabold text-sm text-white group-hover:text-amber-400 transition-colors line-clamp-1">
                           {p.title}
                         </h3>
 
-                        <div className="flex items-center gap-3 text-xs text-zinc-400 font-semibold flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={13} className="text-amber-400" /> {p.location || p.area}
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold flex-wrap">
+                          <span className="flex items-center gap-1 text-zinc-300">
+                            <MapPin size={13} className="text-amber-400 shrink-0" /> {p.location || p.area}
                           </span>
-                          <span>•</span>
-                          <span>{p.builtup_area || '1200 Sq.ft'}</span>
+                          {p.builtup_area && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Builtup: {p.builtup_area} {p.builtup_area_unit || 'sq.ft'}</span>
+                            </>
+                          )}
+                          {p.plot_area && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Plot: {p.plot_area} {p.plot_area_unit || 'sq.ft'}</span>
+                            </>
+                          )}
+                          {p.road_width && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>{p.road_width} {p.road_width_unit || 'ft'} Road</span>
+                            </>
+                          )}
                           {p.updated_at && (
                             <>
-                              <span>•</span>
+                              <span className="text-zinc-600">•</span>
                               <span className="text-[11px] text-zinc-500">Updated: {formatLastUpdated(p.updated_at)}</span>
                             </>
                           )}
@@ -1227,42 +2656,44 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Right: Price & Toggle Controls */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t border-zinc-800 sm:border-t-0 pt-3 sm:pt-0">
-                      <div className="text-left sm:text-right">
-                        <div className="text-[10px] font-bold text-zinc-500 uppercase">Price</div>
-                        <div className="text-sm font-black text-amber-400">{p.price}</div>
-                      </div>
+                    {/* Center: Price Detail Container (Strict 50% Horizontal Center) */}
+                    <div className="flex flex-col items-center justify-center justify-self-start md:justify-self-center px-5 py-2.5 bg-[#09090b]/90 border border-zinc-800/90 rounded-xl text-center min-w-[150px] shadow-inner">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">PRICE</span>
+                      <span className="text-base font-black text-amber-400 leading-tight">{p.price || 'Price on Request'}</span>
+                      {p.negotiable === 'Yes' && (
+                        <span className="text-[9px] font-bold text-emerald-400/90 uppercase tracking-tight mt-0.5">Negotiable</span>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-col items-center" title="Published: Visible on public website">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
-                          <button
-                            onClick={() => togglePropertyStatus(p.id, 'published', p.published)}
-                            className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${p.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-                          >
-                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${p.published ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-
-                        <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
-                          <button
-                            onClick={() => togglePropertyStatus(p.id, 'featured', p.featured)}
-                            className={`p-1.5 rounded-lg transition-colors ${p.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
-                          >
-                            <Star size={16} fill={p.featured ? 'currentColor' : 'none'} />
-                          </button>
-                        </div>
-
+                    {/* Right: Toggle Controls */}
+                    <div className="flex items-center justify-between md:justify-end md:justify-self-end gap-3 shrink-0 border-t border-zinc-800 md:border-t-0 pt-3 md:pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col items-center" title="Published: Visible on public website">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
                         <button
-                          onClick={() => requestDeleteProperty(p.id, p.title)}
-                          className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1"
-                          title="Delete Property"
+                          onClick={() => togglePropertyStatus(p.id, 'published', p.published)}
+                          className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${p.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
                         >
-                          <Trash2 size={16} />
+                          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${p.published ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </div>
+
+                      <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
+                        <button
+                          onClick={() => togglePropertyStatus(p.id, 'featured', p.featured)}
+                          className={`p-1.5 rounded-lg transition-colors ${p.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          <Star size={16} fill={p.featured ? 'currentColor' : 'none'} />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => requestDeleteProperty(p.id, p.title)}
+                        className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1 cursor-pointer"
+                        title="Delete Property"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1283,7 +2714,7 @@ const AdminDashboard = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Search land title, ID or location..."
+                  placeholder="Search land title or location..."
                   value={landSearch}
                   onChange={(e) => setLandSearch(e.target.value)}
                   className="bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2 text-xs w-64 text-white focus:border-amber-500 focus:outline-none"
@@ -1291,22 +2722,8 @@ const AdminDashboard = () => {
 
                 {filteredLand.length > 0 && (
                   <button
-                    onClick={() => {
-                      setFormStep(1);
-                      setFormLand({
-                        id: null, land_id: '', title: '', land_type: 'Residential Plot', listing_type: 'For Sale', status: 'Available',
-                        address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                        plot_area: '1200', plot_area_unit: 'sq.ft', frontage: '30 ft', length: '40', width: '30',
-                        total_price: '₹32 Lakhs', price_per_sqft: '₹2,666', negotiable: 'Yes', price_display_type: 'Exact Price',
-                        approval_status: 'DTCP Approved', facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', road_facing: 'North', corner_plot: 'No',
-                        eb_available: true, water_available: true, drainage_available: true, borewell_available: true,
-                        patta_status: 'Available', ec_status: 'Available', parent_documents_status: 'Available', sale_deed_status: 'Available', approval_documents_status: 'Available', other_documents: '',
-                        nearby_school: '1.2 km', nearby_hospital: '2 km', nearby_bus_stop: '500m', nearby_railway: '3 km', nearby_main_road: '300m', nearby_shopping: '1 km',
-                        short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                      });
-                      setModalType('land_form');
-                    }}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0"
+                    onClick={openCreateLand}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
                   >
                     <Plus size={15} /> Add New Land Plot
                   </button>
@@ -1315,12 +2732,8 @@ const AdminDashboard = () => {
             </div>
 
             {/* List / Empty State */}
-            {isLoadingData && filteredLand.length === 0 ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-24 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
-                ))}
-              </div>
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
             ) : filteredLand.length === 0 ? (
               <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -1333,22 +2746,8 @@ const AdminDashboard = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormLand({
-                      id: null, land_id: '', title: '', land_type: 'Residential Plot', listing_type: 'For Sale', status: 'Available',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '', landmark: '',
-                      plot_area: '1200', plot_area_unit: 'sq.ft', frontage: '30 ft', length: '40', width: '30',
-                      total_price: '₹32 Lakhs', price_per_sqft: '₹2,666', negotiable: 'Yes', price_display_type: 'Exact Price',
-                      approval_status: 'DTCP Approved', facing: 'East', road_width: '30', road_width_unit: 'ft', road_type: 'Tar Road', road_facing: 'North', corner_plot: 'No',
-                      eb_available: true, water_available: true, drainage_available: true, borewell_available: true,
-                      patta_status: 'Available', ec_status: 'Available', parent_documents_status: 'Available', sale_deed_status: 'Available', approval_documents_status: 'Available', other_documents: '',
-                      nearby_school: '1.2 km', nearby_hospital: '2 km', nearby_bus_stop: '500m', nearby_railway: '3 km', nearby_main_road: '300m', nearby_shopping: '1 km',
-                      short_description: '', full_description: '', highlights: '', published: true, featured: true, location: 'Poonamallee', image: '/house/completed-house.jpg', images: []
-                    });
-                    setModalType('land_form');
-                  }}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  onClick={openCreateLand}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
                 >
                   <Plus size={16} /> Add First Land Plot
                 </button>
@@ -1358,49 +2757,77 @@ const AdminDashboard = () => {
                 {filteredLand.map((l) => (
                   <div
                     key={l.id}
-                    onClick={() => {
-                      setFormLand({ ...l, published: !!l.published, featured: !!l.featured });
-                      setFormStep(1);
-                      setModalType('land_form');
-                    }}
-                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                    onClick={() => openEditLand(l)}
+                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] md:items-center gap-4 group"
                   >
-                    {/* Left: Image & Land Info */}
+                    {/* Left: Image & Detailed Land Info */}
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative">
-                        <img
-                          src={l.image || '/house/completed-house.jpg'}
-                          alt={l.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <span className="absolute bottom-1 left-1 bg-emerald-500/90 text-black text-[9px] font-black px-1.5 py-0.5 rounded">
-                          Land
-                        </span>
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative flex items-center justify-center">
+                        {l.image && l.image !== '/house/completed-house.jpg' && !l.image.includes('logo') ? (
+                          <img
+                            src={l.image}
+                            alt={l.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-[#18181b] flex items-center justify-center text-emerald-400">
+                            <MapPin size={28} className="text-emerald-400" />
+                          </div>
+                        )}
                       </div>
 
-                      <div className="min-w-0 space-y-1">
+                      <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-black text-amber-400 uppercase tracking-wide bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
-                            {l.land_id || `LAND-${l.id}`}
+                          <span className="text-[10px] font-extrabold text-zinc-300 bg-zinc-800/90 px-2 py-0.5 rounded-md border border-zinc-700/50">
+                            {l.land_type || 'Residential Plot'}
                           </span>
-                          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black px-2 py-0.5 rounded-md uppercase">
                             {l.approval_status || 'DTCP Approved'}
                           </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${l.status === 'Available' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                            {l.status || 'Available'}
+                          </span>
+                          {l.facing && (
+                            <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                              {l.facing} Facing
+                            </span>
+                          )}
+                          {l.corner_plot === 'Yes' && (
+                            <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                              Corner Plot
+                            </span>
+                          )}
                         </div>
 
                         <h3 className="font-extrabold text-sm text-white group-hover:text-amber-400 transition-colors line-clamp-1">
                           {l.title}
                         </h3>
 
-                        <div className="flex items-center gap-3 text-xs text-zinc-400 font-semibold flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={13} className="text-amber-400" /> {l.location || l.area}
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold flex-wrap">
+                          <span className="flex items-center gap-1 text-zinc-300">
+                            <MapPin size={13} className="text-amber-400 shrink-0" /> {l.location || l.area}
                           </span>
-                          <span>•</span>
-                          <span>Area: {l.plot_area} {l.plot_area_unit || 'sq.ft'}</span>
+                          {l.plot_area && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Area: {l.plot_area} {l.plot_area_unit || 'sq.ft'}</span>
+                            </>
+                          )}
+                          {(l.frontage || (l.length && l.width)) && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Dim: {l.frontage || `${l.length}x${l.width} ft`}</span>
+                            </>
+                          )}
+                          {l.road_width && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>{l.road_width} {l.road_width_unit || 'ft'} Road</span>
+                            </>
+                          )}
                           {l.updated_at && (
                             <>
-                              <span>•</span>
+                              <span className="text-zinc-600">•</span>
                               <span className="text-[11px] text-zinc-500">Updated: {formatLastUpdated(l.updated_at)}</span>
                             </>
                           )}
@@ -1408,42 +2835,44 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Right: Total Price & Toggles */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t border-zinc-800 sm:border-t-0 pt-3 sm:pt-0">
-                      <div className="text-left sm:text-right">
-                        <div className="text-[10px] font-bold text-zinc-500 uppercase">Total Price</div>
-                        <div className="text-sm font-black text-amber-400">{l.total_price || l.price}</div>
-                      </div>
+                    {/* Center: Total Price Container (Strict 50% Horizontal Center) */}
+                    <div className="flex flex-col items-center justify-center justify-self-start md:justify-self-center px-5 py-2.5 bg-[#09090b]/90 border border-zinc-800/90 rounded-xl text-center min-w-[150px] shadow-inner">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">TOTAL PRICE</span>
+                      <span className="text-base font-black text-amber-400 leading-tight">{l.total_price || l.price || 'Price on Request'}</span>
+                      {l.negotiable === 'Yes' && (
+                        <span className="text-[9px] font-bold text-emerald-400/90 uppercase tracking-tight mt-0.5">Negotiable</span>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-col items-center" title="Published: Visible on public website">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
-                          <button
-                            onClick={() => toggleLandStatus(l.id, 'published', l.published)}
-                            className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${l.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-                          >
-                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${l.published ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-
-                        <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
-                          <button
-                            onClick={() => toggleLandStatus(l.id, 'featured', l.featured)}
-                            className={`p-1.5 rounded-lg transition-colors ${l.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
-                          >
-                            <Star size={16} fill={l.featured ? 'currentColor' : 'none'} />
-                          </button>
-                        </div>
-
+                    {/* Right: Toggle Controls */}
+                    <div className="flex items-center justify-between md:justify-end md:justify-self-end gap-3 shrink-0 border-t border-zinc-800 md:border-t-0 pt-3 md:pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col items-center" title="Published: Visible on public website">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
                         <button
-                          onClick={() => requestDeleteLand(l.id, l.title)}
-                          className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1"
-                          title="Delete Land"
+                          onClick={() => toggleLandStatus(l.id, 'published', l.published)}
+                          className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${l.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
                         >
-                          <Trash2 size={16} />
+                          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${l.published ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </div>
+
+                      <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
+                        <button
+                          onClick={() => toggleLandStatus(l.id, 'featured', l.featured)}
+                          className={`p-1.5 rounded-lg transition-colors ${l.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          <Star size={16} fill={l.featured ? 'currentColor' : 'none'} />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => requestDeleteLand(l.id, l.title)}
+                        className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1 cursor-pointer"
+                        title="Delete Land"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1464,7 +2893,7 @@ const AdminDashboard = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Search project name, ID or location..."
+                  placeholder="Search project name or location..."
                   value={projSearch}
                   onChange={(e) => setProjSearch(e.target.value)}
                   className="bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2 text-xs w-64 text-white focus:border-amber-500 focus:outline-none"
@@ -1472,20 +2901,8 @@ const AdminDashboard = () => {
 
                 {filteredProjects.length > 0 && (
                   <button
-                    onClick={() => {
-                      setFormStep(1);
-                      setFormProj({
-                        id: null, project_id: '', name: '', title: '', project_type: 'Individual House', status: 'Completed',
-                        address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '',
-                        plot_area: '1200', plot_area_unit: 'sq.ft', builtup_area: '1500', builtup_area_unit: 'sq.ft', floors: '2', bedrooms: '3 BHK', bathrooms: '3',
-                        start_date: '2023-01-15', expected_completion_date: '2024-03-30', actual_completion_date: '2024-03-15',
-                        rcc_structure: true, concrete_roof: true, compound_wall: true, gate: true, parking: true, water_connection: true, electrical_work: true, plumbing: true, painting: true, interior_work: true,
-                        overview: '', description: '', construction_details: '', special_features: '', challenges: '', solutions: '', client_requirements: '', final_outcome: '',
-                        completion_date: '2024', cover_image: '/house/completed-house.jpg', published: true, featured: true, location: 'Poonamallee', images: []
-                      });
-                      setModalType('project_form');
-                    }}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0"
+                    onClick={openCreateProject}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
                   >
                     <Plus size={15} /> Add New Project
                   </button>
@@ -1494,12 +2911,8 @@ const AdminDashboard = () => {
             </div>
 
             {/* List / Empty State */}
-            {isLoadingData && filteredProjects.length === 0 ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-24 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
-                ))}
-              </div>
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
             ) : filteredProjects.length === 0 ? (
               <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -1512,20 +2925,8 @@ const AdminDashboard = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    setFormStep(1);
-                    setFormProj({
-                      id: null, project_id: '', name: '', title: '', project_type: 'Individual House', status: 'Completed',
-                      address: '', area: 'Poonamallee', city: 'Chennai', pincode: '600056', maps_url: '', latitude: '', longitude: '',
-                      plot_area: '1200', plot_area_unit: 'sq.ft', builtup_area: '1500', builtup_area_unit: 'sq.ft', floors: '2', bedrooms: '3 BHK', bathrooms: '3',
-                      start_date: '2023-01-15', expected_completion_date: '2024-03-30', actual_completion_date: '2024-03-15',
-                      rcc_structure: true, concrete_roof: true, compound_wall: true, gate: true, parking: true, water_connection: true, electrical_work: true, plumbing: true, painting: true, interior_work: true,
-                      overview: '', description: '', construction_details: '', special_features: '', challenges: '', solutions: '', client_requirements: '', final_outcome: '',
-                      completion_date: '2024', cover_image: '/house/completed-house.jpg', published: true, featured: true, location: 'Poonamallee', images: []
-                    });
-                    setModalType('project_form');
-                  }}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  onClick={openCreateProject}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
                 >
                   <Plus size={16} /> Add First Project
                 </button>
@@ -1535,47 +2936,74 @@ const AdminDashboard = () => {
                 {filteredProjects.map((pr) => (
                   <div
                     key={pr.id}
-                    onClick={() => {
-                      setFormProj({ ...pr, name: pr.name || pr.title, published: !!pr.published, featured: !!pr.featured });
-                      setFormStep(1);
-                      setModalType('project_form');
-                    }}
-                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                    onClick={() => openEditProject(pr)}
+                    className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm hover:border-amber-500/40 transition-all cursor-pointer grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] md:items-center gap-4 group"
                   >
                     {/* Left: Cover Image & Project Details */}
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative">
-                        <img
-                          src={pr.cover_image || '/house/completed-house.jpg'}
-                          alt={pr.name || pr.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-black/60 border border-zinc-800 shrink-0 relative flex items-center justify-center">
+                        {(pr.cover_image || pr.image) && (pr.cover_image || pr.image) !== '/house/completed-house.jpg' && !(pr.cover_image || pr.image).includes('logo') ? (
+                          <img
+                            src={pr.cover_image || pr.image}
+                            alt={pr.name || pr.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-[#18181b] flex items-center justify-center text-amber-400">
+                            <Home size={28} className="text-amber-400" />
+                          </div>
+                        )}
                       </div>
 
-                      <div className="min-w-0 space-y-1">
+                      <div className="min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-black text-amber-400 uppercase tracking-wide bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
-                            {pr.project_id || `PROJ-${pr.id}`}
+                          <span className="text-[10px] font-extrabold text-zinc-300 bg-zinc-800/90 px-2 py-0.5 rounded-md border border-zinc-700/50">
+                            {pr.project_type || 'Individual House'}
                           </span>
-                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase ${pr.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}>
-                            {pr.status}
+                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase ${pr.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                            {pr.status || 'Completed'}
                           </span>
+                          {pr.floors && (
+                            <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                              {pr.floors} Floors
+                            </span>
+                          )}
+                          {pr.bedrooms && (
+                            <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                              {pr.bedrooms.toString().includes('BHK') ? pr.bedrooms : `${pr.bedrooms} BHK`}
+                            </span>
+                          )}
                         </div>
 
                         <h3 className="font-extrabold text-sm text-white group-hover:text-amber-400 transition-colors line-clamp-1">
                           {pr.name || pr.title}
                         </h3>
 
-                        <div className="flex items-center gap-3 text-xs text-zinc-400 font-semibold flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={13} className="text-amber-400" /> {pr.location || pr.area}
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold flex-wrap">
+                          <span className="flex items-center gap-1 text-zinc-300">
+                            <MapPin size={13} className="text-amber-400 shrink-0" /> {pr.location || pr.area}
                           </span>
-                          <span>•</span>
-                          <span>Builtup: {pr.builtup_area || '1500 sq.ft'}</span>
+                          {pr.builtup_area && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Builtup: {pr.builtup_area} {pr.builtup_area_unit || 'sq.ft'}</span>
+                            </>
+                          )}
+                          {pr.plot_area && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Plot: {pr.plot_area} {pr.plot_area_unit || 'sq.ft'}</span>
+                            </>
+                          )}
+                          {(pr.completion_date || pr.actual_completion_date) && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span>Year: {pr.completion_date || pr.actual_completion_date}</span>
+                            </>
+                          )}
                           {pr.updated_at && (
                             <>
-                              <span>•</span>
+                              <span className="text-zinc-600">•</span>
                               <span className="text-[11px] text-zinc-500">Updated: {formatLastUpdated(pr.updated_at)}</span>
                             </>
                           )}
@@ -1583,37 +3011,43 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
+                    {/* Center: Project Status / Scope Container (Strict 50% Horizontal Center) */}
+                    <div className="flex flex-col items-center justify-center justify-self-start md:justify-self-center px-5 py-2.5 bg-[#09090b]/80 border border-zinc-800/90 rounded-xl text-center min-w-[150px] shadow-inner">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">PROJECT STATUS</span>
+                      <span className={`text-sm font-black uppercase leading-tight ${pr.status === 'Completed' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {pr.status || 'Completed'}
+                      </span>
+                    </div>
+
                     {/* Right: Controls */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t border-zinc-800 sm:border-t-0 pt-3 sm:pt-0">
-                      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-col items-center" title="Published: Visible on public website">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
-                          <button
-                            onClick={() => toggleProjectStatus(pr.id, 'published', pr.published)}
-                            className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${pr.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-                          >
-                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${pr.published ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-
-                        <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
-                          <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
-                          <button
-                            onClick={() => toggleProjectStatus(pr.id, 'featured', pr.featured)}
-                            className={`p-1.5 rounded-lg transition-colors ${pr.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
-                          >
-                            <Star size={16} fill={pr.featured ? 'currentColor' : 'none'} />
-                          </button>
-                        </div>
-
+                    <div className="flex items-center justify-between md:justify-end md:justify-self-end gap-3 shrink-0 border-t border-zinc-800 md:border-t-0 pt-3 md:pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col items-center" title="Published: Visible on public website">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Published</span>
                         <button
-                          onClick={() => requestDeleteProject(pr.id, pr.name || pr.title)}
-                          className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1"
-                          title="Delete Project"
+                          onClick={() => toggleProjectStatus(pr.id, 'published', pr.published)}
+                          className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${pr.published ? 'bg-emerald-500' : 'bg-zinc-700'}`}
                         >
-                          <Trash2 size={16} />
+                          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${pr.published ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </div>
+
+                      <div className="flex flex-col items-center" title="Featured: Highlighted on homepage showcases">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Featured</span>
+                        <button
+                          onClick={() => toggleProjectStatus(pr.id, 'featured', pr.featured)}
+                          className={`p-1.5 rounded-lg transition-colors ${pr.featured ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          <Star size={16} fill={pr.featured ? 'currentColor' : 'none'} />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => requestDeleteProject(pr.id, pr.name || pr.title)}
+                        className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-1 cursor-pointer"
+                        title="Delete Project"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1644,12 +3078,8 @@ const AdminDashboard = () => {
               )}
             </div>
 
-            {isLoadingData && safeGallery.length === 0 ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-20 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
-                ))}
-              </div>
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
             ) : safeGallery.length === 0 ? (
               <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -1717,17 +3147,270 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* TAB 5: LEADS */}
-        {activeTab === 'leads' && (
+        {/* TAB 5: TESTIMONIALS */}
+        {activeTab === 'testimonials' && (
           <div className="space-y-4">
-            <h2 className="text-base font-extrabold uppercase text-amber-400">Customer Inquiries & Leads ({safeLeads.length})</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+              <div>
+                <h2 className="text-base font-extrabold uppercase text-amber-400">Client Testimonials ({filteredTestimonials.length})</h2>
+                <p className="text-xs text-zinc-400">Manage client reviews displayed under the "What Our Clients Say" section on the home page.</p>
+              </div>
 
-            {isLoadingData && safeLeads.length === 0 ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-20 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="Search reviews..."
+                  value={testSearch}
+                  onChange={(e) => setTestSearch(e.target.value)}
+                  className="bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2 text-xs w-56 text-white focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  onClick={openCreateTestimonial}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
+                >
+                  <Plus size={15} /> Add Testimonial
+                </button>
+              </div>
+            </div>
+
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
+            ) : filteredTestimonials.length === 0 ? (
+              <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Quote size={32} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white uppercase tracking-wider">No Testimonials Added</h3>
+                  <p className="text-xs text-zinc-400 max-w-sm mt-1">
+                    Add client reviews and testimonials to showcase client trust on the website.
+                  </p>
+                </div>
+                <button
+                  onClick={openCreateTestimonial}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus size={16} /> Add First Testimonial
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredTestimonials.map((t) => (
+                  <div
+                    key={t.id}
+                    className="bg-[#18181b] hover:bg-[#202025] rounded-2xl p-5 border border-zinc-800 hover:border-amber-500/40 transition-all flex flex-col justify-between gap-4 shadow-md"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-sm text-white">{t.client_name}</span>
+                          {t.location && (
+                            <span className="text-[11px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                              {t.location}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-amber-400 text-xs tracking-widest font-black">
+                          {'★'.repeat(Math.min(5, Math.max(1, t.rating || 5)))}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-300 italic leading-relaxed">
+                        "{t.quote}"
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-zinc-800/80">
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        {t.created_at ? `Added: ${formatLastUpdated(t.created_at)}` : ''}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openEditTestimonial(t)}
+                          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => requestDeleteTestimonial(t.id, t.client_name)}
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                          title="Delete Testimonial"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: FEEDBACKS (CLIENT FEEDBACKS PORTAL) */}
+        {activeTab === 'feedbacks' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+              <div>
+                <h2 className="text-base font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                  <Star size={18} className="text-amber-400" /> Client Feedbacks & Reviews ({filteredFeedbacks.length})
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Reviews and feedback submitted by clients via the public feedback page (/feedback).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="Search feedbacks..."
+                  value={feedSearch}
+                  onChange={(e) => setFeedSearch(e.target.value)}
+                  className="bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2 text-xs w-56 text-white focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
+            ) : filteredFeedbacks.length === 0 ? (
+              <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Star size={32} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white uppercase tracking-wider">No Client Feedbacks Yet</h3>
+                  <p className="text-xs text-zinc-400 max-w-sm mt-1">
+                    When clients submit reviews on the Feedback portal, they will appear here with ratings and options to publish/hide.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filteredFeedbacks.map((f) => (
+                  <div
+                    key={f.id}
+                    className="bg-gradient-to-br from-[#18181b] to-[#121216] rounded-xl p-3.5 sm:p-4 border border-zinc-800 hover:border-amber-500/40 transition-all space-y-2.5 shadow-md"
+                  >
+                    <div className="space-y-2">
+                      {/* Top Header Row */}
+                      <div className="flex items-start justify-between gap-2 border-b border-zinc-800/70 pb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-xs sm:text-sm text-white">{f.client_name}</span>
+                            {f.location && (
+                              <span className="text-[9.5px] font-bold text-zinc-300 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 flex items-center gap-0.5">
+                                <MapPin size={9} className="text-amber-400" />
+                                {f.location}
+                              </span>
+                            )}
+                          </div>
+                          {f.service && (
+                            <div className="text-[9.5px] font-extrabold text-amber-400 uppercase tracking-wider mt-0.5">
+                              {f.service}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Star Rating Badge */}
+                        <div className="flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/30 shrink-0 font-black text-xs">
+                          <span>{'★'.repeat(Math.min(5, Math.max(1, f.rating || 5)))}</span>
+                          <span className="text-[10.5px] text-zinc-300 ml-0.5">({f.rating || 5}/5)</span>
+                        </div>
+                      </div>
+
+                      {/* Contact Badges if provided */}
+                      {(f.phone || f.email) && (
+                        <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                          {f.phone && (
+                            <a
+                              href={`tel:+91${f.phone.replace(/[^0-9]/g, '')}`}
+                              className="text-[10.5px] font-bold text-zinc-300 hover:text-amber-300 bg-[#09090b] px-2 py-0.5 rounded-md border border-zinc-800 flex items-center gap-1"
+                            >
+                              <Phone size={10} className="text-amber-400" /> +91 {f.phone}
+                            </a>
+                          )}
+                          {f.phone && (
+                            <a
+                              href={`https://wa.me/91${f.phone.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(f.client_name)},%20thank%20you%20for%20your%20feedback%20to%20SK%20Builders.`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10.5px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1"
+                            >
+                              WhatsApp
+                            </a>
+                          )}
+                          {f.email && (
+                            <span className="text-[10.5px] text-zinc-400 bg-[#09090b] px-2 py-0.5 rounded-md border border-zinc-800">
+                              {f.email}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Review Message Text */}
+                      <div className="bg-[#09090b] px-3 py-2 rounded-lg border border-zinc-800/80 text-xs text-zinc-200 leading-normal font-medium">
+                        {f.message}
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Bar */}
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-800/70">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFeedbackApproval(f.id, f.approved)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            f.approved
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                              : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white'
+                          }`}
+                        >
+                          <CheckCircle size={12} className={f.approved ? 'text-emerald-400' : 'text-zinc-500'} />
+                          <span className="text-[11px]">{f.approved ? 'Published on Site' : 'Hidden'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[9.5px] text-zinc-500 font-mono">
+                          {f.created_at ? formatLastUpdated(f.created_at) : 'Recently'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteFeedback(f.id, f.client_name)}
+                          className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                          title="Delete Feedback"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: LEADS & QUICK INQUIRIES (DETAILED VIEW) */}
+        {activeTab === 'leads' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+              <div>
+                <h2 className="text-base font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                  <Users size={18} className="text-amber-400" /> Customer Inquiries & Leads ({safeLeads.length})
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Direct quick inquiries and contact requests sent by potential clients from the website.
+                </p>
+              </div>
+
+              <div className="text-xs font-bold bg-amber-500/10 text-amber-400 px-3.5 py-1.5 rounded-full border border-amber-500/30">
+                {safeLeads.length} Total Leads
+              </div>
+            </div>
+
+            {isInitialLoading ? (
+              <AdminLoadingSkeleton />
             ) : safeLeads.length === 0 ? (
               <div className="bg-[#18181b]/90 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -1736,37 +3419,118 @@ const AdminDashboard = () => {
                 <div>
                   <h3 className="text-base font-extrabold text-white uppercase tracking-wider">No Customer Inquiries Yet</h3>
                   <p className="text-xs text-zinc-400 max-w-sm mt-1">
-                    Inquiries submitted by website visitors through the Contact form or WhatsApp buttons will appear here.
+                    Inquiries submitted through the "Send Quick Inquiry" contact form will appear here with complete details, service tags, and instant Call / WhatsApp actions.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {safeLeads.map((l) => (
-                  <div key={l.id} className="bg-[#18181b]/90 p-4 rounded-2xl border border-zinc-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-sm text-white">{l.name}</span>
-                        <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
-                          {l.phone}
-                        </span>
-                        <span className="text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md">
-                          {l.service || 'General Inquiry'}
-                        </span>
+              <div className="space-y-4">
+                {safeLeads.map((l) => {
+                  const cleanPhone = (l.phone || '').replace(/[^0-9]/g, '');
+                  const serviceColor =
+                    l.service === 'House Construction'
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : l.service === 'House for Sale' || l.service === 'Individual House Purchase'
+                      ? 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+                      : l.service === 'Land for Sale' || l.service === 'Residential Land Purchase'
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                      : 'bg-purple-500/15 text-purple-300 border-purple-500/40';
+
+                  return (
+                    <div
+                      key={l.id}
+                      className="bg-gradient-to-br from-[#18181b] to-[#121216] p-3.5 sm:p-4 rounded-xl border border-zinc-800 hover:border-amber-500/40 shadow-lg transition-all space-y-2.5"
+                    >
+                      {/* Top Header: Client Info & Time */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xs shrink-0">
+                            {(l.name || 'C').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-extrabold text-xs sm:text-sm text-white truncate">{l.name}</span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${serviceColor}`}>
+                                {l.service || 'Quick Inquiry'}
+                              </span>
+                              {l.property_id && (
+                                <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                                  Ref: #{l.property_id}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10.5px] text-zinc-400 font-medium">
+                              {l.email ? l.email : 'Direct Website Lead'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Received Timestamp */}
+                        {l.created_at && (
+                          <div className="text-[10.5px] font-mono text-zinc-400 bg-[#09090b] px-2.5 py-1 rounded-lg border border-zinc-800 shrink-0 self-start sm:self-auto">
+                            Received: <strong className="text-zinc-200">{formatLastUpdated(l.created_at)}</strong>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-zinc-300 font-medium">{l.message}</p>
+
+                      {/* Middle: Inquiry Requirement / Message Details */}
+                      <div className="bg-[#09090b] px-3 py-2 rounded-lg border border-zinc-800/80 flex items-start gap-2 text-xs">
+                        <FileText size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-zinc-200 font-medium leading-relaxed min-w-0">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 mr-1.5">Requirement:</span>
+                          {l.message && l.message.trim() ? (
+                            <span>{l.message}</span>
+                          ) : (
+                            <span className="text-zinc-500 italic">No specific message specified (General callback requested).</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom: Quick Contact Actions & Delete - Left-aligned with reduced width */}
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        {/* Direct Phone Call Button */}
+                        {cleanPhone ? (
+                          <a
+                            href={`tel:+91${cleanPhone}`}
+                            className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-3.5 py-1.5 rounded-lg text-xs uppercase flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all shrink-0"
+                          >
+                            <Phone size={12} />
+                            <span>Call (+91 {cleanPhone})</span>
+                          </a>
+                        ) : null}
+
+                        {/* WhatsApp Chat Button */}
+                        {cleanPhone ? (
+                          <a
+                            href={`https://wa.me/91${cleanPhone}?text=Hi%20${encodeURIComponent(l.name)},%20we%20received%20your%20inquiry%20regarding%20${encodeURIComponent(l.service || 'our services')}%20at%20SK%20Builders.%20How%20can%20we%20assist%20you?`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black font-extrabold px-3.5 py-1.5 rounded-lg text-xs uppercase border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
+                          >
+                            <Sparkles size={12} />
+                            <span>Chat on WhatsApp</span>
+                          </a>
+                        ) : null}
+
+                        {/* Delete Lead Button */}
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteLead(l.id, l.name)}
+                          className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-red-400 bg-zinc-900/90 hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/30 transition-all cursor-pointer flex items-center justify-center gap-1 text-xs font-bold shrink-0 active:scale-95"
+                          title="Delete Lead"
+                        >
+                          <Trash2 size={12} className="text-red-400/80" />
+                          <span className="text-[11px]">Delete</span>
+                        </button>
+                      </div>
                     </div>
-                    {l.created_at && (
-                      <div className="text-[11px] text-zinc-400 font-bold shrink-0">
-                        Received: {formatLastUpdated(l.created_at)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
+
 
         {/* TAB 6: SETTINGS CRUD */}
         {activeTab === 'settings' && (
@@ -2031,7 +3795,7 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-extrabold uppercase text-gray-600 mb-1">Service Areas</label>
+                    <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">Service Areas</label>
                     <input
                       type="text"
                       value={settingsForm.service_areas ?? settings.service_areas ?? 'Poonamallee, Mangadu, Kundrathur'}
@@ -2040,6 +3804,21 @@ const AdminDashboard = () => {
                         setSettingsForm({ ...settingsForm, service_areas: e.target.value });
                       }}
                       className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Company & Website Description */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">Description</label>
+                    <textarea
+                      rows={3}
+                      value={settingsForm.meta_description ?? settings.meta_description ?? 'Builder & Property Consultant in Poonamallee, Mangadu & Kundrathur. Houses for sale, residential land, contract construction, and property guidance.'}
+                      onChange={(e) => {
+                        setIsSettingsFormDirty(true);
+                        setSettingsForm({ ...settingsForm, meta_description: e.target.value });
+                      }}
+                      placeholder="Builder & Property Consultant in Poonamallee, Mangadu & Kundrathur. Houses for sale, residential land, contract construction, and property guidance."
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500 shadow-sm resize-none"
                     />
                   </div>
                 </div>
@@ -2179,8 +3958,8 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {isLoadingData && heroVideos.length === 0 ? (
-                      <div className="h-24 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
+                    {isInitialLoading ? (
+                      <AdminLoadingSkeleton />
                     ) : heroVideos.length === 0 ? (
                       <div className="text-center py-8 text-xs text-zinc-500 font-medium">
                         No construction videos found. Upload a video above.
@@ -2322,8 +4101,8 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {isLoadingData && bgVideos.length === 0 ? (
-                      <div className="h-24 bg-[#18181b]/70 border border-white/5 rounded-2xl animate-pulse" />
+                    {isInitialLoading ? (
+                      <AdminLoadingSkeleton />
                     ) : bgVideos.length === 0 ? (
                       <div className="text-center py-8 text-xs text-zinc-500 font-medium">
                         No background videos found. Upload a video above or place one in <code className="text-amber-400">app/public/videos</code>.
@@ -2399,9 +4178,15 @@ const AdminDashboard = () => {
 
             {/* PROPERTY MULTI-STEP FORM */}
             {modalType === 'property_form' && (
-              <form onSubmit={handleSaveProperty} className="space-y-6">
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
+                }}
+                className="space-y-6"
+              >
                 <div className="border-b border-zinc-800 pb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Property Management Form</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Property Management Form (Company Developed for Sale)</span>
                   <h3 className="text-lg font-black text-white">
                     {formProp.id ? 'Edit House / Building Property' : 'Add New House / Building Property'}
                   </h3>
@@ -2427,52 +4212,198 @@ const AdminDashboard = () => {
 
                 {/* Step 1: Basic */}
                 {formStep === 1 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Property Title *</label>
-                      <select
-                        value={formProp.title || '3 BHK Individual House'}
-                        onChange={(e) => setFormProp({ ...formProp, title: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
-                        required
-                      >
-                        <option value="3 BHK Individual House">3 BHK Individual House</option>
-                        <option value="2 BHK Individual House">2 BHK Individual House</option>
-                        <option value="4 BHK Individual House">4 BHK Individual House</option>
-                        <option value="1 BHK Individual House">1 BHK Individual House</option>
-                        <option value="Individual House for Sale">Individual House for Sale</option>
-                        <option value="Independent Villa for Sale">Independent Villa for Sale</option>
-                        <option value="Duplex Villa">Duplex Villa</option>
-                        <option value="Luxury House">Luxury House</option>
-                        <option value="Custom Construction House">Custom Construction House</option>
-                      </select>
+                  <div className="space-y-4 text-xs">
+                    {/* 1. FIRST INPUT: Upload Property Images (Multiple, Preview & Reorder) */}
+                    <div className="bg-[#121214] p-4 sm:p-5 rounded-2xl border border-zinc-800 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <label className="block font-black text-amber-400 text-xs uppercase tracking-wide">
+                            Upload Property Photos (Cover & Gallery) *
+                          </label>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                            Select multiple photos. Drag & drop any card to reorder. Photo #1 is automatically the Cover.
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/30">
+                          {propertyImagesList.length} Photos Attached
+                        </span>
+                      </div>
+
+                      {/* File Selector */}
+                      <div className="flex items-center gap-3">
+                        <label className="cursor-pointer bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-2 active:scale-95 transition-all">
+                          <Upload size={15} />
+                          <span>Choose Photos (Multiple)</span>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleSelectMultipleImages}
+                            className="hidden"
+                          />
+                        </label>
+                        {uploadingBasicImage && (
+                          <div className="flex items-center gap-2 text-xs text-amber-400 font-bold animate-pulse">
+                            <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                            <span>Uploading & processing photos...</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Photo Previews and Reordering Grid (Drag & Drop) */}
+                      {propertyImagesList.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                          {propertyImagesList.map((imgItem, idx) => {
+                            const isBeingDragged = draggedImgIdx === idx;
+                            const isDragTarget = dragOverImgIdx === idx && !isBeingDragged;
+
+                            return (
+                              <div
+                                key={imgItem.id || idx}
+                                draggable
+                                onDragStart={(e) => handleImageDragStart(e, idx)}
+                                onDragOver={(e) => handleImageDragOver(e, idx)}
+                                onDragLeave={(e) => handleImageDragLeave(e, idx)}
+                                onDrop={(e) => handleImageDrop(e, idx)}
+                                onDragEnd={handleImageDragEnd}
+                                className={`relative rounded-xl overflow-hidden border cursor-grab active:cursor-grabbing select-none transition-all duration-150 flex flex-col ${
+                                  isBeingDragged
+                                    ? 'opacity-30 scale-95 border-dashed border-amber-500 ring-2 ring-amber-500/50'
+                                    : isDragTarget
+                                    ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-500/20 scale-[1.03] shadow-xl'
+                                    : idx === 0
+                                    ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg bg-black/60'
+                                    : 'border-zinc-800 bg-black/60 hover:border-zinc-700'
+                                }`}
+                              >
+                                <div className="aspect-video w-full overflow-hidden flex items-center justify-center bg-zinc-950 relative pointer-events-none">
+                                  <img src={imgItem.url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                  {idx === 0 ? (
+                                    <span className="absolute top-1.5 left-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
+                                      <Star size={9} fill="currentColor" /> COVER
+                                    </span>
+                                  ) : (
+                                    <span className="absolute top-1.5 left-1.5 bg-black/80 text-zinc-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-zinc-700">
+                                      #{idx + 1}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Controls Bar (No arrow buttons: Drag handle indicator, Set Cover button, Remove button) */}
+                                <div className="p-1.5 bg-[#18181b] border-t border-zinc-800 flex items-center justify-between gap-1">
+                                  <div className="flex items-center gap-1 text-zinc-400 pl-0.5">
+                                    <GripVertical size={13} className="text-zinc-500" />
+                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Drag</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    {idx !== 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPropertyCoverImage(idx);
+                                        }}
+                                        className="text-[9px] font-black text-amber-400 hover:text-amber-300 px-1.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer flex items-center gap-0.5"
+                                        title="Set as Main Cover Photo"
+                                      >
+                                        <Star size={9} /> Set Cover
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removePropertyImage(idx);
+                                      }}
+                                      className="w-6 h-6 rounded bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
+                                      title="Remove Photo"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-zinc-800 rounded-xl p-5 text-center text-zinc-500 space-y-1">
+                          <ImageIcon size={26} className="mx-auto text-zinc-600 mb-1" />
+                          <p className="font-bold text-xs text-zinc-400">No photos uploaded yet</p>
+                          <p className="text-[11px] text-zinc-500">Click "Choose Photos" above to select multiple photos. Photo #1 will be your main Cover Photo.</p>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Property Type</label>
-                      <select
-                        value={formProp.type}
-                        onChange={(e) => setFormProp({ ...formProp, type: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
-                      >
-                        <option value="Individual House">Individual House</option>
-                        <option value="Independent House">Independent House</option>
-                        <option value="Villa">Villa</option>
-                        <option value="Duplex House">Duplex House</option>
-                        <option value="Apartment">Apartment</option>
-                        <option value="Residential Building">Residential Building</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Listing Status</label>
-                      <select
-                        value={formProp.status}
-                        onChange={(e) => setFormProp({ ...formProp, status: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
-                      >
-                        <option value="Available">Available</option>
-                        <option value="Under Construction">Under Construction</option>
-                        <option value="Sold">Sold</option>
-                      </select>
+
+                    {/* 2. SECOND INPUT: Property Title (Selectable Input) & Type & Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-zinc-400 mb-1">Property Title *</label>
+                        <select
+                          value={isCustomPropertyTitle ? 'CUSTOM' : (formProp.title || 'Individual House for Sale')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'CUSTOM') {
+                              setIsCustomPropertyTitle(true);
+                              updateFormProp({ title: '' });
+                            } else {
+                              setIsCustomPropertyTitle(false);
+                              updateFormProp({ title: val });
+                            }
+                          }}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+                          required
+                        >
+                          {propertyTitleOptions.map((titleOpt) => (
+                            <option key={titleOpt} value={titleOpt}>{titleOpt}</option>
+                          ))}
+                          <option value="CUSTOM">Custom Title... (Enter custom)</option>
+                        </select>
+
+                        {isCustomPropertyTitle && (
+                          <div className="mt-2 animate-fadeIn">
+                            <input
+                              type="text"
+                              placeholder="Enter custom property title..."
+                              value={formProp.title || ''}
+                              onChange={(e) => updateFormProp({ title: e.target.value })}
+                              className="w-full bg-[#09090b] border border-amber-500 text-white rounded-xl px-3 py-2 font-bold focus:outline-none placeholder-zinc-600"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Property Type</label>
+                        <select
+                          value={formProp.type || 'Individual House'}
+                          onChange={(e) => updateFormProp({ type: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Individual House">Individual House</option>
+                          <option value="Independent House">Independent House</option>
+                          <option value="Villa">Villa</option>
+                          <option value="Duplex House">Duplex House</option>
+                          <option value="Apartment">Apartment</option>
+                          <option value="Residential Building">Residential Building</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Listing Status</label>
+                        <select
+                          value={formProp.status || 'Available'}
+                          onChange={(e) => updateFormProp({ status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Under Construction">Under Construction</option>
+                          <option value="Sold">Sold</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2483,8 +4414,8 @@ const AdminDashboard = () => {
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Service Area Location *</label>
                       <select
-                        value={formProp.location || serviceAreaOptions[0]}
-                        onChange={(e) => setFormProp({ ...formProp, location: e.target.value, area: e.target.value })}
+                        value={formProp.location || serviceAreaOptions[0] || 'Poonamallee'}
+                        onChange={(e) => updateFormProp({ location: e.target.value, area: e.target.value })}
                         className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
                       >
                         {serviceAreaOptions.map(opt => (
@@ -2497,9 +4428,9 @@ const AdminDashboard = () => {
                       <input
                         type="url"
                         placeholder="https://maps.google.com/?q=..."
-                        value={formProp.maps_url}
-                        onChange={(e) => setFormProp({ ...formProp, maps_url: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        value={formProp.maps_url || ''}
+                        onChange={(e) => updateFormProp({ maps_url: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -2507,9 +4438,9 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         placeholder="Near Kovil Street, Poonamallee"
-                        value={formProp.address}
-                        onChange={(e) => setFormProp({ ...formProp, address: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        value={formProp.address || ''}
+                        onChange={(e) => updateFormProp({ address: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
                       />
                     </div>
                   </div>
@@ -2520,29 +4451,39 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Price *</label>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-[#18181b] border border-zinc-800 text-amber-400 font-extrabold px-3 py-2 rounded-xl text-sm shrink-0 select-none">
+                      {/* Unified connected container: NO spaces between container ₹ 58 Lakhs */}
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500 transition-colors shadow-inner">
+                        <span className="bg-[#18181b] border-r border-zinc-800 text-amber-400 font-black px-3.5 py-2.5 text-sm flex items-center justify-center shrink-0 select-none">
                           ₹
                         </span>
                         <input
                           type="text"
-                          value={(formProp.price || '').replace(/[^0-9.]/g, '') || '58'}
+                          inputMode="decimal"
+                          value={formProp.price_amount ?? (formProp.price || '').replace(/[^0-9.]/g, '')}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            const unit = (formProp.price || '').includes('Crore') ? 'Crores' : (formProp.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs';
-                            setFormProp({ ...formProp, price: `₹${val} ${unit}` });
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            const unit = formProp.price_unit || ((formProp.price || '').includes('Crore') ? 'Crores' : (formProp.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs');
+                            updateFormProp({
+                              price_amount: val,
+                              price_unit: unit,
+                              price: val ? `₹${val} ${unit}` : ''
+                            });
                           }}
-                          className="w-full bg-[#09090b] border border-zinc-800 font-extrabold text-amber-400 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                          placeholder="58"
-                          required
+                          className="flex-1 bg-transparent border-0 px-3.5 py-2.5 text-sm font-extrabold text-amber-400 placeholder-zinc-600 focus:outline-none"
+                          placeholder="e.g. 58"
                         />
                         <select
-                          value={(formProp.price || '').includes('Crore') ? 'Crores' : (formProp.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs'}
+                          value={formProp.price_unit || ((formProp.price || '').includes('Crore') ? 'Crores' : (formProp.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs')}
                           onChange={(e) => {
-                            const val = (formProp.price || '').replace(/[^0-9.]/g, '') || '58';
-                            setFormProp({ ...formProp, price: `₹${val} ${e.target.value}` });
+                            const unit = e.target.value;
+                            const val = formProp.price_amount ?? (formProp.price || '').replace(/[^0-9.]/g, '');
+                            updateFormProp({
+                              price_unit: unit,
+                              price_amount: val,
+                              price: val ? `₹${val} ${unit}` : ''
+                            });
                           }}
-                          className="bg-[#09090b] border border-zinc-800 text-amber-400 font-extrabold rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3.5 py-2.5 text-xs focus:outline-none cursor-pointer shrink-0"
                         >
                           <option value="Lakhs">Lakhs</option>
                           <option value="Thousands">Thousands</option>
@@ -2553,9 +4494,9 @@ const AdminDashboard = () => {
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Negotiable</label>
                       <select
-                        value={formProp.negotiable}
-                        onChange={(e) => setFormProp({ ...formProp, negotiable: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        value={formProp.negotiable || 'Yes'}
+                        onChange={(e) => updateFormProp({ negotiable: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500"
                       >
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
@@ -2569,41 +4510,41 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Bedrooms</label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
                         <input
-                          type="number"
-                          min="1"
-                          max="20"
-                          value={(formProp.bedrooms || '').replace(/[^0-9]/g, '') || '2'}
-                          onChange={(e) => setFormProp({ ...formProp, bedrooms: `${e.target.value} BHK` })}
-                          className="w-full bg-[#09090b] border border-zinc-800 text-white font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                          type="text"
+                          inputMode="numeric"
+                          value={formProp.bedrooms ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            updateFormProp({ bedrooms: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 3"
                         />
-                        <span className="bg-[#18181b] border border-zinc-800 text-amber-400 font-extrabold px-3 py-2 rounded-xl text-xs shrink-0 select-none">
+                        <span className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3 py-2 text-xs flex items-center justify-center shrink-0 select-none">
                           BHK
                         </span>
                       </div>
                     </div>
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Plot Area</label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
                         <input
                           type="text"
-                          value={(formProp.plot_area || '').replace(/[^0-9.]/g, '') || '1000'}
+                          inputMode="decimal"
+                          value={formProp.plot_area ?? ''}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            const unit = (formProp.plot_area || '').includes('sq.m') ? 'sq.m' : (formProp.plot_area || '').includes('Cent') ? 'Cent' : (formProp.plot_area || '').includes('Ground') ? 'Ground' : (formProp.plot_area || '').includes('Acre') ? 'Acre' : 'sq.ft';
-                            setFormProp({ ...formProp, plot_area: `${val} ${unit}` });
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormProp({ plot_area: val });
                           }}
-                          className="w-full bg-[#09090b] border border-zinc-800 text-white font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
-                          placeholder="1000"
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 1000"
                         />
                         <select
-                          value={(formProp.plot_area || '').includes('sq.m') ? 'sq.m' : (formProp.plot_area || '').includes('Cent') ? 'Cent' : (formProp.plot_area || '').includes('Ground') ? 'Ground' : (formProp.plot_area || '').includes('Acre') ? 'Acre' : 'sq.ft'}
-                          onChange={(e) => {
-                            const val = (formProp.plot_area || '').replace(/[^0-9.]/g, '') || '1000';
-                            setFormProp({ ...formProp, plot_area: `${val} ${e.target.value}` });
-                          }}
-                          className="bg-[#09090b] border border-zinc-800 text-zinc-300 font-bold rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-amber-500"
+                          value={formProp.plot_area_unit || 'sq.ft'}
+                          onChange={(e) => updateFormProp({ plot_area_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-2.5 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
                         >
                           <option value="sq.ft">sq.ft</option>
                           <option value="sq.m">sq.m</option>
@@ -2615,25 +4556,22 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <label className="block font-bold text-zinc-400 mb-1">Built-up Area</label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
                         <input
                           type="text"
-                          value={(formProp.builtup_area || '').replace(/[^0-9.]/g, '') || '1200'}
+                          inputMode="decimal"
+                          value={formProp.builtup_area ?? ''}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            const unit = (formProp.builtup_area || '').includes('sq.m') ? 'sq.m' : (formProp.builtup_area || '').includes('Cent') ? 'Cent' : (formProp.builtup_area || '').includes('Ground') ? 'Ground' : 'sq.ft';
-                            setFormProp({ ...formProp, builtup_area: `${val} ${unit}` });
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormProp({ builtup_area: val });
                           }}
-                          className="w-full bg-[#09090b] border border-zinc-800 text-white font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
-                          placeholder="1200"
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 1200"
                         />
                         <select
-                          value={(formProp.builtup_area || '').includes('sq.m') ? 'sq.m' : (formProp.builtup_area || '').includes('Cent') ? 'Cent' : (formProp.builtup_area || '').includes('Ground') ? 'Ground' : 'sq.ft'}
-                          onChange={(e) => {
-                            const val = (formProp.builtup_area || '').replace(/[^0-9.]/g, '') || '1200';
-                            setFormProp({ ...formProp, builtup_area: `${val} ${e.target.value}` });
-                          }}
-                          className="bg-[#09090b] border border-zinc-800 text-zinc-300 font-bold rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-amber-500"
+                          value={formProp.builtup_area_unit || 'sq.ft'}
+                          onChange={(e) => updateFormProp({ builtup_area_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-2.5 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
                         >
                           <option value="sq.ft">sq.ft</option>
                           <option value="sq.m">sq.m</option>
@@ -2652,8 +4590,8 @@ const AdminDashboard = () => {
                       <label className="block font-bold text-zinc-400 mb-1">Construction Type</label>
                       <select
                         value={formProp.construction_type || 'RCC / Concrete'}
-                        onChange={(e) => setFormProp({ ...formProp, construction_type: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
+                        onChange={(e) => updateFormProp({ construction_type: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500"
                       >
                         <option value="RCC / Concrete">RCC / Concrete</option>
                         <option value="Frame Structure">Frame Structure</option>
@@ -2665,14 +4603,66 @@ const AdminDashboard = () => {
                       <label className="block font-bold text-zinc-400 mb-1">Roof Type</label>
                       <select
                         value={formProp.roof_type || 'RCC Flat Concrete Roof'}
-                        onChange={(e) => setFormProp({ ...formProp, roof_type: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
+                        onChange={(e) => updateFormProp({ roof_type: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500"
                       >
                         <option value="RCC Flat Concrete Roof">RCC Flat Concrete Roof</option>
                         <option value="Sloped Concrete Roof">Sloped Concrete Roof</option>
                         <option value="Tiled Roof">Tiled Roof</option>
                         <option value="Metal Sheet Roof">Metal Sheet Roof</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Facing</label>
+                      <select
+                        value={formProp.facing || 'East'}
+                        onChange={(e) => updateFormProp({ facing: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="East">East</option>
+                        <option value="North">North</option>
+                        <option value="South">South</option>
+                        <option value="West">West</option>
+                        <option value="North-East">North-East</option>
+                        <option value="North-West">North-West</option>
+                        <option value="South-East">South-East</option>
+                        <option value="South-West">South-West</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Road Width</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="e.g. 30"
+                          value={formProp.road_width ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormProp({ road_width: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                        />
+                        <select
+                          value={formProp.road_width_unit || 'ft'}
+                          onChange={(e) => updateFormProp({ road_width_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="ft">ft</option>
+                          <option value="inch">inch</option>
+                          <option value="meter">meter</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Year Built</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2024"
+                        value={formProp.year_built || ''}
+                        onChange={(e) => updateFormProp({ year_built: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
                     </div>
                   </div>
                 )}
@@ -2681,14 +4671,21 @@ const AdminDashboard = () => {
                 {formStep === 6 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-bold">
                     {[
-                      ['compound_wall', 'Compound Wall'], ['gate', 'Gate'], ['water_connection', 'Water Connection'],
-                      ['eb_connection', 'EB Connection'], ['borewell', 'Borewell'], ['overhead_tank', 'Overhead Tank']
+                      ['compound_wall', 'Compound Wall'],
+                      ['gate', 'Dedicated Gate'],
+                      ['water_connection', 'Water Connection'],
+                      ['eb_connection', 'EB Connection'],
+                      ['borewell', 'Borewell'],
+                      ['overhead_tank', 'Overhead Tank'],
+                      ['sewer_connection', 'Drainage/Sewer Facility'],
+                      ['ground_water', 'Good Ground Water'],
+                      ['road_access', 'Direct Road Access']
                     ].map(([key, label]) => (
-                      <label key={key} className="flex items-center gap-2 p-2.5 bg-[#09090b] rounded-xl border border-zinc-800 cursor-pointer text-white">
+                      <label key={key} className="flex items-center gap-2 p-2.5 bg-[#09090b] rounded-xl border border-zinc-800 cursor-pointer text-white hover:border-amber-500/40 transition-colors">
                         <input
                           type="checkbox"
                           checked={!!formProp[key]}
-                          onChange={(e) => setFormProp({ ...formProp, [key]: e.target.checked })}
+                          onChange={(e) => updateFormProp({ [key]: e.target.checked })}
                           className="accent-amber-500"
                         />
                         {label}
@@ -2700,37 +4697,114 @@ const AdminDashboard = () => {
                 {/* Step 7: Documents & Save */}
                 {formStep === 7 && (
                   <div className="space-y-4 text-xs">
+                    {propertyFormError && (
+                      <div className="bg-red-500/20 border border-red-500/40 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                        <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                        <span>{propertyFormError}</span>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block font-bold text-zinc-400 mb-1">Patta Status</label>
-                        <select value={formProp.patta_status} onChange={(e) => setFormProp({ ...formProp, patta_status: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
-                          <option value="Available">Available</option><option value="Not Available">Not Available</option><option value="Not Provided">Not Provided</option>
+                        <select
+                          value={formProp.patta_status || 'Available'}
+                          onChange={(e) => updateFormProp({ patta_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Not Available">Not Available</option>
+                          <option value="Not Provided">Not Provided</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block font-bold text-zinc-400 mb-1">EC Status</label>
-                        <select value={formProp.ec_status} onChange={(e) => setFormProp({ ...formProp, ec_status: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
-                          <option value="Available">Available</option><option value="Not Available">Not Available</option><option value="Not Provided">Not Provided</option>
+                        <label className="block font-bold text-zinc-400 mb-1">EC (Encumbrance Certificate)</label>
+                        <select
+                          value={formProp.ec_status || 'Available'}
+                          onChange={(e) => updateFormProp({ ec_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Not Available">Not Available</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Approved Building Plan</label>
+                        <select
+                          value={formProp.approved_plan_status || 'Available'}
+                          onChange={(e) => updateFormProp({ approved_plan_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Under Process">Under Process</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Sale Deed Status</label>
+                        <select
+                          value={formProp.sale_deed_status || 'Available'}
+                          onChange={(e) => updateFormProp({ sale_deed_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Clear Title">Clear Title</option>
+                          <option value="Not Provided">Not Provided</option>
                         </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Description / Details</label>
+                      <label className="block font-bold text-zinc-400 mb-1">Other Documents / Registration Notes</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Approved Plan DTCP No: 128/2023, Building Permit No: 441, Encumbrance Certificate No: 582"
+                        value={formProp.other_documents || ''}
+                        onChange={(e) => updateFormProp({ other_documents: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-zinc-400">Description / Details</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const generated = generatePropertyDescription(formProp);
+                            setFormProp(prev => ({ ...prev, description: generated, isDescriptionCustomized: false }));
+                          }}
+                          className="text-[11px] text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles size={13} /> Auto-Generate from Fields
+                        </button>
+                      </div>
                       <textarea
-                        rows="3"
-                        value={formProp.description}
-                        onChange={(e) => setFormProp({ ...formProp, description: e.target.value })}
-                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        rows="4"
+                        placeholder="Property description automatically generates from selected fields, or you can write your own custom details..."
+                        value={formProp.description || ''}
+                        onChange={(e) => setFormProp(prev => ({ ...prev, description: e.target.value, isDescriptionCustomized: true }))}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600 leading-relaxed"
                       />
                     </div>
 
                     <div className="flex items-center gap-6 font-bold pt-2 text-white">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={formProp.published} onChange={(e) => setFormProp({ ...formProp, published: e.target.checked })} className="accent-amber-500" /> Published on Website
+                        <input
+                          type="checkbox"
+                          checked={!!formProp.published}
+                          onChange={(e) => updateFormProp({ published: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Published on Website
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={formProp.featured} onChange={(e) => setFormProp({ ...formProp, featured: e.target.checked })} className="accent-amber-500" /> Mark Featured
+                        <input
+                          type="checkbox"
+                          checked={!!formProp.featured}
+                          onChange={(e) => updateFormProp({ featured: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Mark Featured
                       </label>
                     </div>
                   </div>
@@ -2739,18 +4813,51 @@ const AdminDashboard = () => {
                 {/* Form Controls */}
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
                   {formStep > 1 ? (
-                    <button type="button" onClick={() => setFormStep(s => s - 1)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">
+                    <button
+                      key="prop-prev-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.max(s - 1, 1));
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase transition-colors cursor-pointer"
+                    >
                       Previous Step
                     </button>
                   ) : <div />}
 
                   {formStep < 7 ? (
-                    <button type="button" onClick={() => setFormStep(s => s + 1)} className="bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase">
+                    <button
+                      key="prop-next-step-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.min(s + 1, 7));
+                      }}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
                       Next Step
                     </button>
                   ) : (
-                    <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5">
-                      <Save size={14} /> Save Property
+                    <button
+                      key="prop-save-property-btn"
+                      type="button"
+                      disabled={isSavingProperty}
+                      onClick={handleSaveProperty}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    >
+                      {isSavingProperty ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Saving Property...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> <span>Save Property</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -2759,7 +4866,13 @@ const AdminDashboard = () => {
 
             {/* LAND MULTI-STEP FORM */}
             {modalType === 'land_form' && (
-              <form onSubmit={handleSaveLand} className="space-y-6">
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
+                }}
+                className="space-y-6"
+              >
                 <div className="border-b border-zinc-800 pb-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Land & Plots Form</span>
                   <h3 className="text-lg font-black text-white">
@@ -2767,8 +4880,9 @@ const AdminDashboard = () => {
                   </h3>
                 </div>
 
+                {/* Step Tabs */}
                 <div className="flex gap-1.5 overflow-x-auto pb-2 border-b border-zinc-800 scrollbar-none text-[11px] font-bold uppercase">
-                  {['1. Basic', '2. Location', '3. Plot Size', '4. Price & Approval', '5. Media & Save'].map((label, idx) => (
+                  {['1. Basic & Photos', '2. Location', '3. Price', '4. Area & Dimensions', '5. Utilities & Approvals', '6. Documents & Save'].map((label, idx) => (
                     <button
                       key={idx}
                       type="button"
@@ -2782,24 +4896,209 @@ const AdminDashboard = () => {
                   ))}
                 </div>
 
+                {/* Step 1: Basic & Photos */}
                 {formStep === 1 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Land ID (Auto)</label>
-                      <input type="text" value={formLand.land_id || 'LAND-001'} onChange={(e) => setFormLand({ ...formLand, land_id: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3 py-2 font-bold text-amber-400 focus:outline-none" />
+                  <div className="space-y-4 text-xs">
+                    {/* 1. FIRST INPUT: Multi-Image Upload */}
+                    <div className="bg-[#09090b] p-3.5 rounded-2xl border border-zinc-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block font-black text-white text-xs">Land / Plot Photos & Gallery</label>
+                          <p className="text-[11px] text-zinc-400">Upload multiple plot photos. Drag & drop to reorder. Photo #1 is the Cover Photo.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-amber-400 font-extrabold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                            {landImagesList.length} Attached
+                          </span>
+                          <label className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3 py-1.5 rounded-xl text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all">
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              onChange={handleSelectMultipleLandImages}
+                              className="hidden"
+                            />
+                            {uploadingLandImage ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload size={13} />
+                                <span>Choose Photos</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Photo Grid Preview with Drag & Drop */}
+                      {landImagesList.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                          {landImagesList.map((imgItem, idx) => {
+                            const isCover = idx === 0;
+                            const isBeingDragged = draggedLandImgIdx === idx;
+                            const isOver = dragOverLandImgIdx === idx;
+
+                            return (
+                              <div
+                                key={imgItem.id || idx}
+                                draggable
+                                onDragStart={(e) => handleLandImageDragStart(e, idx)}
+                                onDragOver={(e) => handleLandImageDragOver(e, idx)}
+                                onDragLeave={(e) => handleLandImageDragLeave(e, idx)}
+                                onDrop={(e) => handleLandImageDrop(e, idx)}
+                                onDragEnd={handleLandImageDragEnd}
+                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                                  isBeingDragged
+                                    ? 'opacity-30 scale-95 border-amber-500'
+                                    : isOver
+                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                    : isCover
+                                    ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                    : 'border-zinc-800 hover:border-zinc-600'
+                                }`}
+                              >
+                                <img
+                                  src={imgItem.url}
+                                  alt={`Plot photo ${idx + 1}`}
+                                  className="w-full h-full object-cover select-none pointer-events-none"
+                                />
+
+                                {/* Index Badge */}
+                                <span className="absolute top-1.5 left-1.5 bg-black/80 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                                  #{idx + 1}
+                                </span>
+
+                                {/* Drag Grip Indicator */}
+                                <div className="absolute top-1.5 left-8 bg-black/70 text-zinc-300 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                  <GripVertical size={12} />
+                                </div>
+
+                                {/* Cover Badge */}
+                                {isCover && (
+                                  <span className="absolute bottom-1.5 left-1.5 bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-1">
+                                    ★ Cover Photo
+                                  </span>
+                                )}
+
+                                {/* Hover Actions Overlay */}
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                                  {!isCover && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setLandCoverImage(idx)}
+                                      className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-2 py-1 rounded text-[10px] uppercase shadow cursor-pointer transition-all"
+                                      title="Set as Main Cover Photo"
+                                    >
+                                      Set Cover
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLandImage(idx)}
+                                    className="bg-red-500/90 hover:bg-red-500 text-white p-1 rounded-lg text-[10px] shadow cursor-pointer transition-all"
+                                    title="Remove Photo"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-zinc-800 rounded-xl p-5 text-center text-zinc-500 space-y-1">
+                          <ImageIcon size={26} className="mx-auto text-zinc-600 mb-1" />
+                          <p className="font-bold text-xs text-zinc-400">No photos uploaded yet</p>
+                          <p className="text-[11px] text-zinc-500">Click "Choose Photos" above to select multiple photos. Photo #1 will be your main Cover Photo.</p>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Land Title *</label>
-                      <input type="text" placeholder="DTCP Approved Plot in Poonamallee" value={formLand.title} onChange={(e) => setFormLand({ ...formLand, title: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" required />
+
+                    {/* 2. SECOND INPUT: Land Title (Selectable Input) & Type & Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-zinc-400 mb-1">Land Title *</label>
+                        <select
+                          value={isCustomLandTitle ? 'CUSTOM' : (formLand.title || 'DTCP Approved Residential Plot')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'CUSTOM') {
+                              setIsCustomLandTitle(true);
+                              updateFormLand({ title: '' });
+                            } else {
+                              setIsCustomLandTitle(false);
+                              updateFormLand({ title: val });
+                            }
+                          }}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+                          required
+                        >
+                          {landTitleOptions.map((titleOpt) => (
+                            <option key={titleOpt} value={titleOpt}>{titleOpt}</option>
+                          ))}
+                          <option value="CUSTOM">Custom Title... (Enter custom)</option>
+                        </select>
+
+                        {isCustomLandTitle && (
+                          <div className="mt-2 animate-fadeIn">
+                            <input
+                              type="text"
+                              placeholder="Enter custom land plot title..."
+                              value={formLand.title || ''}
+                              onChange={(e) => updateFormLand({ title: e.target.value })}
+                              className="w-full bg-[#09090b] border border-amber-500 text-white rounded-xl px-3 py-2 font-bold focus:outline-none placeholder-zinc-600"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Land Type</label>
+                        <select
+                          value={formLand.land_type || 'Residential Plot'}
+                          onChange={(e) => updateFormLand({ land_type: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Residential Plot">Residential Plot</option>
+                          <option value="Commercial Plot">Commercial Plot</option>
+                          <option value="Gated Community Plot">Gated Community Plot</option>
+                          <option value="Villa Plot">Villa Plot</option>
+                          <option value="Corner Plot">Corner Plot</option>
+                          <option value="Agricultural Land">Agricultural Land</option>
+                          <option value="Industrial Plot">Industrial Plot</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Listing Status</label>
+                        <select
+                          value={formLand.status || 'Available'}
+                          onChange={(e) => updateFormLand({ status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Under Negotiation">Under Negotiation</option>
+                          <option value="Sold">Sold</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 )}
 
+                {/* Step 2: Location */}
                 {formStep === 2 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Location *</label>
-                      <select value={formLand.location || serviceAreaOptions[0]} onChange={(e) => setFormLand({ ...formLand, location: e.target.value, area: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500">
+                      <label className="block font-bold text-zinc-400 mb-1">Service Area Location *</label>
+                      <select
+                        value={formLand.location || serviceAreaOptions[0] || 'Poonamallee'}
+                        onChange={(e) => updateFormLand({ location: e.target.value, area: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
+                      >
                         {serviceAreaOptions.map(opt => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
@@ -2807,65 +5106,463 @@ const AdminDashboard = () => {
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block font-bold text-zinc-400 mb-1">Google Maps URL</label>
-                      <input type="url" placeholder="https://maps.google.com/?q=..." value={formLand.maps_url} onChange={(e) => setFormLand({ ...formLand, maps_url: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
+                      <input
+                        type="url"
+                        placeholder="https://maps.google.com/?q=..."
+                        value={formLand.maps_url || ''}
+                        onChange={(e) => updateFormLand({ maps_url: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-zinc-400 mb-1">Full Address / Landmark</label>
+                      <input
+                        type="text"
+                        placeholder="Near Kovil Street, Poonamallee"
+                        value={formLand.address || ''}
+                        onChange={(e) => updateFormLand({ address: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
                     </div>
                   </div>
                 )}
 
+                {/* Step 3: Price */}
                 {formStep === 3 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Plot Area (sq.ft)</label>
-                      <input type="text" value={formLand.plot_area} onChange={(e) => setFormLand({ ...formLand, plot_area: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" required />
+                      <label className="block font-bold text-zinc-400 mb-1">Total Price *</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500 transition-colors shadow-inner">
+                        <span className="bg-[#18181b] border-r border-zinc-800 text-amber-400 font-black px-3.5 py-2.5 text-sm flex items-center justify-center shrink-0 select-none">
+                          ₹
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formLand.price_amount ?? (formLand.total_price || formLand.price || '').replace(/[^0-9.]/g, '')}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            const unit = formLand.price_unit || ((formLand.total_price || formLand.price || '').includes('Crore') ? 'Crores' : (formLand.total_price || formLand.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs');
+                            updateFormLand({
+                              price_amount: val,
+                              price_unit: unit,
+                              total_price: val ? `₹${val} ${unit}` : '',
+                              price: val ? `₹${val} ${unit}` : ''
+                            });
+                          }}
+                          className="flex-1 bg-transparent border-0 px-3.5 py-2.5 text-sm font-extrabold text-amber-400 placeholder-zinc-600 focus:outline-none"
+                          placeholder="e.g. 32"
+                        />
+                        <select
+                          value={formLand.price_unit || ((formLand.total_price || formLand.price || '').includes('Crore') ? 'Crores' : (formLand.total_price || formLand.price || '').includes('Thousand') ? 'Thousands' : 'Lakhs')}
+                          onChange={(e) => {
+                            const unit = e.target.value;
+                            const val = formLand.price_amount ?? (formLand.total_price || formLand.price || '').replace(/[^0-9.]/g, '');
+                            updateFormLand({
+                              price_unit: unit,
+                              price_amount: val,
+                              total_price: val ? `₹${val} ${unit}` : '',
+                              price: val ? `₹${val} ${unit}` : ''
+                            });
+                          }}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3.5 py-2.5 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="Lakhs">Lakhs</option>
+                          <option value="Thousands">Thousands</option>
+                          <option value="Crores">Crores</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Dimensions (e.g. 30x40)</label>
-                      <input type="text" value={formLand.frontage} onChange={(e) => setFormLand({ ...formLand, frontage: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
+                      <label className="block font-bold text-zinc-400 mb-1">Negotiable</label>
+                      <select
+                        value={formLand.negotiable || 'Yes'}
+                        onChange={(e) => updateFormLand({ negotiable: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Price per sq.ft (Optional)</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <span className="bg-[#18181b] border-r border-zinc-800 text-amber-400 font-black px-3 py-2 text-xs flex items-center justify-center shrink-0 select-none">
+                          ₹
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formLand.price_per_sqft ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormLand({ price_per_sqft: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 2650"
+                        />
+                        <span className="bg-[#18181b] border-l border-zinc-800 text-zinc-400 font-bold px-3 py-2 text-xs flex items-center justify-center shrink-0 select-none">
+                          / sq.ft
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
 
+                {/* Step 4: Area & Dimensions */}
                 {formStep === 4 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Total Price (e.g. ₹32 Lakhs)</label>
-                      <input type="text" value={formLand.total_price} onChange={(e) => setFormLand({ ...formLand, total_price: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-amber-400 rounded-xl px-3 py-2 font-extrabold focus:outline-none" required />
+                      <label className="block font-bold text-zinc-400 mb-1">Plot Area *</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formLand.plot_area ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormLand({ plot_area: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 1200"
+                          required
+                        />
+                        <select
+                          value={formLand.plot_area_unit || 'sq.ft'}
+                          onChange={(e) => updateFormLand({ plot_area_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-2.5 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="sq.ft">sq.ft</option>
+                          <option value="sq.m">sq.m</option>
+                          <option value="Cent">Cent</option>
+                          <option value="Ground">Ground</option>
+                          <option value="Acre">Acre</option>
+                        </select>
+                      </div>
                     </div>
+
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Approval Status</label>
-                      <select value={formLand.approval_status} onChange={(e) => setFormLand({ ...formLand, approval_status: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500">
-                        <option value="DTCP Approved">DTCP Approved</option>
-                        <option value="CMDA Approved">CMDA Approved</option>
-                        <option value="Panchayat Approved">Panchayat Approved</option>
-                        <option value="Not Provided">Not Provided</option>
+                      <label className="block font-bold text-zinc-400 mb-1">Plot Length (ft)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formLand.length ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, '');
+                          updateFormLand({ length: val, frontage: val && formLand.width ? `${val}x${formLand.width}` : formLand.frontage });
+                        }}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                        placeholder="e.g. 40"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Plot Width (ft)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formLand.width ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, '');
+                          updateFormLand({ width: val, frontage: formLand.length && val ? `${formLand.length}x${val}` : formLand.frontage });
+                        }}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                        placeholder="e.g. 30"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Facing</label>
+                      <select
+                        value={formLand.facing || 'East'}
+                        onChange={(e) => updateFormLand({ facing: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="East">East</option>
+                        <option value="North">North</option>
+                        <option value="South">South</option>
+                        <option value="West">West</option>
+                        <option value="North-East">North-East</option>
+                        <option value="North-West">North-West</option>
+                        <option value="South-East">South-East</option>
+                        <option value="South-West">South-West</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Road Width</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="e.g. 30"
+                          value={formLand.road_width ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormLand({ road_width: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                        />
+                        <select
+                          value={formLand.road_width_unit || 'ft'}
+                          onChange={(e) => updateFormLand({ road_width_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="ft">ft</option>
+                          <option value="inch">inch</option>
+                          <option value="meter">meter</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Road Type</label>
+                      <select
+                        value={formLand.road_type || 'Tar Road'}
+                        onChange={(e) => updateFormLand({ road_type: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Tar Road">Tar Road</option>
+                        <option value="Concrete Road">Concrete Road</option>
+                        <option value="Paved Road">Paved Road</option>
+                        <option value="Gravel Road">Gravel Road</option>
+                        <option value="Mud Road">Mud Road</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Corner Plot</label>
+                      <select
+                        value={formLand.corner_plot || 'No'}
+                        onChange={(e) => updateFormLand({ corner_plot: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="No">No</option>
+                        <option value="Yes">Yes (Corner Plot)</option>
                       </select>
                     </div>
                   </div>
                 )}
 
+                {/* Step 5: Utilities & Approvals */}
                 {formStep === 5 && (
                   <div className="space-y-4 text-xs">
                     <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Select Multiple Plot Gallery Images</label>
-                      <input type="file" multiple accept="image/*" onChange={(e) => setSelectedImageFiles(Array.from(e.target.files))} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
+                      <label className="block font-bold text-zinc-400 mb-1">Approval Status *</label>
+                      <select
+                        value={formLand.approval_status || 'DTCP Approved'}
+                        onChange={(e) => updateFormLand({ approval_status: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="DTCP Approved">DTCP Approved</option>
+                        <option value="CMDA Approved">CMDA Approved</option>
+                        <option value="Panchayat Approved">Panchayat Approved</option>
+                        <option value="RERA Approved">RERA Approved</option>
+                        <option value="Unapproved / Patta Land">Unapproved / Patta Land</option>
+                        <option value="Not Provided">Not Provided</option>
+                      </select>
                     </div>
-                    <div>
-                      <label className="block font-bold text-zinc-400 mb-1">Description</label>
-                      <textarea rows="3" value={formLand.description} onChange={(e) => setFormLand({ ...formLand, description: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-bold pt-2">
+                      {[
+                        ['eb_available', 'EB Power Line Available'],
+                        ['water_available', 'Drinking Water Facility'],
+                        ['drainage_available', 'Drainage / Sewerage System'],
+                        ['borewell_available', 'Potable Sweet Ground Water'],
+                        ['gated_community', 'Gated Community Boundary'],
+                        ['street_lights', 'Street Lights Installed']
+                      ].map(([key, label]) => (
+                        <label key={key} className="flex items-center gap-2 p-2.5 bg-[#09090b] rounded-xl border border-zinc-800 cursor-pointer text-white hover:border-amber-500/40 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={!!formLand[key]}
+                            onChange={(e) => updateFormLand({ [key]: e.target.checked })}
+                            className="accent-amber-500"
+                          />
+                          {label}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 )}
 
+                {/* Step 6: Documents & Save */}
+                {formStep === 6 && (
+                  <div className="space-y-4 text-xs">
+                    {landFormError && (
+                      <div className="bg-red-500/20 border border-red-500/40 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                        <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                        <span>{landFormError}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Patta Status</label>
+                        <select
+                          value={formLand.patta_status || 'Available'}
+                          onChange={(e) => updateFormLand({ patta_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Under Process">Under Process</option>
+                          <option value="Not Available">Not Available</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">EC (Encumbrance Certificate)</label>
+                        <select
+                          value={formLand.ec_status || 'Available'}
+                          onChange={(e) => updateFormLand({ ec_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Clear EC">Clear EC</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Parent Documents</label>
+                        <select
+                          value={formLand.parent_documents_status || 'Available'}
+                          onChange={(e) => updateFormLand({ parent_documents_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Verified">Verified</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Approval Order Copy</label>
+                        <select
+                          value={formLand.approval_documents_status || 'Available'}
+                          onChange={(e) => updateFormLand({ approval_documents_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Under Process">Under Process</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-zinc-400 mb-1">Sale Deed Status</label>
+                        <select
+                          value={formLand.sale_deed_status || 'Available'}
+                          onChange={(e) => updateFormLand({ sale_deed_status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Clear Title">Clear Title</option>
+                          <option value="Not Provided">Not Provided</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Other Documents / Registration Notes</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. DTCP Approval Order No: 154/2023, Survey No: 284/1B"
+                        value={formLand.other_documents || ''}
+                        onChange={(e) => updateFormLand({ other_documents: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-zinc-400">Description / Details</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const generated = generateLandDescription(formLand);
+                            setFormLand(prev => ({ ...prev, description: generated, isDescriptionCustomized: false }));
+                          }}
+                          className="text-[11px] text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles size={13} /> Auto-Generate from Fields
+                        </button>
+                      </div>
+                      <textarea
+                        rows="4"
+                        placeholder="Plot description automatically generates from selected fields, or you can write your own custom details..."
+                        value={formLand.description || ''}
+                        onChange={(e) => setFormLand(prev => ({ ...prev, description: e.target.value, isDescriptionCustomized: true }))}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600 leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-6 font-bold pt-2 text-white">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formLand.published}
+                          onChange={(e) => updateFormLand({ published: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Published on Website
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formLand.featured}
+                          onChange={(e) => updateFormLand({ featured: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Mark Featured
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Controls */}
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
                   {formStep > 1 ? (
-                    <button type="button" onClick={() => setFormStep(s => s - 1)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Previous</button>
+                    <button
+                      key="land-prev-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.max(s - 1, 1));
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase transition-colors cursor-pointer"
+                    >
+                      Previous Step
+                    </button>
                   ) : <div />}
 
-                  {formStep < 5 ? (
-                    <button type="button" onClick={() => setFormStep(s => s + 1)} className="bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase">Next Step</button>
+                  {formStep < 6 ? (
+                    <button
+                      key="land-next-step-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.min(s + 1, 6));
+                      }}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      Next Step
+                    </button>
                   ) : (
-                    <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5">
-                      <Save size={14} /> Save Land Plot
+                    <button
+                      key="land-save-land-btn"
+                      type="button"
+                      disabled={isSavingLand}
+                      onClick={handleSaveLand}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    >
+                      {isSavingLand ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Saving Land Plot...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> <span>Save Land Plot</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -2874,7 +5571,13 @@ const AdminDashboard = () => {
 
             {/* PROJECT MULTI-STEP FORM */}
             {modalType === 'project_form' && (
-              <form onSubmit={handleSaveProject} className="space-y-6">
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
+                }}
+                className="space-y-6"
+              >
                 <div className="border-b border-zinc-800 pb-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Construction Project Form</span>
                   <h3 className="text-lg font-black text-white">
@@ -2882,46 +5585,530 @@ const AdminDashboard = () => {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <label className="block font-bold text-zinc-400 mb-1">Project ID (Auto)</label>
-                    <input type="text" value={formProj.project_id || 'PROJ-001'} onChange={(e) => setFormProj({ ...formProj, project_id: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3 py-2 font-bold text-amber-400 focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-zinc-400 mb-1">Project Name *</label>
-                    <input type="text" placeholder="Poonamallee Villa Project" value={formProj.name} onChange={(e) => setFormProj({ ...formProj, name: e.target.value, title: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" required />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-zinc-400 mb-1">Location *</label>
-                    <select value={formProj.location || serviceAreaOptions[0]} onChange={(e) => setFormProj({ ...formProj, location: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500">
-                      {serviceAreaOptions.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-zinc-400 mb-1">Project Status</label>
-                    <select value={formProj.status} onChange={(e) => setFormProj({ ...formProj, status: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500">
-                      <option value="Completed">Completed</option>
-                      <option value="Under Construction">Under Construction</option>
-                      <option value="Planning">Planning</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-bold text-zinc-400 mb-1">Google Maps Location URL</label>
-                    <input type="url" placeholder="https://maps.google.com/?q=..." value={formProj.maps_url} onChange={(e) => setFormProj({ ...formProj, maps_url: e.target.value })} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-bold text-zinc-400 mb-1">Select Categorized Construction Images</label>
-                    <input type="file" multiple accept="image/*" onChange={(e) => setSelectedImageFiles(Array.from(e.target.files))} className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500" />
-                  </div>
+                {/* Step Tabs */}
+                <div className="flex gap-1.5 overflow-x-auto pb-2 border-b border-zinc-800 scrollbar-none text-[11px] font-bold uppercase">
+                  {['1. Basic & Photos', '2. Location', '3. Specs & Dimensions', '4. Scope of Work', '5. Details & Save'].map((label, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setFormStep(idx + 1)}
+                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${
+                        formStep === idx + 1 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold' : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
-                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Cancel</button>
-                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5">
-                    <Save size={14} /> Save Construction Project
-                  </button>
+                {/* Step 1: Basic & Photos */}
+                {formStep === 1 && (
+                  <div className="space-y-4 text-xs">
+                    {/* 1. Multi-Image Upload */}
+                    <div className="bg-[#09090b] p-3.5 rounded-2xl border border-zinc-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block font-black text-white text-xs">Project Photos & Gallery</label>
+                          <p className="text-[11px] text-zinc-400">Upload multiple project photos. Drag & drop to reorder. Photo #1 is the Cover Photo.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-amber-400 font-extrabold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                            {projectImagesList.length} Attached
+                          </span>
+                          <label className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3 py-1.5 rounded-xl text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all">
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              onChange={handleSelectMultipleProjectImages}
+                              className="hidden"
+                            />
+                            {uploadingProjectImage ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload size={13} />
+                                <span>Choose Photos</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Photo Grid Preview with Drag & Drop */}
+                      {projectImagesList.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                          {projectImagesList.map((imgItem, idx) => {
+                            const isCover = idx === 0;
+                            const isBeingDragged = draggedProjImgIdx === idx;
+                            const isOver = dragOverProjImgIdx === idx;
+
+                            return (
+                              <div
+                                key={imgItem.id || idx}
+                                draggable
+                                onDragStart={(e) => handleProjImageDragStart(e, idx)}
+                                onDragOver={(e) => handleProjImageDragOver(e, idx)}
+                                onDragLeave={(e) => handleProjImageDragLeave(e, idx)}
+                                onDrop={(e) => handleProjImageDrop(e, idx)}
+                                onDragEnd={handleProjImageDragEnd}
+                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                                  isBeingDragged
+                                    ? 'opacity-30 scale-95 border-amber-500'
+                                    : isOver
+                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                    : isCover
+                                    ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                    : 'border-zinc-800 hover:border-zinc-600'
+                                }`}
+                              >
+                                <img
+                                  src={imgItem.url}
+                                  alt={`Project photo ${idx + 1}`}
+                                  className="w-full h-full object-cover select-none pointer-events-none"
+                                />
+
+                                {/* Index Badge */}
+                                <span className="absolute top-1.5 left-1.5 bg-black/80 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                                  #{idx + 1}
+                                </span>
+
+                                {/* Drag Grip Indicator */}
+                                <div className="absolute top-1.5 left-8 bg-black/70 text-zinc-300 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                  <GripVertical size={12} />
+                                </div>
+
+                                {/* Cover Badge */}
+                                {isCover && (
+                                  <span className="absolute bottom-1.5 left-1.5 bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-1">
+                                    ★ Cover Photo
+                                  </span>
+                                )}
+
+                                {/* Hover Actions Overlay */}
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                                  {!isCover && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setProjectCoverImage(idx)}
+                                      className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-2 py-1 rounded text-[10px] uppercase shadow cursor-pointer transition-all"
+                                      title="Set as Main Cover Photo"
+                                    >
+                                      Set Cover
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeProjectImage(idx)}
+                                    className="bg-red-500/90 hover:bg-red-500 text-white p-1 rounded-lg text-[10px] shadow cursor-pointer transition-all"
+                                    title="Remove Photo"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-zinc-800 rounded-xl p-5 text-center text-zinc-500 space-y-1">
+                          <ImageIcon size={26} className="mx-auto text-zinc-600 mb-1" />
+                          <p className="font-bold text-xs text-zinc-400">No photos uploaded yet</p>
+                          <p className="text-[11px] text-zinc-500">Click "Choose Photos" above to select multiple photos. Photo #1 will be your main Cover Photo.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Project Name / Title (Selectable Input) & Type & Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block font-bold text-zinc-400 mb-1">Project Name / Title *</label>
+                        <select
+                          value={isCustomProjectTitle ? 'CUSTOM' : (formProj.name || formProj.title || 'Individual Villa Construction')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'CUSTOM') {
+                              setIsCustomProjectTitle(true);
+                              updateFormProj({ name: '', title: '' });
+                            } else {
+                              setIsCustomProjectTitle(false);
+                              updateFormProj({ name: val, title: val });
+                            }
+                          }}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+                          required
+                        >
+                          {projectTitleOptions.map((titleOpt) => (
+                            <option key={titleOpt} value={titleOpt}>{titleOpt}</option>
+                          ))}
+                          <option value="CUSTOM">Custom Title... (Enter custom)</option>
+                        </select>
+
+                        {isCustomProjectTitle && (
+                          <div className="mt-2 animate-fadeIn">
+                            <input
+                              type="text"
+                              placeholder="Enter custom construction project name..."
+                              value={formProj.name || formProj.title || ''}
+                              onChange={(e) => updateFormProj({ name: e.target.value, title: e.target.value })}
+                              className="w-full bg-[#09090b] border border-amber-500 text-white rounded-xl px-3 py-2 font-bold focus:outline-none placeholder-zinc-600"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Project Category / Type</label>
+                        <select
+                          value={formProj.project_type || 'Contract Construction'}
+                          onChange={(e) => updateFormProj({ project_type: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Contract Construction">Contract Construction</option>
+                          <option value="Individual House">Individual House</option>
+                          <option value="Villa">Villa</option>
+                          <option value="Duplex House">Duplex House</option>
+                          <option value="Residential Building">Residential Building</option>
+                          <option value="Commercial Building">Commercial Building</option>
+                          <option value="Renovation & Remodeling">Renovation & Remodeling</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-400 mb-1">Project Status</label>
+                        <select
+                          value={formProj.status || 'Completed'}
+                          onChange={(e) => updateFormProj({ status: e.target.value })}
+                          className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="Completed">Completed</option>
+                          <option value="Under Construction">Ongoing (Under Construction)</option>
+                          <option value="Planning & Approvals">Started (Planning & Approvals)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Location */}
+                {formStep === 2 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Service Area Location *</label>
+                      <select
+                        value={formProj.location || serviceAreaOptions[0] || 'Poonamallee'}
+                        onChange={(e) => updateFormProj({ location: e.target.value, area: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500"
+                      >
+                        {serviceAreaOptions.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-zinc-400 mb-1">Google Maps Location URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://maps.google.com/?q=..."
+                        value={formProj.maps_url || ''}
+                        onChange={(e) => updateFormProj({ maps_url: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-zinc-400 mb-1">Full Address / Landmark</label>
+                      <input
+                        type="text"
+                        placeholder="Near Kovil Street, Poonamallee"
+                        value={formProj.address || ''}
+                        onChange={(e) => updateFormProj({ address: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Specs & Dimensions */}
+                {formStep === 3 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Built-up Area</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formProj.builtup_area ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormProj({ builtup_area: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 1500"
+                        />
+                        <select
+                          value={formProj.builtup_area_unit || 'sq.ft'}
+                          onChange={(e) => updateFormProj({ builtup_area_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-2.5 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="sq.ft">sq.ft</option>
+                          <option value="sq.m">sq.m</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Plot Area</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formProj.plot_area ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            updateFormProj({ plot_area: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 1200"
+                        />
+                        <select
+                          value={formProj.plot_area_unit || 'sq.ft'}
+                          onChange={(e) => updateFormProj({ plot_area_unit: e.target.value })}
+                          className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-2.5 py-2 text-xs focus:outline-none cursor-pointer shrink-0"
+                        >
+                          <option value="sq.ft">sq.ft</option>
+                          <option value="sq.m">sq.m</option>
+                          <option value="Cent">Cent</option>
+                          <option value="Ground">Ground</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Floors</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formProj.floors ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            updateFormProj({ floors: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 2"
+                        />
+                        <span className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3 py-2 text-xs flex items-center justify-center shrink-0 select-none">
+                          Floors
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Bedrooms</label>
+                      <div className="flex items-stretch rounded-xl border border-zinc-800 bg-[#09090b] overflow-hidden focus-within:border-amber-500">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formProj.bedrooms ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            updateFormProj({ bedrooms: val });
+                          }}
+                          className="w-full bg-transparent px-3 py-2 text-white font-bold outline-none placeholder-zinc-600"
+                          placeholder="e.g. 3"
+                        />
+                        <span className="bg-[#18181b] border-l border-zinc-800 text-amber-400 font-extrabold px-3 py-2 text-xs flex items-center justify-center shrink-0 select-none">
+                          BHK
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Bathrooms</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="e.g. 3"
+                        value={formProj.bathrooms ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          updateFormProj({ bathrooms: val });
+                        }}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Completion Year / Date</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2024 or Aug 2024"
+                        value={formProj.completion_date || formProj.actual_completion_date || ''}
+                        onChange={(e) => updateFormProj({ completion_date: e.target.value, actual_completion_date: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Start Date / Year (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2023 or Jan 2023"
+                        value={formProj.start_date || ''}
+                        onChange={(e) => updateFormProj({ start_date: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4: Scope of Work */}
+                {formStep === 4 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-bold">
+                    {[
+                      ['rcc_structure', 'RCC Framed Structure'],
+                      ['concrete_roof', 'Reinforced Concrete Roof'],
+                      ['compound_wall', 'Compound Wall'],
+                      ['gate', 'Dedicated Gate'],
+                      ['parking', 'Vehicle Parking'],
+                      ['water_connection', 'Water Line Connection'],
+                      ['electrical_work', 'Electrical & Modular Switches'],
+                      ['plumbing', 'Plumbing & Sanitaryware'],
+                      ['painting', 'Exterior & Interior Painting'],
+                      ['interior_work', 'Interior Woodwork & Modular Kitchen']
+                    ].map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 p-2.5 bg-[#09090b] rounded-xl border border-zinc-800 cursor-pointer text-white hover:border-amber-500/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={!!formProj[key]}
+                          onChange={(e) => updateFormProj({ [key]: e.target.checked })}
+                          className="accent-amber-500"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Step 5: Details & Save */}
+                {formStep === 5 && (
+                  <div className="space-y-4 text-xs">
+                    {projectFormError && (
+                      <div className="bg-red-500/20 border border-red-500/40 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                        <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                        <span>{projectFormError}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block font-bold text-zinc-400 mb-1">Special Features / Highlights</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Teak wood main door, Italian marble flooring, solar water heater"
+                        value={formProj.special_features || ''}
+                        onChange={(e) => updateFormProj({ special_features: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-zinc-400">Description / Overview</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const generated = generateProjectDescription(formProj);
+                            setFormProj(prev => ({ ...prev, description: generated, overview: generated, isDescriptionCustomized: false }));
+                          }}
+                          className="text-[11px] text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles size={13} /> Auto-Generate from Fields
+                        </button>
+                      </div>
+                      <textarea
+                        rows="4"
+                        placeholder="Project overview automatically generates from selected specs, or you can write your own custom details..."
+                        value={formProj.description || formProj.overview || ''}
+                        onChange={(e) => setFormProj(prev => ({ ...prev, description: e.target.value, overview: e.target.value, isDescriptionCustomized: true }))}
+                        className="w-full bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 placeholder-zinc-600 leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-6 font-bold pt-2 text-white">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formProj.published}
+                          onChange={(e) => updateFormProj({ published: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Published on Website
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formProj.featured}
+                          onChange={(e) => updateFormProj({ featured: e.target.checked })}
+                          className="accent-amber-500"
+                        /> Mark Featured
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Controls */}
+                <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
+                  {formStep > 1 ? (
+                    <button
+                      key="proj-prev-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.max(s - 1, 1));
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase transition-colors cursor-pointer"
+                    >
+                      Previous Step
+                    </button>
+                  ) : <div />}
+
+                  {formStep < 5 ? (
+                    <button
+                      key="proj-next-step-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFormStep(s => Math.min(s + 1, 5));
+                      }}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      Next Step
+                    </button>
+                  ) : (
+                    <button
+                      key="proj-save-project-btn"
+                      type="button"
+                      disabled={isSavingProject}
+                      onClick={handleSaveProject}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    >
+                      {isSavingProject ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Saving Project...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> <span>Save Construction Project</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </form>
             )}
@@ -2991,6 +6178,75 @@ const AdminDashboard = () => {
                   <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Cancel</button>
                   <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5">
                     <Save size={14} /> Save Gallery Photo
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TESTIMONIAL MODAL FORM */}
+            {modalType === 'testimonial_form' && (
+              <form onSubmit={handleSaveTestimonial} className="space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Client Review Form</span>
+                  <h3 className="text-lg font-black text-white">
+                    {formTestimonial.id ? 'Edit Testimonial' : 'Add New Testimonial'}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Client / Family Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh & Family"
+                      value={formTestimonial.client_name}
+                      onChange={(e) => setFormTestimonial({ ...formTestimonial, client_name: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Location / Area</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Poonamallee"
+                      value={formTestimonial.location}
+                      onChange={(e) => setFormTestimonial({ ...formTestimonial, location: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-zinc-400 mb-1">Star Rating</label>
+                    <select
+                      value={formTestimonial.rating || 5}
+                      onChange={(e) => setFormTestimonial({ ...formTestimonial, rating: parseInt(e.target.value) || 5 })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                    >
+                      <option value={5}>★★★★★ (5 Stars - Excellent)</option>
+                      <option value={4}>★★★★☆ (4 Stars - Very Good)</option>
+                      <option value={3}>★★★☆☆ (3 Stars - Good)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-zinc-400 mb-1">Testimonial Quote / Review Text *</label>
+                    <textarea
+                      rows="3"
+                      placeholder="Write client experience or review quote..."
+                      value={formTestimonial.quote}
+                      onChange={(e) => setFormTestimonial({ ...formTestimonial, quote: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 resize-none leading-relaxed"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
+                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Cancel</button>
+                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
+                    <Save size={14} /> Save Testimonial
                   </button>
                 </div>
               </form>

@@ -94,8 +94,8 @@ router.post('/', (req, res) => {
     const title = body.title || name;
     const project_type = body.project_type || 'Individual House';
     const status = body.status || 'Completed';
-    const location = body.location || 'Poonamallee';
-    const cover_image = body.cover_image || body.image || '/house/completed-house.jpg';
+    const location = body.location || body.area || 'Poonamallee';
+    const cover_image = body.cover_image && body.cover_image !== '/house/completed-house.jpg' && !body.cover_image.includes('logo') ? body.cover_image : (body.image && body.image !== '/house/completed-house.jpg' && !body.image.includes('logo') ? body.image : '');
 
     const sql = `
       INSERT INTO projects (
@@ -278,11 +278,97 @@ router.post('/:id/images', upload.array('images', 20), (req, res) => {
   });
 });
 
-// DELETE single Project image
-router.delete('/:id/images/:imageId', (req, res) => {
-  db.run('DELETE FROM project_images WHERE id = ? AND project_id = ?', [req.params.imageId, req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'Project image deleted' });
+// Helper function to safely delete physical image file from filesystem
+const unlinkPhysicalProjectImage = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
+  if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
+
+  const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
+  const fullPath = path.join(projectRoot, relativePath);
+  const filename = path.basename(imageUrl);
+  const candidatePaths = [
+    fullPath,
+    path.join(projectRoot, 'uploads/images/projects', filename),
+    path.join(projectRoot, 'uploads/images', filename)
+  ];
+
+  candidatePaths.forEach((p) => {
+    try {
+      if (fs.existsSync(p) && fs.lstatSync(p).isFile()) {
+        fs.unlinkSync(p);
+        console.log(`[Project Image Delete] Removed physical file: ${p}`);
+      }
+    } catch (e) {
+      console.error(`[Project Image Delete] Warning removing file ${p}:`, e.message);
+    }
+  });
+};
+
+// DELETE image directly from form (acts on physical filesystem & showcase.db)
+router.post('/delete-image', (req, res) => {
+  const { projectId, imageUrl, imageId } = req.body;
+  if (!imageUrl && !imageId) {
+    return res.status(400).json({ error: 'imageUrl or imageId is required' });
+  }
+
+  // 1. Delete physical file from filesystem
+  if (imageUrl) {
+    unlinkPhysicalProjectImage(imageUrl);
+  }
+
+  // 2. Delete from showcase.db database
+  db.serialize(() => {
+    if (imageId) {
+      db.get('SELECT image_url FROM project_images WHERE id = ?', [imageId], (err, row) => {
+        if (row?.image_url) unlinkPhysicalProjectImage(row.image_url);
+        db.run('DELETE FROM project_images WHERE id = ?', [imageId]);
+      });
+    }
+
+    if (imageUrl) {
+      db.run('DELETE FROM project_images WHERE image_url = ?', [imageUrl]);
+    }
+
+    if (projectId) {
+      db.get('SELECT cover_image, image FROM projects WHERE id = ?', [projectId], (err, projRow) => {
+        if (projRow && (projRow.cover_image === imageUrl || projRow.image === imageUrl)) {
+          db.get(
+            'SELECT image_url FROM project_images WHERE project_id = ? AND image_url != ? ORDER BY sort_order ASC, id ASC LIMIT 1',
+            [projectId, imageUrl],
+            (err, nextImg) => {
+              const newCover = nextImg ? nextImg.image_url : '';
+              db.run('UPDATE projects SET cover_image = ?, image = ? WHERE id = ?', [newCover, newCover, projectId]);
+            }
+          );
+        }
+      });
+    }
+  });
+
+  return res.json({ success: true, message: 'Project image deleted from physical disk and showcase.db' });
+});
+
+// SYNC & REORDER all Project Images
+router.put('/:id/images/sync', (req, res) => {
+  const projectId = req.params.id;
+  const { images } = req.body;
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: 'images must be an array of URLs' });
+  }
+
+  db.serialize(() => {
+    db.run('DELETE FROM project_images WHERE project_id = ?', [projectId]);
+    if (images.length > 0) {
+      const stmt = db.prepare('INSERT INTO project_images (project_id, image_url, category, sort_order) VALUES (?, ?, ?, ?)');
+      images.forEach((url, idx) => {
+        stmt.run(projectId, url, 'completed', idx);
+      });
+      stmt.finalize();
+      db.run('UPDATE projects SET cover_image = ?, image = ? WHERE id = ?', [images[0], images[0], projectId]);
+    } else {
+      db.run('UPDATE projects SET cover_image = ?, image = ? WHERE id = ?', ['', '', projectId]);
+    }
+    res.json({ message: 'Project images synchronized successfully', total: images.length });
   });
 });
 

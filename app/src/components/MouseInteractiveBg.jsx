@@ -10,7 +10,7 @@ const MouseInteractiveBg = () => {
   const canvasRef = useRef(null);
   const spotlightInnerRef = useRef(null);
   const spotlightOuterRef = useRef(null);
-  const [bgVideoSrc, setBgVideoSrc] = useState('./videos/Background.mp4');
+  const [bgVideoSrc, setBgVideoSrc] = useState('');
   const [inHero, setInHero] = useState(false);
 
   // 1. Fetch active primary background video & listen for admin changes
@@ -311,22 +311,25 @@ const MouseInteractiveBg = () => {
         ref={videoWrapperRef}
         className="fixed inset-0 w-full h-full pointer-events-none will-change-transform z-0"
       >
-        <video
-          key={bgVideoSrc}
-          ref={videoRef}
-          src={bgVideoSrc}
-          autoPlay
-          loop
-          muted
-          playsInline
-          webkit-playsinline="true"
-          preload="metadata"
-          onCanPlay={(e) => {
-            e.currentTarget.muted = true;
-            e.currentTarget.play().catch(() => {});
-          }}
-          className="fixed inset-0 w-full h-full object-cover pointer-events-none opacity-95 filter brightness-105 contrast-105 z-0"
-        />
+        {bgVideoSrc && (
+          <video
+            key={bgVideoSrc}
+            ref={videoRef}
+            src={bgVideoSrc}
+            autoPlay
+            loop
+            muted
+            playsInline
+            webkit-playsinline="true"
+            preload="metadata"
+            onError={() => setBgVideoSrc('')}
+            onCanPlay={(e) => {
+              e.currentTarget.muted = true;
+              e.currentTarget.play().catch(() => {});
+            }}
+            className="fixed inset-0 w-full h-full object-cover pointer-events-none opacity-95 filter brightness-105 contrast-105 z-0"
+          />
+        )}
       </div>
 
       {/* 2. FALLBACK LUXURY BACKGROUND IMAGE */}

@@ -78,7 +78,7 @@ def print_progress(label, current, total):
     if current == total:
         sys.stdout.write("\n")
 
-def process_video(base_dir, desktop_target=120, mobile_target=60):
+def process_video(base_dir, desktop_target=120):
     force_mode = "--force" in sys.argv or "-f" in sys.argv
     video_dir = os.path.join(base_dir, "uploads", "videos")
     frames_dir = os.path.join(base_dir, "frames")
@@ -102,10 +102,10 @@ def process_video(base_dir, desktop_target=120, mobile_target=60):
     video_size = stat.st_size
 
     desktop_files = glob.glob(os.path.join(desktop_dir, "frame_*.webp"))
-    mobile_files = glob.glob(os.path.join(mobile_dir, "frame_*.webp"))
+    mobile_last_frame = os.path.join(mobile_dir, "frame_last.webp")
 
     desktop_ready = len(desktop_files) == (desktop_target + 1)
-    mobile_ready = len(mobile_files) == (mobile_target + 1)
+    mobile_ready = os.path.exists(mobile_last_frame)
 
     meta = {}
     if os.path.exists(meta_path):
@@ -123,15 +123,14 @@ def process_video(base_dir, desktop_target=120, mobile_target=60):
         meta.get("size") == video_size
     )
 
-    desktop_need = force_mode or video_changed or not (meta_valid and desktop_ready)
-    mobile_need = force_mode or video_changed or not (meta_valid and mobile_ready)
+    desktop_need = force_mode or video_changed or not (meta_valid and desktop_ready and mobile_ready)
 
-    if not desktop_need and not mobile_need:
-        print(f"[OK] Up-to-date: {len(desktop_files)} Desktop & {len(mobile_files)} Mobile frames ready for '{video_filename}'.")
+    if not desktop_need:
+        print(f"[OK] Up-to-date: {len(desktop_files)} Desktop frames ready for '{video_filename}'. Mobile using final completed frame.")
         return
 
     if video_changed:
-        print(f"[NOTICE] Primary video changed to '{video_filename}'. Re-extracting all WebP frames...")
+        print(f"[NOTICE] Primary video changed to '{video_filename}'. Re-extracting Desktop WebP frames...")
 
     print(f"[EXTRACT] Processing primary video '{video_filename}'...")
     cap = cv2.VideoCapture(video_path)
@@ -150,44 +149,31 @@ def process_video(base_dir, desktop_target=120, mobile_target=60):
     print(f"[INFO] Video Details: {total_frames} total frames @ {fps:.2f} FPS.")
 
     # 1. Desktop Frames Extraction (121 frames - Full HD 1080p Quality)
-    if desktop_need:
-        print(f"[EXTRACT] Generating Desktop HD Frames (1080p Quality) -> 'frames/desktop/'")
-        purge_folder(desktop_dir)
-        desktop_indices = [int(i * (total_frames - 1) / desktop_target) for i in range(desktop_target + 1)]
-        
-        for idx, frame_idx in enumerate(desktop_indices):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-            ret, frame = cap.read()
-            if ret:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb_frame)
-                desktop_filename = f"frame_{idx + 1:04d}.webp"
-                desktop_path = os.path.join(desktop_dir, desktop_filename)
-                # 1080p High Definition WebP saving
-                pil_img.save(desktop_path, "WEBP", quality=92, method=6)
-            print_progress("Desktop Frames", idx + 1, desktop_target + 1)
-    else:
-        print(f"[SKIP] Desktop frames folder 'frames/desktop/' already up-to-date ({len(desktop_files)} frames).")
+    print(f"[EXTRACT] Generating Desktop HD Frames (1080p Quality) -> 'frames/desktop/'")
+    purge_folder(desktop_dir)
+    purge_folder(mobile_dir)
 
-    # 2. Mobile Frames Extraction (61 frames - High Definition)
-    if mobile_need:
-        print(f"[EXTRACT] Generating Mobile HD Frames -> 'frames/mobile/'")
-        purge_folder(mobile_dir)
-        mobile_indices = [int(i * (total_frames - 1) / mobile_target) for i in range(mobile_target + 1)]
+    desktop_indices = [int(i * (total_frames - 1) / desktop_target) for i in range(desktop_target + 1)]
+    last_pil_img = None
+    
+    for idx, frame_idx in enumerate(desktop_indices):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = cap.read()
+        if ret:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb_frame)
+            desktop_filename = f"frame_{idx + 1:04d}.webp"
+            desktop_path = os.path.join(desktop_dir, desktop_filename)
+            # 1080p High Definition WebP saving
+            pil_img.save(desktop_path, "WEBP", quality=92, method=6)
+            last_pil_img = pil_img
+        print_progress("Desktop Frames", idx + 1, desktop_target + 1)
 
-        for idx, frame_idx in enumerate(mobile_indices):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-            ret, frame = cap.read()
-            if ret:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb_frame)
-                mobile_filename = f"frame_{idx + 1:04d}.webp"
-                mobile_path = os.path.join(mobile_dir, mobile_filename)
-                # High Definition WebP saving for Mobile
-                pil_img.save(mobile_path, "WEBP", quality=88, method=4)
-            print_progress("Mobile Frames", idx + 1, mobile_target + 1)
-    else:
-        print(f"[SKIP] Mobile frames folder 'frames/mobile/' already up-to-date ({len(mobile_files)} frames).")
+    # Save final completed house image for Mobile hero display
+    if last_pil_img:
+        mobile_path = os.path.join(mobile_dir, "frame_last.webp")
+        last_pil_img.save(mobile_path, "WEBP", quality=90, method=5)
+        print(f"[SUCCESS] Saved final completed house frame -> '{mobile_path}' for Mobile view.")
 
     cap.release()
 
@@ -198,10 +184,10 @@ def process_video(base_dir, desktop_target=120, mobile_target=60):
             "mtime": video_mtime,
             "size": video_size,
             "desktop_frames": desktop_target + 1,
-            "mobile_frames": mobile_target + 1
+            "mobile_frames": 1
         }, mf, indent=2)
 
-    print(f"[SUCCESS] WebP frame extraction complete: {desktop_target + 1} Desktop & {mobile_target + 1} Mobile frames for '{video_filename}'.")
+    print(f"[SUCCESS] WebP frame extraction complete: {desktop_target + 1} Desktop frames & 1 Mobile static final frame for '{video_filename}'.")
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))

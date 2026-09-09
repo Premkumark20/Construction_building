@@ -4,26 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   root: '.',
-  base: './',
   publicDir: 'app/public',
   plugins: [react(), tailwindcss()],
   server: {
     host: true, // Exposes Network IP link for testing on mobile devices & tablets
     port: 5173,
     strictPort: true,
-    watch: {
-      ignored: [
-        '**/assets/**',
-        '**/dist/**',
-        '**/uploads/**',
-        '**/app/server/**',
-        '**/frames/**',
-        '**/*.db',
-        '**/*.db-journal',
-        '**/*.sqlite',
-        '**/*.sqlite-journal',
-      ],
-    },
     hmr: {
       port: 5173,
     },

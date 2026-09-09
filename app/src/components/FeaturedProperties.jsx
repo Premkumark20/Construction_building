@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, BedDouble, Maximize, ExternalLink, X, MessageCircle, Phone, FileCheck, Search } from 'lucide-react';
+import { MapPin, BedDouble, Maximize, ExternalLink, X, MessageCircle, Phone, FileCheck, Search, Home, Compass, ShieldCheck } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSiteData } from '../hooks/useSiteData.js';
 import { handlePhoneCall } from '../utils/phoneUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
+
+const getStatusBadgeStyle = (status) => {
+  const s = (status || 'Available').toLowerCase();
+  if (s.includes('under construction') || s.includes('construction')) {
+    return 'bg-amber-500/90 text-black border border-amber-400/80 shadow-amber-500/30';
+  }
+  if (s.includes('sold')) {
+    return 'bg-red-500/90 text-white border border-red-400/80 shadow-red-500/30';
+  }
+  if (s.includes('negotiation')) {
+    return 'bg-blue-500/90 text-white border border-blue-400/80 shadow-blue-500/30';
+  }
+  return 'bg-emerald-600/90 text-white border border-emerald-400/80 shadow-emerald-500/30';
+};
 
 const FeaturedProperties = () => {
   const sectionRef = useRef(null);
@@ -83,10 +97,8 @@ const FeaturedProperties = () => {
 
     // 1. DESKTOP: Pinned Horizontal Sequential Retrieval on Scroll
     mm.add('(min-width: 769px)', () => {
-      const cards = Array.from(track.children);
-      const totalCards = cards.length;
-
       const getScrollAmount = () => {
+        if (!track || !trackWrapper) return 0;
         const overflow = track.scrollWidth - trackWrapper.clientWidth;
         return Math.max(0, overflow + 80);
       };
@@ -94,17 +106,10 @@ const FeaturedProperties = () => {
       // Initial State: Hidden
       if (header) gsap.set(header, { opacity: 0, y: 35 });
       if (filter) gsap.set(filter, { opacity: 0, y: 25 });
+      if (trackWrapper) gsap.set(trackWrapper, { opacity: 0, y: 30, scale: 0.98 });
       if (ctaBtn) gsap.set(ctaBtn, { opacity: 0, y: 25, scale: 0.95 });
-      cards.forEach((card) => {
-        gsap.set(card, { opacity: 0, scale: 0.85, y: 40 });
-      });
 
-      const scrollAmount = getScrollAmount();
-      // If scrollAmount > 0 (cards overflow screen width), pin dynamically proportional to overflow width
-      // If scrollAmount === 0 (empty card or cards fit screen), crisp smooth entrance pin (600px)
-      const scrollDistance = scrollAmount > 0
-        ? Math.max(1800, Math.floor(scrollAmount * 1.4 + totalCards * 160))
-        : 1000;
+      const scrollDistance = 2200;
 
       const tl = gsap.timeline({
         scrollTrigger: {
@@ -112,25 +117,26 @@ const FeaturedProperties = () => {
           pin: pinContainer,
           start: 'top top',
           end: `+=${scrollDistance}`,
-          scrub: 1.2,
+          scrub: 1.5,
           anticipatePin: 1,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
+            const cardCount = track.children.length || 1;
             if (self.progress < 0.18) {
               setActiveCardIndex(0);
             } else {
               const cardProgress = Math.min(1, Math.max(0, (self.progress - 0.18) / 0.72));
-              const currentIdx = Math.min(totalCards - 1, Math.floor(cardProgress * totalCards));
+              const currentIdx = Math.min(cardCount - 1, Math.floor(cardProgress * cardCount));
               setActiveCardIndex(currentIdx);
             }
           },
         },
       });
 
-      // 0. Ensure all cards and elements are strictly locked hidden at time 0 of timeline
-      tl.set(cards, { opacity: 0, scale: 0.85, y: 40 }, 0);
+      // 0. Ensure all elements are strictly locked hidden at time 0 of timeline
       if (header) tl.set(header, { opacity: 0, y: 35 }, 0);
       if (filter) tl.set(filter, { opacity: 0, y: 25 }, 0);
+      if (trackWrapper) tl.set(trackWrapper, { opacity: 0, y: 30, scale: 0.98 }, 0);
       if (ctaBtn) tl.set(ctaBtn, { opacity: 0, y: 25, scale: 0.95 }, 0);
 
       // STEP 1: Heading
@@ -151,11 +157,18 @@ const FeaturedProperties = () => {
         );
       }
 
-      // STEP 3: Cards retrieved sequentially one by one
+      // STEP 3: Cards Track Reveal & Horizontal Scroll
       const cardStartProgress = 0.18;
       const cardEndProgress = 0.90;
       const cardSpan = cardEndProgress - cardStartProgress;
-      const stepDuration = cardSpan / totalCards;
+
+      if (trackWrapper) {
+        tl.to(
+          trackWrapper,
+          { opacity: 1, y: 0, scale: 1, duration: 0.15, ease: 'power2.out' },
+          cardStartProgress
+        );
+      }
 
       tl.to(
         track,
@@ -166,21 +179,6 @@ const FeaturedProperties = () => {
         },
         cardStartProgress
       );
-
-      cards.forEach((card, idx) => {
-        const cardEntry = cardStartProgress + idx * stepDuration;
-        tl.to(
-          card,
-          {
-            opacity: 1,
-            scale: 1,
-            y: 0,
-            duration: stepDuration * 0.85,
-            ease: 'power2.out',
-          },
-          cardEntry
-        );
-      });
 
       // STEP 4: Reveal Bottom CTA button
       if (ctaBtn) {
@@ -202,21 +200,22 @@ const FeaturedProperties = () => {
     mm.add('(max-width: 768px)', () => {
       if (header) gsap.set(header, { clearProps: 'all' });
       if (filter) gsap.set(filter, { clearProps: 'all' });
+      if (trackWrapper) gsap.set(trackWrapper, { clearProps: 'all' });
       if (ctaBtn) gsap.set(ctaBtn, { clearProps: 'all' });
       if (track) gsap.set(track, { clearProps: 'all' });
-      if (track?.children) {
-        gsap.set(Array.from(track.children), { clearProps: 'all' });
-      }
     });
 
     return () => mm.revert();
-  }, [activeTab, first10Items.length]);
+  }, []);
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const openItemModal = async (item) => {
     setSelectedItem(item);
-    setActiveModalImage(item.image || item.cover_image || '/house/completed-house.jpg');
+    const initialImg = (item.image && item.image !== '/house/completed-house.jpg' && !item.image.includes('logo'))
+      ? item.image
+      : ((item.cover_image && item.cover_image !== '/house/completed-house.jpg' && !item.cover_image.includes('logo')) ? item.cover_image : '');
+    setActiveModalImage(initialImg);
 
     const isHouse = item.itemCategory === 'House' || item.bedrooms || item.builtup_area;
     const endpoint = isHouse ? `/api/properties/${item.id}` : `/api/land/${item.id}`;
@@ -227,8 +226,13 @@ const FeaturedProperties = () => {
         const detail = data.property || data.land;
         setSelectedItemDetails(detail);
         if (detail?.images && detail.images.length > 0) {
-          const coverImg = detail.images.find(img => img.is_cover) || detail.images[0];
-          setActiveModalImage(coverImg.image_url);
+          const validImages = detail.images
+            .map(img => img.image_url)
+            .filter(url => url && !url.includes('logo') && url !== '/house/completed-house.jpg');
+          if (validImages.length > 0) {
+            const coverImg = detail.images.find(img => img.is_cover && !img.image_url.includes('logo')) || { image_url: validImages[0] };
+            setActiveModalImage(coverImg.image_url || validImages[0]);
+          }
         }
       }
     } catch (e) {
@@ -255,8 +259,19 @@ const FeaturedProperties = () => {
     return `https://api.whatsapp.com/send/?phone=${numWithCountry}&text=${encodeURIComponent(msg)}&type=phone_number&app_absent=0`;
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setActiveCardIndex(0);
+    if (trackRef.current) {
+      gsap.set(trackRef.current, { x: 0 });
+    }
+    requestAnimationFrame(() => {
+      ScrollTrigger.refresh();
+    });
+  };
+
   return (
-    <section ref={sectionRef} id="properties" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="properties" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10 min-h-screen">
       {/* Stage Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center py-10 sm:py-20 relative">
         {/* Background Glow */}
@@ -277,7 +292,8 @@ const FeaturedProperties = () => {
             {/* Tab Filters */}
             <div ref={filterRef} className="flex bg-[#121216]/90 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-white/10 shadow-lg">
               <button
-                onClick={() => setActiveTab('Houses for Sale')}
+                type="button"
+                onClick={() => handleTabChange('Houses for Sale')}
                 className={`px-3 sm:px-5 py-1 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold transition-all duration-300 ${activeTab === 'Houses for Sale'
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-md shadow-amber-500/20'
                     : 'text-zinc-400 hover:text-white'
@@ -286,7 +302,8 @@ const FeaturedProperties = () => {
                 Houses ({safeProperties.length})
               </button>
               <button
-                onClick={() => setActiveTab('Lands for Sale')}
+                type="button"
+                onClick={() => handleTabChange('Lands for Sale')}
                 className={`px-3 sm:px-5 py-1 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-extrabold transition-all duration-300 ${activeTab === 'Lands for Sale'
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-md shadow-amber-500/20'
                     : 'text-zinc-400 hover:text-white'
@@ -304,29 +321,16 @@ const FeaturedProperties = () => {
             ref={trackRef}
             className={`py-2 sm:py-3 select-none perspective-1200 will-change-transform ${first10Items.length === 0 ? 'w-full flex justify-center' : 'flex gap-3 sm:gap-6 w-max'}`}
           >
-            {loading && first10Items.length === 0 ? (
-              <div className="flex gap-4 sm:gap-6 w-full max-w-7xl mx-auto px-4 justify-center">
-                {[1, 2, 3].map((n) => (
-                  <div key={n} className="w-[250px] md:w-[270px] h-[360px] rounded-2xl bg-[#18181b]/70 border border-white/5 animate-pulse flex flex-col p-4 justify-between">
-                    <div className="w-full h-44 rounded-xl bg-zinc-800/60 animate-pulse" />
-                    <div className="space-y-2 mt-4">
-                      <div className="w-3/4 h-4 rounded bg-zinc-800/80 animate-pulse" />
-                      <div className="w-1/2 h-3 rounded bg-zinc-800/50 animate-pulse" />
-                    </div>
-                    <div className="w-full h-10 rounded-xl bg-zinc-800/40 animate-pulse mt-4" />
-                  </div>
-                ))}
-              </div>
-            ) : first10Items.length === 0 ? (
-              <div className="w-full max-w-xl mx-auto py-10 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-2 relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
-                  <MapPin size={28} />
+            {first10Items.length === 0 ? (
+              <div className="w-full max-w-xl mx-auto py-8 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-2 relative z-10">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
+                  {activeTab === 'Lands for Sale' ? <MapPin size={24} /> : <Home size={24} />}
                 </div>
-                <h3 className="text-base font-black text-white uppercase tracking-wider mb-1.5">
-                  No {activeTab === 'Houses for Sale' ? 'House Properties' : 'Land Plots'} Listed Yet
+                <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">
+                  No {activeTab === 'Lands for Sale' ? 'Land Plots' : 'Houses'} Listed Yet
                 </h3>
                 <p className="text-xs text-zinc-400 font-medium max-w-sm mx-auto">
-                  No {activeTab === 'Houses for Sale' ? 'house' : 'land plot'} records found. New entries added in the Admin Portal will automatically appear here.
+                  No {activeTab === 'Lands for Sale' ? 'residential land plot' : 'individual house property'} records found. Properties added in Admin Portal will automatically appear here.
                 </p>
               </div>
             ) : (
@@ -348,14 +352,24 @@ const FeaturedProperties = () => {
 
                     <div className="sm:preserve-3d relative z-10">
                       {/* Compact Image Container */}
-                      <div className="relative h-32 sm:h-36 md:h-40 w-full overflow-hidden bg-black border-b border-white/10">
-                        <img
-                          src={item.image || '/house/completed-house.jpg'}
-                          alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                        />
-                        <div className="absolute top-2 left-2 bg-[#09090b]/90 backdrop-blur-md text-amber-300 border border-amber-500/40 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-md sm:translate-z-30">
-                          {typeLabel}
+                      <div className="relative h-32 sm:h-36 md:h-40 w-full overflow-hidden bg-black border-b border-white/10 flex items-center justify-center">
+                        {item.image && item.image !== '/house/completed-house.jpg' && !item.image.includes('logo') ? (
+                          <img
+                            src={item.image}
+                            alt={item.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className={`w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center ${isLandItem ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {isLandItem ? (
+                              <MapPin size={38} className="text-emerald-400/80" />
+                            ) : (
+                              <Home size={38} className="text-amber-400/80" />
+                            )}
+                          </div>
+                        )}
+                        <div className={`absolute top-2 left-2 backdrop-blur-md text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-md sm:translate-z-30 ${getStatusBadgeStyle(item.status)}`}>
+                          {item.status || 'Available'}
                         </div>
                       </div>
 
@@ -487,14 +501,24 @@ const FeaturedProperties = () => {
                     <div className="specular-glare" />
 
                     <div className="relative z-10">
-                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-black border-b border-white/10">
-                        <img
-                          src={item.image || '/house/completed-house.jpg'}
-                          alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-                        />
-                        <div className="absolute top-2.5 left-2.5 bg-[#09090b]/90 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase shadow-md">
-                          {item.type || item.land_type || item.itemCategory}
+                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-black border-b border-white/10 flex items-center justify-center">
+                        {item.image && item.image !== '/house/completed-house.jpg' && !item.image.includes('logo') ? (
+                          <img
+                            src={item.image}
+                            alt={item.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className={`w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center ${item.itemCategory === 'Land' || item.land_type ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {item.itemCategory === 'Land' || item.land_type ? (
+                              <MapPin size={48} className="text-emerald-400/80" />
+                            ) : (
+                              <Home size={48} className="text-amber-400/80" />
+                            )}
+                          </div>
+                        )}
+                        <div className={`absolute top-2.5 left-2.5 backdrop-blur-md text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-md ${getStatusBadgeStyle(item.status)}`}>
+                          {item.status || 'Available'}
                         </div>
                       </div>
 
@@ -558,48 +582,62 @@ const FeaturedProperties = () => {
 
             {/* Image Container with Thumbnails */}
             {(() => {
-              const imageList = selectedItemDetails?.images && selectedItemDetails.images.length > 0
+              const rawImages = selectedItemDetails?.images && selectedItemDetails.images.length > 0
                 ? selectedItemDetails.images.map(img => img.image_url)
-                : [selectedItem.image || '/house/completed-house.jpg'];
+                : [selectedItem.image || selectedItem.cover_image];
+              const imageList = rawImages.filter(url => url && !url.includes('logo') && url !== '/house/completed-house.jpg');
               const currentImgIdx = imageList.indexOf(activeModalImage) >= 0 ? imageList.indexOf(activeModalImage) : 0;
+              const hasImages = imageList.length > 0;
 
               return (
                 <div className="bg-[#121216] p-4 rounded-3xl border border-white/10 shadow-xl space-y-3">
-                  <div className="relative h-56 sm:h-64 w-full rounded-2xl overflow-hidden bg-black border border-white/10">
-                    <img
-                      src={activeModalImage || imageList[0]}
-                      alt={selectedItem.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-3 left-3 bg-[#09090b]/90 border border-amber-500/30 text-amber-400 text-xs font-black px-3 py-1 rounded-full uppercase">
-                      {selectedItem.type || selectedItem.land_type || 'Verified Listing'}
+                  <div className="relative h-56 sm:h-64 w-full rounded-2xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+                    {hasImages ? (
+                      <img
+                        src={activeModalImage || imageList[0]}
+                        alt={selectedItem.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full bg-gradient-to-br from-[#1c1c20] to-[#0a0a0c] flex items-center justify-center ${selectedItem.itemCategory === 'Land' || selectedItem.land_type ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {selectedItem.itemCategory === 'Land' || selectedItem.land_type ? (
+                          <MapPin size={64} className="text-emerald-400/80" />
+                        ) : (
+                          <Home size={64} className="text-amber-400/80" />
+                        )}
+                      </div>
+                    )}
+                    <div className={`absolute top-3 left-3 backdrop-blur-md text-xs font-black px-3.5 py-1 rounded-full uppercase shadow-md ${getStatusBadgeStyle(selectedItem.status)}`}>
+                      {selectedItem.status || 'Available'}
                     </div>
                   </div>
 
-                  {/* Thumbnail Row */}
-                  <div className="flex items-center justify-between gap-3 text-xs font-bold pt-1">
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
-                      {imageList.map((imgUrl, i) => (
-                        <img
-                          key={i}
-                          src={imgUrl}
-                          alt="Thumb"
-                          onClick={() => setActiveModalImage(imgUrl)}
-                          className={`w-12 h-12 object-cover rounded-lg border-2 cursor-pointer transition-all ${(activeModalImage === imgUrl || (!activeModalImage && i === 0))
-                              ? 'border-amber-400 scale-105 shadow-md'
-                              : 'border-white/10 opacity-60 hover:opacity-100'
-                            }`}
-                        />
-                      ))}
-                    </div>
+                  {/* Thumbnail Row - only shown if there are images */}
+                  {hasImages && (
+                    <div className="flex items-center justify-between gap-3 text-xs font-bold pt-1">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                        {imageList.map((imgUrl, i) => (
+                          <img
+                            key={i}
+                            src={imgUrl}
+                            alt="Thumb"
+                            onClick={() => setActiveModalImage(imgUrl)}
+                            className={`w-12 h-12 object-cover rounded-lg border-2 cursor-pointer transition-all ${(activeModalImage === imgUrl || (!activeModalImage && i === 0))
+                                ? 'border-amber-400 scale-105 shadow-md'
+                                : 'border-white/10 opacity-60 hover:opacity-100'
+                              }`}
+                          />
+                        ))}
+                      </div>
 
-                    <button
-                      onClick={() => setIsLightboxOpen(true)}
-                      className="bg-amber-500/20 hover:bg-amber-500 hover:text-black border border-amber-500/40 text-amber-300 font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-md"
-                    >
-                      📷 {currentImgIdx + 1} / {imageList.length} Photos — View All
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => setIsLightboxOpen(true)}
+                        className="bg-amber-500/20 hover:bg-amber-500 hover:text-black border border-amber-500/40 text-amber-300 font-extrabold px-4 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shrink-0 transition-all shadow-md"
+                      >
+                        📷 {currentImgIdx + 1} / {imageList.length} Photos — View All
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -624,8 +662,8 @@ const FeaturedProperties = () => {
                     <span className="text-white font-black">{selectedItem.type || selectedItem.land_type || selectedItem.itemCategory}</span>
                   </div>
                   <div className="bg-[#18181c] p-3.5 rounded-xl border border-white/5">
-                    <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Property ID</span>
-                    <span className="text-amber-400 font-mono font-black">{selectedItem.property_id || selectedItem.land_id || 'PROP-001'}</span>
+                    <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Status</span>
+                    <span className="text-emerald-400 font-black uppercase">{selectedItem.status || 'Available'}</span>
                   </div>
                   <div className="bg-[#18181c] p-3.5 rounded-xl border border-white/5">
                     <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Possession Status</span>
@@ -698,18 +736,30 @@ const FeaturedProperties = () => {
                   {selectedItem.builtup_area && (
                     <div className="bg-[#18181c] p-3.5 rounded-xl border border-white/5">
                       <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Built-up Area</span>
-                      <span className="text-white font-black">{selectedItem.builtup_area}</span>
+                      <span className="text-white font-black">
+                        {String(selectedItem.builtup_area).match(/[a-zA-Z]/)
+                          ? selectedItem.builtup_area
+                          : `${selectedItem.builtup_area} ${selectedItem.builtup_area_unit || 'sq.ft'}`}
+                      </span>
                     </div>
                   )}
                   {selectedItem.bedrooms && (
                     <div className="bg-[#18181c] p-3.5 rounded-xl border border-white/5">
                       <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Bedrooms / BHK</span>
-                      <span className="text-white font-black">{selectedItem.bedrooms} BHK</span>
+                      <span className="text-white font-black">
+                        {String(selectedItem.bedrooms).includes('BHK')
+                          ? selectedItem.bedrooms
+                          : `${selectedItem.bedrooms} BHK`}
+                      </span>
                     </div>
                   )}
                   <div className="bg-[#18181c] p-3.5 rounded-xl border border-white/5">
                     <span className="text-zinc-400 block text-[10px] uppercase font-bold mb-1">Road Width</span>
-                    <span className="text-white font-black">30 Feet Tar Road</span>
+                    <span className="text-white font-black">
+                      {selectedItem.road_width
+                        ? `${selectedItem.road_width} ${selectedItem.road_width_unit || 'ft'}${selectedItem.road_type ? ` ${selectedItem.road_type}` : ''}`
+                        : '30 Feet Tar Road'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -817,28 +867,42 @@ const FeaturedProperties = () => {
           </div>
 
           <div className="flex-1 flex items-center justify-center py-6">
-            <img
-              src={activeModalImage || selectedItem.image || '/house/completed-house.jpg'}
-              alt="High-Res Property Preview"
-              className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/10"
-            />
+            {activeModalImage && !activeModalImage.includes('logo') && activeModalImage !== '/house/completed-house.jpg' ? (
+              <img
+                src={activeModalImage}
+                alt="High-Res Property Preview"
+                className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/10"
+              />
+            ) : (
+              <div className="w-64 h-64 bg-[#18181b] rounded-3xl border border-zinc-800 flex flex-col items-center justify-center text-amber-400 gap-3">
+                <Home size={64} className="text-amber-400/80" />
+                <span className="text-xs text-zinc-400 font-bold">No photos available</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex gap-3 overflow-x-auto justify-center pb-2">
-            {(selectedItemDetails?.images && selectedItemDetails.images.length > 0
+          {(() => {
+            const rawImgs = selectedItemDetails?.images && selectedItemDetails.images.length > 0
               ? selectedItemDetails.images.map(img => img.image_url)
-              : [selectedItem.image || '/house/completed-house.jpg']
-            ).map((imgUrl, i) => (
-              <img
-                key={i}
-                src={imgUrl}
-                alt="Thumb"
-                onClick={() => setActiveModalImage(imgUrl)}
-                className={`w-16 h-16 object-cover rounded-xl border-2 cursor-pointer transition-all ${activeModalImage === imgUrl ? 'border-amber-400 scale-105 shadow-lg' : 'border-white/10 opacity-60 hover:opacity-100'
-                  }`}
-              />
-            ))}
-          </div>
+              : [selectedItem.image || selectedItem.cover_image];
+            const validGallery = rawImgs.filter(url => url && !url.includes('logo') && url !== '/house/completed-house.jpg');
+            if (validGallery.length <= 1) return null;
+
+            return (
+              <div className="flex gap-3 overflow-x-auto justify-center pb-2">
+                {validGallery.map((imgUrl, i) => (
+                  <img
+                    key={i}
+                    src={imgUrl}
+                    alt="Thumb"
+                    onClick={() => setActiveModalImage(imgUrl)}
+                    className={`w-16 h-16 object-cover rounded-xl border-2 cursor-pointer transition-all ${activeModalImage === imgUrl ? 'border-amber-400 scale-105 shadow-lg' : 'border-white/10 opacity-60 hover:opacity-100'
+                      }`}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </section>

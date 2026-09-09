@@ -24,6 +24,10 @@
     overflow-x: hidden;
   }
 
+  section, [id] {
+    scroll-margin-top: 60px;
+  }
+
   /* Visually hide scrollbars globally across the site while maintaining scroll functionality */
   * {
     -ms-overflow-style: none; /* IE and Edge */

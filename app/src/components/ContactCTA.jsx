@@ -7,6 +7,40 @@ import { handlePhoneCall, getWhatsAppUrl } from '../utils/phoneUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const serviceSuggestions = {
+  'Contract Construction': [
+    '1500 sq.ft 2 BHK',
+    'Duplex Villa Construction',
+    'G+1 Construction',
+    'Contract Construction Work',
+    'Building Plan & 3D Design',
+    'Budget ₹35-50 Lakhs'
+  ],
+  'House for Sale': [
+    '2 BHK Independent House',
+    '3 BHK Luxury Villa',
+    'Ready to Move House',
+    'Under ₹50 Lakhs',
+    'With Covered Car Parking',
+    'Near Poonamallee / Mangadu'
+  ],
+  'Land for Sale': [
+    'DTCP Approved Plot',
+    'Corner Plot',
+    '1000 - 1500 sq.ft Plot',
+    'Ready for Immediate Construction',
+    'East / North Facing Plot',
+    'Near Main Road'
+  ],
+  'Property Consultation': [
+    'Legal Document Verification',
+    'Patta Transfer & EC Check',
+    'Property Valuation',
+    'Building Approval Guidance',
+    'Bank Loan Assistance'
+  ]
+};
+
 const ContactCTA = () => {
   const sectionRef = useRef(null);
   const pinContainerRef = useRef(null);
@@ -14,8 +48,27 @@ const ContactCTA = () => {
   const rightFormRef = useRef(null);
 
   const { settings } = useSiteData();
-  const [formData, setFormData] = useState({ name: '', phone: '', service: 'House Construction', message: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', service: 'Contract Construction', message: '' });
   const [statusMsg, setStatusMsg] = useState('');
+
+  const currentSuggestions = serviceSuggestions[formData.service] || serviceSuggestions['Contract Construction'];
+
+  const handleToggleSuggestion = (suggestion) => {
+    setFormData((prev) => {
+      const current = prev.message.trim();
+      if (!current) {
+        return { ...prev, message: suggestion };
+      }
+      if (current.includes(suggestion)) {
+        // Remove suggestion if already in text
+        const regex = new RegExp(`(^|,\\s*)${suggestion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(,\\s*|$)`, 'gi');
+        let updated = current.replace(regex, '$2').replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ', ').trim();
+        return { ...prev, message: updated };
+      }
+      return { ...prev, message: `${current}, ${suggestion}` };
+    });
+  };
+
 
   // Section Pinning & Scroll-Scrubbed Animation Engine (Desktop only)
   useEffect(() => {
@@ -28,15 +81,15 @@ const ContactCTA = () => {
 
     const mm = gsap.matchMedia();
 
-    // 1. DESKTOP: Pinned Entry Timeline
+    // 1. DESKTOP: Smooth Pinned Entry Timeline
     mm.add('(min-width: 769px)', () => {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
           pin: pinContainer,
           start: 'top top',
-          end: '+=2000',
-          scrub: 1.5,
+          end: '+=800',
+          scrub: 1.2,
           anticipatePin: 1,
           invalidateOnRefresh: true,
         },
@@ -44,20 +97,20 @@ const ContactCTA = () => {
 
       tl.fromTo(
         leftColumn,
-        { opacity: 0, x: -80, scale: 0.92 },
+        { opacity: 0, x: -60, scale: 0.95 },
         { opacity: 1, x: 0, scale: 1, ease: 'power2.out' },
         0
       );
 
       tl.fromTo(
         rightForm,
-        { opacity: 0, x: 80, scale: 0.92, rotateY: -10 },
-        { opacity: 1, x: 0, scale: 1, rotateY: 0, ease: 'power2.out' },
-        0.1
+        { opacity: 0, x: 60, scale: 0.95 },
+        { opacity: 1, x: 0, scale: 1, ease: 'power2.out' },
+        0.05
       );
     });
 
-    // 2. MOBILE: Simple static view
+    // 2. MOBILE: Clean static responsive view
     mm.add('(max-width: 768px)', () => {
       gsap.set([leftColumn, rightForm], { clearProps: 'all' });
     });
@@ -91,23 +144,23 @@ const ContactCTA = () => {
         {/* Ambient Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[450px] bg-amber-500/10 rounded-full blur-[160px] pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full perspective-1200">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full">
           {/* Dynamic Dark Card Banner */}
-          <div className="bg-gradient-to-br from-[#141418]/90 via-[#121216]/80 to-[#0c0c0e]/90 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-10 lg:p-12 shadow-2xl relative overflow-hidden border border-amber-500/30 preserve-3d">
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-10 items-center preserve-3d">
+          <div className="bg-gradient-to-br from-[#141418]/95 via-[#121216]/90 to-[#0c0c0e]/95 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-10 lg:p-12 shadow-2xl relative overflow-hidden border border-amber-500/30">
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
               
               {/* Left Story Column */}
-              <div ref={leftColumnRef} className="lg:col-span-7 space-y-3.5 sm:space-y-6 preserve-3d">
-                <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white translate-z-30">
+              <div ref={leftColumnRef} className="lg:col-span-7 space-y-3.5 sm:space-y-6">
+                <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white">
                   Have a Property in Mind?
                 </h2>
 
-                <p className="text-zinc-300 text-[11.5px] sm:text-sm leading-relaxed max-w-xl font-medium translate-z-20">
+                <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed max-w-xl font-medium">
                   Whether you want to buy an individual house, purchase residential land, or start custom contract construction{settings?.service_areas ? ` in ${settings.service_areas.split(/[,•|;/]/).map(s => s.trim()).filter(Boolean).join(', ')}` : ''} — our engineering team is ready to guide you.
                 </p>
 
                 {/* Dynamic Clickable Contact Matrix */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-white/10 translate-z-20">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-white/10">
                   <a
                     href={settings.phone ? `tel:+91${settings.phone.replace(/[^0-9]/g, '')}` : '#contact'}
                     onClick={(e) => handlePhoneCall(e, settings.phone)}
@@ -169,60 +222,91 @@ const ContactCTA = () => {
                 </div>
               </div>
 
-              {/* Right Contact Form Column - Vertical Rectangle Container */}
-              <div ref={rightFormRef} className="lg:col-span-5 bg-[#09090b]/90 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-amber-500/30 shadow-2xl tilt-3d relative preserve-3d">
-                <div className="specular-glare" />
+              {/* Right Contact Form Column - Animated Luxury Card */}
+              <div ref={rightFormRef} className="lg:col-span-5 bg-[#0e0e12]/95 p-4 sm:p-7 rounded-2xl sm:rounded-3xl border border-amber-500/35 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+                <div className="specular-glare pointer-events-none" />
 
-                <div className="relative z-10 preserve-3d">
-                  <h3 className="text-sm sm:text-base font-extrabold text-white mb-0.5 flex items-center gap-1.5 translate-z-20">
+                <div className="relative z-10">
+                  <h3 className="text-sm sm:text-base font-extrabold text-white mb-0.5 flex items-center gap-1.5">
                     <Sparkles size={15} className="text-amber-400" /> Send Quick Inquiry
                   </h3>
-                  <p className="text-[10.5px] text-zinc-400 mb-3 sm:mb-4 font-medium translate-z-20">Get itemized cost estimation within 24 hours.</p>
+                  <p className="text-[11px] text-zinc-400 mb-3 sm:mb-4 font-medium">Get itemized cost estimation within 24 hours.</p>
 
                   {statusMsg && (
-                    <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs p-2.5 rounded-xl mb-3 text-center font-bold translate-z-20">
+                    <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs p-2.5 rounded-xl mb-3 text-center font-bold">
                       {statusMsg}
                     </div>
                   )}
                   
-                  <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3.5 translate-z-20">
-                    <input
-                      type="text"
-                      placeholder="Your Name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full bg-[#121216] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 transition-colors"
-                      required
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Phone Number (10 Digits)"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full bg-[#121216] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 transition-colors"
-                      required
-                    />
-                    <select
-                      value={formData.service}
-                      onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                      className="w-full bg-[#121216] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400 transition-colors"
-                    >
-                      <option value="House Construction">House Construction</option>
-                      <option value="House for Sale">Individual House Purchase</option>
-                      <option value="Land for Sale">Residential Land Purchase</option>
-                      <option value="Property Consultation">Property Consultation</option>
-                    </select>
-                    <textarea
-                      placeholder="Requirements (Optional)"
-                      rows="2"
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full bg-[#121216] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 transition-colors resize-none"
-                    ></textarea>
+                  <form onSubmit={handleSubmit} className="space-y-3 relative z-20">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Your Name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full bg-[#18181e] border border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-xs sm:text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all cursor-text font-medium"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="tel"
+                        placeholder="Phone Number (10 Digits)"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full bg-[#18181e] border border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-xs sm:text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all cursor-text font-medium"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <select
+                        value={formData.service}
+                        onChange={(e) => setFormData({ ...formData, service: e.target.value })}
+                        className="w-full bg-[#18181e] border border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-xs sm:text-xs text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all cursor-pointer font-medium"
+                      >
+                        <option value="Contract Construction">Contract Construction (Client Custom Building)</option>
+                        <option value="House for Sale">Individual House Purchase (Company Built)</option>
+                        <option value="Land for Sale">Residential Land Purchase</option>
+                        <option value="Property Consultation">Property Consultation</option>
+                      </select>
+                    </div>
+                    <div>
+                      <textarea
+                        placeholder="Requirements (Optional)"
+                        rows="2"
+                        value={formData.message}
+                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                        className="w-full bg-[#18181e] border border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-xs sm:text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all resize-none cursor-text font-medium"
+                      ></textarea>
+
+                      {/* Click-to-fill suggestion pills */}
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 pt-0.5">
+                        {currentSuggestions.map((sug) => {
+                          const isSelected = formData.message.includes(sug);
+                          return (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => handleToggleSuggestion(sug)}
+                              className={`text-[10.5px] px-2.5 py-1 rounded-lg font-bold transition-all border cursor-pointer select-none ${
+                                isSelected
+                                  ? 'bg-amber-500 text-black border-amber-400 shadow-sm shadow-amber-500/20 scale-[1.02]'
+                                  : 'bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-amber-300 border-zinc-700/60 hover:border-amber-500/40'
+                              }`}
+                            >
+                              {isSelected ? '✓ ' : '+ '}
+                              {sug}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
 
                     <button
                       type="submit"
-                      className="w-full magnetic-btn bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-2.5 sm:py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-300/40"
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-2.5 sm:py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-300/40 cursor-pointer"
                     >
                       <Send size={13} /> Submit Request
                     </button>

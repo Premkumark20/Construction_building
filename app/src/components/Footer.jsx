@@ -26,7 +26,7 @@ const Footer = () => {
               </div>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-              We build quality homes, sell residential plots and provide expert property consultation.
+              {settings.meta_description || settings.description || settings.hero_subtitle || 'We build quality homes, sell residential plots and provide expert property consultation.'}
             </p>
             <div className="flex items-center gap-3 pt-1">
               <a

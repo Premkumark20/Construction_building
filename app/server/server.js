@@ -12,6 +12,7 @@ import siteSettingsRouter from './routes/siteSettings.js';
 import servicesRouter from './routes/services.js';
 import galleryRouter from './routes/gallery.js';
 import testimonialsRouter from './routes/testimonials.js';
+import feedbackRouter from './routes/feedback.js';
 import mediaRouter from './routes/media.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,14 +39,27 @@ app.use('/api/land', landRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/gallery', galleryRouter);
 app.use('/api/testimonials', testimonialsRouter);
+app.use('/api/feedback', feedbackRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/contact', contactRouter);
 app.use('/api/media', mediaRouter);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'SK Builders API', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`SK Builders Express Backend Server listening on http://0.0.0.0:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[EADDRINUSE] Port ${PORT} is already in use by another running Node process.`);
+    console.error(`If a previous backend instance is active, you can kill it or proceed with the existing server.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+    process.exit(1);
+  }
 });

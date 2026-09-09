@@ -32,4 +32,16 @@ router.post('/', (req, res) => {
   });
 });
 
+// DELETE lead
+router.delete('/:id', (req, res) => {
+  const { id } = req.params;
+  db.run('DELETE FROM leads WHERE id = ?', [id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ success: true, message: 'Lead enquiry deleted successfully.' });
+  });
+});
+
 export default router;
+

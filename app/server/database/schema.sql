@@ -59,7 +59,6 @@ CREATE TABLE IF NOT EXISTS properties (
   negotiable TEXT DEFAULT 'Yes',
   price_per_sqft TEXT,
   plot_area TEXT,
-  plot_size TEXT,
   plot_area_unit TEXT DEFAULT 'sq.ft',
   builtup_area TEXT,
   builtup_area_unit TEXT DEFAULT 'sq.ft',
@@ -103,6 +102,7 @@ CREATE TABLE IF NOT EXISTS properties (
   other_documents TEXT,
   short_description TEXT,
   full_description TEXT,
+  description TEXT,
   highlights TEXT,
   published INTEGER DEFAULT 1,
   featured INTEGER DEFAULT 0,
@@ -118,7 +118,6 @@ CREATE TABLE IF NOT EXISTS property_images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   property_id INTEGER NOT NULL,
   image_url TEXT NOT NULL,
-  caption TEXT,
   sort_order INTEGER DEFAULT 0,
   is_cover INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -188,7 +187,6 @@ CREATE TABLE IF NOT EXISTS land_images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   land_id INTEGER NOT NULL,
   image_url TEXT NOT NULL,
-  caption TEXT,
   sort_order INTEGER DEFAULT 0,
   is_cover INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -252,7 +250,6 @@ CREATE TABLE IF NOT EXISTS project_images (
   project_id INTEGER NOT NULL,
   image_url TEXT NOT NULL,
   category TEXT DEFAULT 'completed',
-  caption TEXT,
   sort_order INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -276,9 +273,7 @@ CREATE TABLE IF NOT EXISTS leads (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
-  email TEXT,
   service TEXT,
-  property_id TEXT,
   message TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -292,3 +287,16 @@ CREATE TABLE IF NOT EXISTS media_videos (
   file_size INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_name TEXT NOT NULL,
+  phone TEXT,
+  location TEXT,
+  service TEXT DEFAULT 'General Feedback',
+  rating INTEGER DEFAULT 5,
+  message TEXT NOT NULL,
+  approved INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+

@@ -11,12 +11,15 @@ import ContactCTA from './components/ContactCTA.jsx';
 import Footer from './components/Footer.jsx';
 import MobileQuickActions from './components/MobileQuickActions.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
+import FeedbackPage from './components/FeedbackPage.jsx';
 import MouseInteractiveBg from './components/MouseInteractiveBg.jsx';
 import AnimatedSectionDivider from './components/AnimatedSectionDivider.jsx';
 import Lenis from 'lenis';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { initScrollReveals } from './animations/reveal.js';
+
+import { SiteDataProvider } from './hooks/useSiteData.jsx';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -25,43 +28,76 @@ const MainSite = () => {
     initScrollReveals();
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    if (isMobile) {
-      return;
+    let lenisInstance = null;
+
+    if (!isMobile) {
+      // Initialize Lenis Smooth & Slow Momentum Scroll Engine for Desktop
+      const lenis = new Lenis({
+        duration: 1.8,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+        wheelMultiplier: 0.85,
+        touchMultiplier: 1.0,
+        syncTouch: false,
+      });
+      lenisInstance = lenis;
+
+      lenis.on('scroll', ScrollTrigger.update);
+
+      const updateLenis = (time) => {
+        lenis.raf(time * 1000);
+      };
+
+      gsap.ticker.add(updateLenis);
+      gsap.ticker.lagSmoothing(0);
     }
 
-    // Initialize Lenis Smooth & Slow Momentum Scroll Engine for Desktop
-    const lenis = new Lenis({
-      duration: 1.8,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-      wheelMultiplier: 0.85,
-      touchMultiplier: 1.0,
-      syncTouch: false,
-    });
+    // Refresh ScrollTrigger calculations and handle hash restoration on page refresh
+    const timer = setTimeout(() => {
+      ScrollTrigger.refresh();
 
-    lenis.on('scroll', ScrollTrigger.update);
+      // If user refreshed on a section hash (e.g. #about, #services, #properties, #projects, #contact)
+      const currentHash = window.location.hash;
+      if (currentHash && currentHash.length > 1) {
+        const targetEl = document.querySelector(currentHash);
+        if (targetEl) {
+          if (lenisInstance) {
+            lenisInstance.scrollTo(targetEl, { offset: -60, duration: 1.2 });
+          } else {
+            targetEl.scrollIntoView({ behavior: 'smooth' });
+          }
+        }
+      }
+    }, 350);
 
-    const updateLenis = (time) => {
-      lenis.raf(time * 1000);
+    // Track active visible section and sync hash in URL so refresh always stays on same section
+    const handleScrollHash = () => {
+      const sectionIds = ['home', 'about', 'gallery', 'services', 'properties', 'projects', 'contact'];
+      const scrollPosition = window.scrollY + 250;
+
+      for (let i = sectionIds.length - 1; i >= 0; i--) {
+        const sec = document.getElementById(sectionIds[i]);
+        if (sec) {
+          const top = sec.offsetTop;
+          if (scrollPosition >= top) {
+            const expectedHash = `#${sectionIds[i]}`;
+            if (window.location.hash !== expectedHash) {
+              window.history.replaceState(null, '', expectedHash);
+            }
+            break;
+          }
+        }
+      }
     };
 
-    gsap.ticker.add(updateLenis);
-    gsap.ticker.lagSmoothing(0);
-
-    const handleRefresh = () => {
-      setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 150);
-    };
-
-    window.addEventListener('sk_site_data_updated', handleRefresh);
-    window.addEventListener('load', handleRefresh);
+    window.addEventListener('scroll', handleScrollHash, { passive: true });
 
     return () => {
-      gsap.ticker.remove(updateLenis);
-      window.removeEventListener('sk_site_data_updated', handleRefresh);
-      window.removeEventListener('load', handleRefresh);
-      lenis.destroy();
+      clearTimeout(timer);
+      window.removeEventListener('scroll', handleScrollHash);
+      if (lenisInstance) {
+        lenisInstance.destroy();
+      }
     };
   }, []);
 
@@ -111,11 +147,15 @@ const MainSite = () => {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<MainSite />} />
-      <Route path="/admin" element={<AdminDashboard />} />
-    </Routes>
+    <SiteDataProvider>
+      <Routes>
+        <Route path="/" element={<MainSite />} />
+        <Route path="/feedback" element={<FeedbackPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+      </Routes>
+    </SiteDataProvider>
   );
 }
 
 export default App;
+

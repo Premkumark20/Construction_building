@@ -149,24 +149,56 @@ router.post('/reset-logo', (req, res) => {
   });
 });
 
+// Helper to update title & meta description in index.html and dist/index.html
+const updateIndexHtmlFiles = (title, desc) => {
+  const htmlFiles = [
+    path.join(projectRoot, 'index.html'),
+    path.join(projectRoot, 'dist/index.html')
+  ];
+  htmlFiles.forEach((htmlPath) => {
+    if (fs.existsSync(htmlPath)) {
+      try {
+        let content = fs.readFileSync(htmlPath, 'utf8');
+        if (title) {
+          content = content.replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`);
+        }
+        if (desc) {
+          const safeDesc = desc.replace(/"/g, '&quot;');
+          content = content.replace(/<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i, `<meta name="description" content="${safeDesc}" />`);
+        }
+        fs.writeFileSync(htmlPath, content, 'utf8');
+        console.log(`[Site Settings] Synchronized title and description in ${htmlPath}`);
+      } catch (e) {
+        console.error(`[Site Settings] Failed to update ${htmlPath}:`, e.message);
+      }
+    }
+  });
+};
+
 // 6. PUT update Site Settings
 router.put('/', (req, res) => {
   const {
-    company_name, company_subtitle, phone, email, location, service_areas,
+    company_name, company_subtitle, site_title, meta_description, description,
+    phone, email, location, service_areas,
     hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
     facebook_url, instagram_url, whatsapp_number, logo_url
   } = req.body;
 
+  const finalTitle = site_title || (company_name ? `${company_name} ${company_subtitle || ''}`.trim() : 'SK Builders & Property Consultant');
+  const finalDesc = meta_description ?? description ?? hero_subtitle ?? '';
+
   const sqlSettings = `
     UPDATE site_settings SET
-      company_name = ?, company_subtitle = ?, phone = ?, email = ?, location = ?, service_areas = ?,
+      company_name = ?, company_subtitle = ?, site_title = ?, meta_description = ?,
+      phone = ?, email = ?, location = ?, service_areas = ?,
       hero_tagline = ?, hero_headline_find = ?, hero_headline_property = ?, hero_headline_confidence = ?, hero_subtitle = ?,
       facebook_url = ?, instagram_url = ?, whatsapp_number = ?, logo_url = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `;
 
   db.run(sqlSettings, [
-    company_name, company_subtitle, phone, email, location, service_areas,
+    company_name, company_subtitle, finalTitle, finalDesc,
+    phone, email, location, service_areas,
     hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
     facebook_url, instagram_url, whatsapp_number, logo_url || '/logo/sk-builders-logo.png'
   ], function (err) {
@@ -174,11 +206,17 @@ router.put('/', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
 
+    updateIndexHtmlFiles(finalTitle, finalDesc);
+
     db.run(
       `UPDATE admin_users SET phone = ?, email = ?, facebook = ?, instagram = ?, whatsapp = ? WHERE id = 1`,
       [phone, email, facebook_url, instagram_url, whatsapp_number],
       () => {
-        res.json({ message: 'Site settings updated successfully.' });
+        res.json({
+          message: 'Site settings updated successfully.',
+          site_title: finalTitle,
+          meta_description: finalDesc
+        });
       }
     );
   });

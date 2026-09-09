@@ -24,3 +24,13 @@ Thumbs.db
 # Temporary / cache files
 .cache/
 .temp/
+
+# Uploads, Frames, Logos & Generated Media
+uploads/
+frames/
+logo/
+house/
+app/public/frames/
+app/public/videos/
+app/dist/
+dist/
