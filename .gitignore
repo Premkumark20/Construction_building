@@ -34,3 +34,7 @@ app/public/frames/
 app/public/videos/
 app/dist/
 dist/
+
+# Prompts & Notes
+*.txt
+Animated Free Website Prompts.txt
