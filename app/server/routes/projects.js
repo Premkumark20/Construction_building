@@ -8,8 +8,8 @@ import db from '../database/database.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../../..');
-const uploadsDir = path.join(projectRoot, 'uploads/images');
-fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = process.env.VERCEL ? '/tmp/uploads/images' : path.join(projectRoot, 'uploads/images');
+try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (e) {}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),

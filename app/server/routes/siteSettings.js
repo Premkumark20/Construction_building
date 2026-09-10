@@ -9,8 +9,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../../..');
 
-const logoDir = path.join(projectRoot, 'logo');
-fs.mkdirSync(logoDir, { recursive: true });
+const logoDir = process.env.VERCEL ? '/tmp/logo' : path.join(projectRoot, 'logo');
+try { fs.mkdirSync(logoDir, { recursive: true }); } catch (e) {}
 
 const logoStorage = multer.diskStorage({
   destination: (req, file, cb) => {

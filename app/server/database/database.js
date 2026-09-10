@@ -7,8 +7,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../../..');
 
-const dbPath = path.join(__dirname, 'showcase.db');
+const safeMkdir = (dir) => {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {}
+};
+
+let dbPath = path.join(__dirname, 'showcase.db');
 const schemaPath = path.join(__dirname, 'schema.sql');
+
+if (process.env.VERCEL) {
+  const tmpDbPath = '/tmp/showcase.db';
+  try {
+    if (!fs.existsSync(tmpDbPath) && fs.existsSync(dbPath)) {
+      fs.copyFileSync(dbPath, tmpDbPath);
+    }
+    dbPath = tmpDbPath;
+  } catch (e) {
+    console.error('Failed to copy SQLite database to /tmp:', e);
+  }
+}
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
@@ -253,9 +271,7 @@ function ensureColumns() {
 
 function seedInitialData() {
   const bgVideosDir = path.join(projectRoot, 'app/public/videos');
-  if (!fs.existsSync(bgVideosDir)) {
-    fs.mkdirSync(bgVideosDir, { recursive: true });
-  }
+  safeMkdir(bgVideosDir);
 
   // 1. Purge records pointing to deleted files
   db.all("SELECT * FROM media_videos", [], (err, rows) => {

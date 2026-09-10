@@ -10,16 +10,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../../..');
 
-const uploadsDir = path.join(projectRoot, 'uploads');
+const uploadsDir = process.env.VERCEL ? '/tmp/uploads' : path.join(projectRoot, 'uploads');
 const imageUploadsDir = path.join(uploadsDir, 'images');
 const videoUploadsDir = path.join(uploadsDir, 'videos');
 const tempUploadsDir = path.join(videoUploadsDir, 'temp');
-const bgVideosDir = path.join(projectRoot, 'app/public/videos');
+const bgVideosDir = process.env.VERCEL ? '/tmp/videos' : path.join(projectRoot, 'app/public/videos');
 
-fs.mkdirSync(imageUploadsDir, { recursive: true });
-fs.mkdirSync(videoUploadsDir, { recursive: true });
-fs.mkdirSync(tempUploadsDir, { recursive: true });
-fs.mkdirSync(bgVideosDir, { recursive: true });
+try {
+  fs.mkdirSync(imageUploadsDir, { recursive: true });
+  fs.mkdirSync(videoUploadsDir, { recursive: true });
+  fs.mkdirSync(tempUploadsDir, { recursive: true });
+  fs.mkdirSync(bgVideosDir, { recursive: true });
+} catch (e) {}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

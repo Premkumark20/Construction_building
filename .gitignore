@@ -20,6 +20,8 @@ Thumbs.db
 # SQLite lock/journal files
 *.db-journal
 *.sqlite-journal
+*.db-shm
+*.db-wal
 
 # Temporary / cache files
 .cache/
@@ -29,7 +31,6 @@ Thumbs.db
 uploads/
 frames/
 logo/
-house/
 app/public/frames/
 app/public/videos/
 app/dist/

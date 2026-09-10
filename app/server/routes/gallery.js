@@ -7,9 +7,8 @@ import db from '../database/database.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../../..');
-const galleryUploadsDir = path.join(projectRoot, 'uploads/images/gallery');
-
-fs.mkdirSync(galleryUploadsDir, { recursive: true });
+const galleryUploadsDir = process.env.VERCEL ? '/tmp/uploads/images/gallery' : path.join(projectRoot, 'uploads/images/gallery');
+try { fs.mkdirSync(galleryUploadsDir, { recursive: true }); } catch (e) {}
 
 const router = express.Router();
 
