@@ -49,17 +49,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'SK Builders API', timestamp: new Date().toISOString() });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`SK Builders Express Backend Server listening on http://0.0.0.0:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`SK Builders Express Backend Server listening on http://0.0.0.0:${PORT}`);
+  });
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`[EADDRINUSE] Port ${PORT} is already in use by another running Node process.`);
-    console.error(`If a previous backend instance is active, you can kill it or proceed with the existing server.`);
-    process.exit(1);
-  } else {
-    console.error('Server error:', err);
-    process.exit(1);
-  }
-});
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[EADDRINUSE] Port ${PORT} is already in use by another running Node process.`);
+      console.error(`If a previous backend instance is active, you can kill it or proceed with the existing server.`);
+      process.exit(1);
+    } else {
+      console.error('Server error:', err);
+      process.exit(1);
+    }
+  });
+}
+
+export default app;

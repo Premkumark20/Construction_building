@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "predev": "python python/extract_frames.py",
     "dev": "concurrently \"vite --host --port 5173\" \"node app/server/server.js\"",
