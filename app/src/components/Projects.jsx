@@ -283,9 +283,7 @@ const Projects = () => {
               <span className="text-[9.5px] font-black uppercase text-amber-400 tracking-widest bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">TIMELINE STORYLINE</span>
               <h3 className="text-xs font-extrabold text-white hidden sm:block">5-Stage Structural Lifecycle</h3>
               <span className="text-[10.5px] font-mono text-amber-400 font-bold">
-                {activeCardIndex > 0
-                  ? `✓ 5-Stage Storyline Complete • Site #${activeCardIndex + 1}`
-                  : `Step ${activeStep + 1} of 5: ${progressMilestones[activeStep].title}`}
+                Step {activeStep + 1} of 5: {progressMilestones[activeStep].title}
               </span>
             </div>
 
