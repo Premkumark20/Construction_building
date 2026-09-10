@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "python python/extract_frames.py",
     "dev": "concurrently \"vite --host --port 5173\" \"node app/server/server.js\"",
-    "build": "node -e \"try{require('child_process').execSync('python python/extract_frames.py')}catch(e){}\" && vite build",
+    "build": "vite build",
     "preview": "vite preview --host",
     "server": "node app/server/server.js",
     "frames": "python python/extract_frames.py",
