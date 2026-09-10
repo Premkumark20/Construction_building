@@ -21,6 +21,8 @@ Thumbs.db
 .gemini/
 
 # SQLite lock/journal files
+*.db
+!app/server/database/showcase.db
 *.db-journal
 *.sqlite-journal
 *.db-shm
