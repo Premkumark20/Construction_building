@@ -2395,30 +2395,32 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 pb-2 border-b border-zinc-800">
+        {/* Tab Navigation (Single Line Full Width) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 w-full gap-1.5 pb-2 border-b border-zinc-800 overflow-x-auto scrollbar-none">
           {[
-            { id: 'dashboard', label: 'Dashboard', icon: <Layers size={15} /> },
-            { id: 'properties', label: 'Properties', icon: <Building size={15} /> },
-            { id: 'land', label: 'Land / Plots', icon: <MapPin size={15} /> },
-            { id: 'projects', label: 'Projects', icon: <Home size={15} /> },
-            { id: 'gallery', label: 'Gallery', icon: <ImageIcon size={15} /> },
-            { id: 'feedbacks', label: 'Feedbacks', icon: <Star size={15} /> },
-            { id: 'testimonials', label: 'Testimonials', icon: <Quote size={15} /> },
-            { id: 'leads', label: 'Leads', icon: <Users size={15} /> },
-            { id: 'videos', label: 'Video & Frames Manager', icon: <Video size={15} /> }
+            { id: 'dashboard', label: 'Dashboard', icon: <Layers size={14} /> },
+            { id: 'properties', label: 'Properties', icon: <Building size={14} /> },
+            { id: 'land', label: 'Land / Plots', icon: <MapPin size={14} /> },
+            { id: 'projects', label: 'Projects', icon: <Home size={14} /> },
+            { id: 'gallery', label: 'Gallery', icon: <ImageIcon size={14} /> },
+            { id: 'feedbacks', label: 'Feedbacks', icon: <Star size={14} /> },
+            { id: 'testimonials', label: 'Testimonials', icon: <Quote size={14} /> },
+            { id: 'leads', label: 'Leads', icon: <Users size={14} /> },
+            { id: 'videos', label: 'Video & Frames', icon: <Video size={14} /> }
           ].map((tab) => (
 
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+              title={tab.label}
+              className={`w-full px-2 py-2.5 rounded-xl text-[10.5px] xl:text-xs font-black uppercase tracking-tight flex items-center justify-center gap-1.5 transition-all text-center whitespace-nowrap overflow-hidden ${
                 activeTab === tab.id
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20 font-extrabold'
                   : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800 hover:border-amber-500/40'
               }`}
             >
-              {tab.icon} {tab.label}
+              <span className="shrink-0">{tab.icon}</span>
+              <span className="truncate">{tab.label}</span>
             </button>
           ))}
         </div>

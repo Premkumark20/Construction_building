@@ -127,7 +127,7 @@ const Footer = () => {
       </div>
 
       {/* Bottom Gold Copyright Bar */}
-      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-black py-4 px-4 text-[11px] font-extrabold shadow-2xl">
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-black py-4 pb-20 lg:pb-4 px-4 text-[11px] font-extrabold shadow-2xl">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center">
           <div>
             © 2026 {settings.company_name || ''} {settings.company_subtitle || ''}. All Rights Reserved.

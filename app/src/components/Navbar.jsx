@@ -126,11 +126,10 @@ const Navbar = () => {
             })}
           </nav>
 
-          {/* Top Right Quick Call Action (Desktop & Mobile) */}
+          {/* Top Right Quick Contact Action (Navigates to #contact section) */}
           <div className="flex items-center gap-3">
             <a
-              href={settings.phone ? `tel:+91${settings.phone.replace(/[^0-9]/g, '')}` : '#contact'}
-              onClick={(e) => handlePhoneCall(e, settings.phone)}
+              href="#contact"
               className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all border border-amber-300/40"
             >
               <Phone size={13} className="text-black" />
