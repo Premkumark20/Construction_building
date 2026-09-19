@@ -64,7 +64,6 @@ const syncBackgroundVideos = (callback) => {
         });
       }
 
-      // Add new files from folder into DB
       let processed = 0;
       if (bgFiles.length === 0) {
         return callback ? callback() : null;
@@ -99,6 +98,55 @@ const syncBackgroundVideos = (callback) => {
   }
 };
 
+// Helper to auto-sync hero construction videos from uploads/videos into database
+const syncHeroVideos = (callback) => {
+  try {
+    const videoFiles = fs.readdirSync(videoUploadsDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm') || f.toLowerCase().endsWith('.mov') || f.toLowerCase().endsWith('.mkv') || f.toLowerCase().endsWith('.avi'));
+
+    // Purge records for missing hero video files
+    db.all("SELECT id, filename FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [], (err, rows) => {
+      if (!err && Array.isArray(rows)) {
+        rows.forEach(r => {
+          if (!fs.existsSync(path.join(videoUploadsDir, r.filename))) {
+            db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
+          }
+        });
+      }
+
+      let processed = 0;
+      if (videoFiles.length === 0) {
+        return callback ? callback() : null;
+      }
+
+      videoFiles.forEach(file => {
+        const fullP = path.join(videoUploadsDir, file);
+        const stats = fs.statSync(fullP);
+        db.get("SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [file], (err, existing) => {
+          if (!existing) {
+            db.get("SELECT COUNT(*) as count FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1", [], (err, primRow) => {
+              const isPrim = (!primRow || primRow.count === 0) ? 1 : 0;
+              db.run(
+                "INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'hero', ?, ?)",
+                [file, `uploads/videos/${file}`, isPrim, stats.size],
+                () => {
+                  processed++;
+                  if (processed >= videoFiles.length && callback) callback();
+                }
+              );
+            });
+          } else {
+            processed++;
+            if (processed >= videoFiles.length && callback) callback();
+          }
+        });
+      });
+    });
+  } catch (e) {
+    console.error('Error syncing hero videos:', e);
+    if (callback) callback();
+  }
+};
+
 // 1. Upload single image
 router.post('/upload-image', upload.single('image'), (req, res) => {
   if (!req.file) {
@@ -117,31 +165,33 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
   res.json({ imageUrl, filename: req.file.filename });
 });
 
-// 2. GET all video files in database
+// 2. GET all video files in database (Syncs both background and hero videos)
 router.get('/videos', (req, res) => {
   syncBackgroundVideos(() => {
-    db.run("UPDATE media_videos SET video_type = 'hero' WHERE video_type IS NULL OR video_type = ''", [], () => {
-      db.all('SELECT * FROM media_videos ORDER BY video_type ASC, is_primary DESC, id DESC', [], (err, rows) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-        const safeRows = Array.isArray(rows) ? rows : [];
+    syncHeroVideos(() => {
+      db.run("UPDATE media_videos SET video_type = 'hero' WHERE video_type IS NULL OR video_type = ''", [], () => {
+        db.all('SELECT * FROM media_videos ORDER BY video_type ASC, is_primary DESC, id DESC', [], (err, rows) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          const safeRows = Array.isArray(rows) ? rows : [];
 
-        // Check if Hero has a primary
-        const heroRows = safeRows.filter(r => r.video_type === 'hero');
-        if (heroRows.length > 0 && !heroRows.some(r => Number(r.is_primary) === 1)) {
-          db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [heroRows[0].id]);
-          heroRows[0].is_primary = 1;
-        }
+          // Check if Hero has a primary
+          const heroRows = safeRows.filter(r => r.video_type === 'hero');
+          if (heroRows.length > 0 && !heroRows.some(r => Number(r.is_primary) === 1)) {
+            db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [heroRows[0].id]);
+            heroRows[0].is_primary = 1;
+          }
 
-        // Check if Background has a primary
-        const bgRows = safeRows.filter(r => r.video_type === 'background');
-        if (bgRows.length > 0 && !bgRows.some(r => Number(r.is_primary) === 1)) {
-          db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [bgRows[0].id]);
-          bgRows[0].is_primary = 1;
-        }
+          // Check if Background has a primary
+          const bgRows = safeRows.filter(r => r.video_type === 'background');
+          if (bgRows.length > 0 && !bgRows.some(r => Number(r.is_primary) === 1)) {
+            db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [bgRows[0].id]);
+            bgRows[0].is_primary = 1;
+          }
 
-        res.json(safeRows);
+          res.json(safeRows);
+        });
       });
     });
   });
@@ -154,7 +204,6 @@ router.get('/background-video', (req, res) => {
       if (!err && row) {
         return res.json({ videoUrl: `/videos/${row.filename}`, filename: row.filename, video: row });
       }
-      // Fallback
       db.get("SELECT * FROM media_videos WHERE video_type = 'background' LIMIT 1", [], (err, fallbackRow) => {
         if (!err && fallbackRow) {
           return res.json({ videoUrl: `/videos/${fallbackRow.filename}`, filename: fallbackRow.filename, video: fallbackRow });
@@ -182,7 +231,6 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
   const targetPath = path.join(targetDir, finalFilename);
   const relativePath = videoType === 'background' ? `app/public/videos/${finalFilename}` : `uploads/videos/${finalFilename}`;
 
-  // Check if video file with finalFilename ALREADY EXISTS in database or on disk
   db.get('SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND video_type = ?', [finalFilename, videoType], (err, row) => {
     if (row || fs.existsSync(targetPath)) {
       try { fs.unlinkSync(tempPath); } catch (e) {}
@@ -212,11 +260,11 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
         const newId = this.lastID;
         res.json({ id: newId, filename: finalFilename, filepath: relativePath, video_type: videoType, is_primary: setPrimary });
 
-        // If it's a hero video and set as primary, extract frames
         if (videoType === 'hero' && isFirstVideo) {
-          const pyProc = spawn('python', ['-u', 'python/extract_frames.py'], { cwd: projectRoot });
+          console.log(`\n[Auto Frame Extraction] First Hero video uploaded. Purging old frame cache and extracting...`);
+          const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
           pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-          pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
+          pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
         }
       });
     });
@@ -262,12 +310,11 @@ router.put('/video/:id/rename', (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: req.params.id, filename: finalName, filepath: newRelativePath, video_type: videoType });
 
-      // Only extract frames if the renamed video IS the active primary HERO video
       if (videoType === 'hero' && Number(row.is_primary) === 1) {
-        console.log(`\n[Auto Frame Extraction] Primary Hero video renamed to '${finalName}'. Processing frames...`);
-        const pyProc = spawn('python', ['-u', 'python/extract_frames.py'], { cwd: projectRoot });
+        console.log(`\n[Auto Frame Extraction] Primary Hero video renamed to '${finalName}'. Purging old frames & re-extracting...`);
+        const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
         pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-        pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
+        pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
       }
     });
   });
@@ -294,25 +341,24 @@ router.delete('/video/:id', (req, res) => {
 
     db.run('DELETE FROM media_videos WHERE id = ?', [req.params.id], () => {
       if (wasPrimary) {
-        // Re-assign new primary of SAME video_type
         db.get('SELECT * FROM media_videos WHERE video_type = ? ORDER BY id DESC LIMIT 1', [videoType], (err, nextPrimary) => {
           if (!err && nextPrimary) {
             db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [nextPrimary.id], () => {
               res.json({ message: `Primary ${videoType} video deleted, new primary assigned.` });
               if (videoType === 'hero') {
-                console.log(`\n[Auto Frame Extraction] Primary hero video deleted. New primary is '${nextPrimary.filename}'. Purging old frames and processing...`);
+                console.log(`\n[Auto Frame Extraction] Primary hero video deleted. New primary is '${nextPrimary.filename}'. Purging old frames & re-extracting...`);
                 const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
                 pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-                pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
+                pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
               }
             });
           } else {
             res.json({ message: `Primary ${videoType} video deleted. No remaining videos.` });
             if (videoType === 'hero') {
-              console.log(`\n[Auto Frame Extraction] No remaining hero video. Purging all frames...`);
+              console.log(`\n[Auto Frame Extraction] Primary hero video deleted with no remaining videos. Purging frames...`);
               const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
               pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-              pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
+              pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
             }
           }
         });
@@ -346,7 +392,7 @@ router.post('/set-primary-video', (req, res) => {
         });
 
         if (videoType === 'hero') {
-          console.log(`\n[Auto Frame Extraction] Active Primary Hero Video changed to '${row.filename}'. Purging old frames and extracting new frames...`);
+          console.log(`\n[Auto Frame Extraction] Active Primary Hero Video changed to '${row.filename}'. Purging old frames & extracting new frames...`);
           const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
           pyProc.stdout.on('data', (data) => process.stdout.write(data.toString()));
           pyProc.stderr.on('data', (data) => process.stderr.write(data.toString()));
