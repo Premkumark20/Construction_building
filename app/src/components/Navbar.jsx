@@ -126,11 +126,20 @@ const Navbar = () => {
             })}
           </nav>
 
-          {/* Top Right Quick Contact Action (Navigates to #contact section) */}
+          {/* Top Right Quick Contact Action (Opens phone dialer on mobile view, scrolls to section on desktop) */}
           <div className="flex items-center gap-3">
             <a
-              href="#contact"
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all border border-amber-300/40"
+              href={`tel:+91${(settings?.phone || '7358266257').replace(/[^0-9]/g, '') || '7358266257'}`}
+              onClick={(e) => {
+                if (window.innerWidth >= 768) {
+                  const contactSec = document.getElementById('contact');
+                  if (contactSec) {
+                    e.preventDefault();
+                    contactSec.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }
+              }}
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full text-[11px] sm:text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all border border-amber-300/40 cursor-pointer"
             >
               <Phone size={13} className="text-black" />
               <span>Contact Us</span>
@@ -150,28 +159,28 @@ const Navbar = () => {
               width: `${100 / mobileNavItems.length}%`
             }}
           >
-            {/* Continuous SVG Curve Dip Notch (Dips 32px deep underneath circle with large clear gap) */}
+            {/* Continuous Compact SVG Curve Dip Notch (Strictly 52px wide, leaves adjacent icons completely untouched) */}
             <svg
-              className="w-24 h-10 absolute -top-[1px] left-1/2 -translate-x-1/2 pointer-events-none"
-              viewBox="0 0 96 40"
+              className="w-[52px] h-7 absolute -top-[1px] left-1/2 -translate-x-1/2 pointer-events-none"
+              viewBox="0 0 52 28"
               fill="none"
             >
-              {/* Dark fill erases straight top border line behind active tab */}
-              <path d="M 0 0 L 12 0 C 24 0 28 32 48 32 C 68 32 72 0 84 0 L 96 0 L 96 40 L 0 40 Z" fill="#09090b" />
-              {/* Continuous Amber Line following deep curve notch underneath circle */}
+              {/* Dark fill strictly erases top border line behind active tab only */}
+              <path d="M 0 0 C 9 0 14 26 26 26 C 38 26 43 0 52 0 L 52 28 L 0 28 Z" fill="#09090b" />
+              {/* Continuous Amber Line following smooth curve notch with visible gap */}
               <path
-                d="M 0 0 L 12 0 C 24 0 28 32 48 32 C 68 32 72 0 84 0 L 96 0"
+                d="M 0 0 C 9 0 14 26 26 26 C 38 26 43 0 52 0"
                 stroke="#f59e0b"
                 strokeWidth="1.5"
                 fill="none"
               />
             </svg>
 
-            {/* Floating Golden Active Circle: Floating at -top-6 for a distinct, highly visible 16px gap above curve */}
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 via-amber-500 to-amber-600 text-black font-black flex items-center justify-center shadow-[0_0_22px_rgba(245,158,11,0.95)] border-none transition-transform duration-300 scale-105">
+            {/* Floating Golden Active Circle: Floating at -top-7 for a distinct visible gap above curve */}
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-amber-400 via-amber-500 to-amber-600 text-black font-black flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.9)] border-none transition-transform duration-300 scale-105">
               {(() => {
                 const ActiveIcon = mobileNavItems[activeMobileIndex]?.icon || Home;
-                return <ActiveIcon size={20} strokeWidth={2.5} className="text-black" />;
+                return <ActiveIcon size={18} strokeWidth={2.5} className="text-black" />;
               })()}
             </div>
           </div>

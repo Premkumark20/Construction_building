@@ -138,7 +138,7 @@ const WhyChooseUs = () => {
             {/* Left Main Card: Why Choose Us? */}
             <div
               ref={leftCardRef}
-              className="lg:col-span-7 gold-specular-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-white/15 shadow-2xl relative overflow-hidden group min-h-[220px] sm:min-h-[360px] flex flex-col justify-between tilt-3d"
+              className="lg:col-span-7 gold-specular-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-white/15 shadow-2xl relative overflow-hidden group min-h-[320px] sm:min-h-[360px] flex flex-col justify-between tilt-3d"
             >
               {/* Dynamic Specular Glare Layer */}
               <div className="specular-glare" />
@@ -148,29 +148,32 @@ const WhyChooseUs = () => {
                 <img
                   src="/house/house-sketch.png"
                   alt="Architectural House Sketch Background"
-                  className="w-full h-full object-cover object-center sm:object-right opacity-95 group-hover:scale-105 transition-transform duration-700 filter brightness-125 contrast-130"
+                  className="w-full h-full object-cover object-right opacity-90 sm:opacity-95 group-hover:scale-105 transition-transform duration-700 filter brightness-125 contrast-125"
                 />
-                {/* Subtle scrim for crystal-clear text contrast */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#09090b]/80 via-[#09090b]/55 to-[#09090b]/30"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#09090b]/70 via-transparent to-transparent"></div>
+                {/* Subtle scrim: dark on left for text legibility, transparent on right so the house sketch is fully displayed */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#09090b]/90 via-[#09090b]/45 to-transparent sm:from-[#09090b]/80 sm:via-[#09090b]/55 sm:to-[#09090b]/30 pointer-events-none"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#09090b]/40 via-transparent to-transparent sm:from-[#09090b]/70 pointer-events-none"></div>
               </div>
 
               {/* Foreground Content Overlay */}
-              <div className="relative z-10 max-w-lg preserve-3d">
+              <div className="relative z-10 w-full max-w-lg preserve-3d">
                 <h2 className="text-xl sm:text-3xl font-black text-white mb-3 sm:mb-6 tracking-tight translate-z-20">
                   Why Choose Us?
                 </h2>
 
-                <div ref={reasonsContainerRef} className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3.5 translate-z-30">
+                <div
+                  ref={reasonsContainerRef}
+                  className="flex flex-col items-start gap-2 sm:grid sm:grid-cols-2 sm:gap-3.5 translate-z-30"
+                >
                   {reasons.map((item, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 sm:gap-3 bg-[#09090b]/80 p-2 sm:p-3 rounded-lg sm:rounded-xl border border-white/15 shadow-md hover:border-amber-500/40 hover:bg-[#121216]/80 transition-all duration-300"
+                      className="w-fit sm:w-auto max-w-fit sm:max-w-none inline-flex sm:flex items-center gap-2 sm:gap-3 bg-[#09090b]/85 sm:bg-[#09090b]/80 px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl border border-white/15 shadow-md hover:border-amber-500/40 hover:bg-[#121216]/80 backdrop-blur-sm transition-all duration-300"
                     >
                       <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
                         <CheckCircle2 size={12} className="text-amber-400" />
                       </div>
-                      <span className="text-[11px] sm:text-sm font-extrabold text-zinc-100 leading-tight">
+                      <span className="text-[11px] sm:text-sm font-extrabold text-zinc-100 leading-tight whitespace-nowrap sm:whitespace-normal">
                         {item}
                       </span>
                     </div>

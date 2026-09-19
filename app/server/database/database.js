@@ -234,6 +234,12 @@ function ensureColumns() {
   safeAdd('site_settings', 'phone', 'TEXT');
   safeAdd('site_settings', 'whatsapp_number', 'TEXT');
 
+  safeAdd('admin_users', 'phone', "TEXT DEFAULT ''");
+  safeAdd('admin_users', 'email', "TEXT DEFAULT ''");
+  safeAdd('admin_users', 'facebook', "TEXT DEFAULT ''");
+  safeAdd('admin_users', 'instagram', "TEXT DEFAULT ''");
+  safeAdd('admin_users', 'whatsapp', "TEXT DEFAULT ''");
+
   safeAdd('media_videos', 'video_type', "TEXT DEFAULT 'hero'");
 
   // Migrate gallery table to only (id, image, created_at) and clean image paths
@@ -311,15 +317,7 @@ function seedInitialData() {
     }
   });
 
-  // Seed admin user only if table is empty
-  db.get("SELECT COUNT(*) as count FROM admin_users", [], (err, row) => {
-    if (!err && (!row || row.count === 0)) {
-      db.run(`
-        INSERT INTO admin_users (username, password, phone, email, facebook, instagram, whatsapp)
-        VALUES ('admin', 'admin123', '', 'info@skbuilders.com', 'https://facebook.com', 'https://instagram.com', '')
-      `);
-    }
-  });
+  // No hardcoded admin user seeding - admin_users remains empty until master registration
 
   // Seed site settings
   db.get("SELECT COUNT(*) as count FROM site_settings", [], (err, row) => {

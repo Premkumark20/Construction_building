@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import ConstructionStory from './components/ConstructionStory.jsx';
 import WhyChooseUs from './components/WhyChooseUs.jsx';
@@ -12,18 +12,23 @@ import Footer from './components/Footer.jsx';
 import MobileQuickActions from './components/MobileQuickActions.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import FeedbackPage from './components/FeedbackPage.jsx';
+import PropertyDetailPage from './components/PropertyDetailPage.jsx';
+import ProjectDetailPage from './components/ProjectDetailPage.jsx';
+import AllPropertiesPage from './components/AllPropertiesPage.jsx';
+import AllProjectsPage from './components/AllProjectsPage.jsx';
 import MouseInteractiveBg from './components/MouseInteractiveBg.jsx';
 import AnimatedSectionDivider from './components/AnimatedSectionDivider.jsx';
 import Lenis from 'lenis';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { initScrollReveals } from './animations/reveal.js';
-
 import { SiteDataProvider } from './hooks/useSiteData.jsx';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const MainSite = () => {
+  const location = useLocation();
+
   useEffect(() => {
     initScrollReveals();
 
@@ -52,14 +57,14 @@ const MainSite = () => {
       gsap.ticker.lagSmoothing(0);
     }
 
-    // Refresh ScrollTrigger calculations and handle hash restoration on page refresh
+    // Refresh ScrollTrigger calculations and handle scrolling to target section
+    const targetId = location.state?.scrollTo || (window.location.hash ? window.location.hash.replace('#', '') : null);
+
     const timer = setTimeout(() => {
       ScrollTrigger.refresh();
 
-      // If user refreshed on a section hash (e.g. #about, #services, #properties, #projects, #contact)
-      const currentHash = window.location.hash;
-      if (currentHash && currentHash.length > 1) {
-        const targetEl = document.querySelector(currentHash);
+      if (targetId) {
+        const targetEl = document.getElementById(targetId);
         if (targetEl) {
           if (lenisInstance) {
             lenisInstance.scrollTo(targetEl, { offset: -60, duration: 1.2 });
@@ -70,7 +75,7 @@ const MainSite = () => {
       }
     }, 350);
 
-    // Track active visible section and sync hash in URL so refresh always stays on same section
+    // Track active visible section and sync hash in URL
     const handleScrollHash = () => {
       const sectionIds = ['home', 'about', 'gallery', 'services', 'properties', 'projects', 'contact'];
       const scrollPosition = window.scrollY + 250;
@@ -99,7 +104,7 @@ const MainSite = () => {
         lenisInstance.destroy();
       }
     };
-  }, []);
+  }, [location]);
 
   return (
     <div className="font-sans text-white bg-transparent antialiased selection:bg-amber-500 selection:text-black pb-16 sm:pb-0 overflow-x-hidden w-full relative">
@@ -150,6 +155,10 @@ function App() {
     <SiteDataProvider>
       <Routes>
         <Route path="/" element={<MainSite />} />
+        <Route path="/property-details" element={<PropertyDetailPage />} />
+        <Route path="/project-details" element={<ProjectDetailPage />} />
+        <Route path="/all-properties" element={<AllPropertiesPage />} />
+        <Route path="/all-projects" element={<AllProjectsPage />} />
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
@@ -158,4 +167,3 @@ function App() {
 }
 
 export default App;
-

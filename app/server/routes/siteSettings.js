@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
+import { hashUsername, hashPassword, verifyPassword } from '../utils/authCrypto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,29 +25,130 @@ const logoStorage = multer.diskStorage({
 const uploadLogo = multer({ storage: logoStorage });
 const router = express.Router();
 
-// 1. GET site settings & admin info
+// 1. GET site settings & admin contact info
 router.get('/', (req, res) => {
   db.get('SELECT * FROM site_settings ORDER BY id ASC LIMIT 1', [], (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    db.get('SELECT username, phone, email, facebook, instagram, whatsapp FROM admin_users ORDER BY id ASC LIMIT 1', [], (err2, adminRow) => {
+    db.get('SELECT phone, email, facebook, instagram, whatsapp FROM admin_users ORDER BY id ASC LIMIT 1', [], (err2, adminRow) => {
       res.json({
         settings: row || {},
-        admin: adminRow || { username: 'admin', phone: '', email: 'info@skbuilders.com' }
+        admin: adminRow || { phone: '', email: '', facebook: '', instagram: '', whatsapp: '' }
       });
     });
   });
 });
 
-// 2. POST Admin Login Verification
+// 2. GET Admin Auth Status (checks if master admin is registered)
+router.get('/auth-status', (req, res) => {
+  db.get('SELECT COUNT(*) as count FROM admin_users', [], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    const count = row ? row.count : 0;
+    res.json({
+      hasAdmin: count > 0,
+      count
+    });
+  });
+});
+
+// 3. POST Register Master Admin (only allowed when admin_users table is empty)
+router.post('/register', (req, res) => {
+  db.get('SELECT COUNT(*) as count FROM admin_users', [], (err, countRow) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (countRow && countRow.count > 0) {
+      return res.status(403).json({ error: 'Admin account already exists. Registration is disabled.' });
+    }
+
+    const { username, password, phone = '', email = '', facebook = '', instagram = '', whatsapp = '' } = req.body;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ error: 'Admin username is required.' });
+    }
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters long.' });
+    }
+
+    const cleanUsername = username.trim();
+    const hashedUser = hashUsername(cleanUsername);
+    const hashedPass = hashPassword(password);
+    const cleanPhone = (phone || '').trim();
+    const cleanEmail = (email || '').trim();
+    const cleanFb = (facebook || '').trim();
+    const cleanInsta = (instagram || '').trim();
+    const cleanWa = (whatsapp || '').trim();
+
+    db.run(
+      `INSERT INTO admin_users (username, password, phone, email, facebook, instagram, whatsapp)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [hashedUser, hashedPass, cleanPhone, cleanEmail, cleanFb, cleanInsta, cleanWa],
+      function (insertErr) {
+        if (insertErr) {
+          return res.status(500).json({ error: insertErr.message });
+        }
+
+        // Synchronize contact info with site_settings if provided
+        if (cleanPhone || cleanEmail || cleanWa) {
+          db.run(
+            `UPDATE site_settings SET 
+              phone = CASE WHEN phone IS NULL OR phone = '' THEN ? ELSE phone END,
+              email = CASE WHEN email IS NULL OR email = '' THEN ? ELSE email END,
+              whatsapp_number = CASE WHEN whatsapp_number IS NULL OR whatsapp_number = '' THEN ? ELSE whatsapp_number END
+             WHERE id = 1`,
+            [cleanPhone, cleanEmail, cleanWa]
+          );
+        }
+
+        res.status(201).json({
+          success: true,
+          message: 'Master Admin account created successfully!',
+          token: 'AUTH_ADMIN_SESSION_TOKEN',
+          user: {
+            username: cleanUsername,
+            email: cleanEmail,
+            phone: cleanPhone
+          }
+        });
+      }
+    );
+  });
+});
+
+// 4. POST Admin Login Verification (verifies salt-hashed credentials or master recovery from .env)
 router.post('/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required.' });
   }
 
-  db.get('SELECT * FROM admin_users WHERE username = ? AND password = ?', [username.trim(), password], (err, user) => {
+  const cleanUsername = username.trim();
+
+  // Check Master Recovery Credentials strictly from process.env (never hardcoded in code)
+  const masterUser = process.env.MASTER_ADMIN_USERNAME ? process.env.MASTER_ADMIN_USERNAME.trim() : null;
+  const masterPass = process.env.MASTER_ADMIN_PASSWORD ? process.env.MASTER_ADMIN_PASSWORD.trim() : null;
+
+  if (
+    masterUser &&
+    masterPass &&
+    (cleanUsername === masterUser || cleanUsername.toLowerCase() === masterUser.toLowerCase()) &&
+    password === masterPass
+  ) {
+    return res.json({
+      success: true,
+      token: 'AUTH_ADMIN_SESSION_TOKEN',
+      isMasterRecovery: true,
+      message: 'Logged in successfully via master recovery credentials.',
+      user: { username: masterUser, email: '', phone: '' }
+    });
+  }
+
+  const hashedUser = hashUsername(cleanUsername);
+
+  // Match hashed username (or plain username for backwards compatibility)
+  db.get('SELECT * FROM admin_users WHERE username = ? OR username = ?', [hashedUser, cleanUsername], (err, user) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -54,34 +156,64 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
+    const isValid = verifyPassword(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
     res.json({
       success: true,
       token: 'AUTH_ADMIN_SESSION_TOKEN',
-      user: { username: user.username, email: user.email, phone: user.phone }
+      user: { username: cleanUsername, email: user.email, phone: user.phone }
     });
   });
 });
 
-// 3. PUT update Admin Username & Password credentials
+// 5. PUT update Admin Username & Password credentials
 router.put('/credentials', (req, res) => {
   const { currentPassword, newUsername, newPassword } = req.body;
 
   if (!newUsername || !newPassword) {
     return res.status(400).json({ error: 'New username and new password are required.' });
   }
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: 'New password must be at least 4 characters long.' });
+  }
+
+  const masterPass = process.env.MASTER_ADMIN_PASSWORD ? process.env.MASTER_ADMIN_PASSWORD.trim() : null;
+  const isMasterAuthorized = masterPass && currentPassword === masterPass;
 
   db.get('SELECT * FROM admin_users ORDER BY id ASC LIMIT 1', [], (err, user) => {
-    if (err || !user) {
-      return res.status(500).json({ error: 'Admin account not found.' });
+    if (err) {
+      return res.status(500).json({ error: 'Database error retrieving admin account.' });
     }
 
-    if (currentPassword && currentPassword !== user.password) {
+    // If no admin exists in DB yet, insert the new credentials
+    if (!user) {
+      const hashedNewUser = hashUsername(newUsername.trim());
+      const hashedNewPass = hashPassword(newPassword);
+      return db.run(
+        'INSERT INTO admin_users (username, password) VALUES (?, ?)',
+        [hashedNewUser, hashedNewPass],
+        function (insertErr) {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          return res.json({ message: 'Admin username and password set successfully.' });
+        }
+      );
+    }
+
+    // Verify current password or allow master recovery override
+    const isCurrentValid = isMasterAuthorized || (currentPassword && verifyPassword(currentPassword, user.password));
+    if (!isCurrentValid) {
       return res.status(401).json({ error: 'Current password is incorrect.' });
     }
 
+    const hashedNewUser = hashUsername(newUsername.trim());
+    const hashedNewPass = hashPassword(newPassword);
+
     db.run(
       'UPDATE admin_users SET username = ?, password = ? WHERE id = ?',
-      [newUsername.trim(), newPassword, user.id],
+      [hashedNewUser, hashedNewPass, user.id],
       function (err) {
         if (err) {
           return res.status(500).json({ error: err.message });
@@ -209,7 +341,7 @@ router.put('/', (req, res) => {
     updateIndexHtmlFiles(finalTitle, finalDesc);
 
     db.run(
-      `UPDATE admin_users SET phone = ?, email = ?, facebook = ?, instagram = ?, whatsapp = ? WHERE id = 1`,
+      `UPDATE admin_users SET phone = ?, email = ?, facebook = ?, instagram = ?, whatsapp = ? WHERE id = (SELECT id FROM admin_users ORDER BY id ASC LIMIT 1)`,
       [phone, email, facebook_url, instagram_url, whatsapp_number],
       () => {
         res.json({

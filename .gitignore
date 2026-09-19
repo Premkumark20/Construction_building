@@ -35,7 +35,6 @@ Thumbs.db
 # Uploads, Frames, Logos & Generated Media
 uploads/
 frames/
-logo/
 app/public/frames/
 app/public/videos/
 app/dist/

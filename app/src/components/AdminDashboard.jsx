@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote } from 'lucide-react';
+import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp } from 'lucide-react';
 
 const notifySiteDataUpdated = () => {
   try {
-    localStorage.setItem('sk_site_data_updated', Date.now().toString());
-    window.dispatchEvent(new Event('sk_site_data_updated'));
+    localStorage.setItem('data_updated', Date.now().toString());
+    window.dispatchEvent(new Event('data_updated'));
   } catch (e) { }
 };
 
 const notifyPrimaryVideoUpdated = () => {
   try {
-    localStorage.setItem('sk_primary_video_updated', Date.now().toString());
-    window.dispatchEvent(new Event('sk_primary_video_updated'));
+    localStorage.setItem('primary_video_updated', Date.now().toString());
+    window.dispatchEvent(new Event('primary_video_updated'));
   } catch (e) { }
 };
 
@@ -556,15 +556,35 @@ const defaultProjectState = {
 
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!sessionStorage.getItem('sk_admin_token');
+    return !!sessionStorage.getItem('admin_token');
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
+  // Dynamic Auth Status & Register Form States
+  const [hasAdmin, setHasAdmin] = useState(null); // null = checking, false = empty (show register), true = admin exists (show login)
+  const [authViewOverride, setAuthViewOverride] = useState(null); // null | 'login' | 'register'
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [registerForm, setRegisterForm] = useState({
+    username: '',
+    password: '',
+    confirmPassword: '',
+    phone: '',
+    email: '',
+    facebook: '',
+    instagram: '',
+    whatsapp: ''
+  });
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showOptionalSocials, setShowOptionalSocials] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+
   // Admin Credentials CRUD State
-  const [adminUserForm, setAdminUserForm] = useState({ currentPassword: '', newUsername: 'admin', newPassword: '', confirmPassword: '' });
+  const [adminUserForm, setAdminUserForm] = useState({ currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' });
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [credStatusMsg, setCredStatusMsg] = useState('');
@@ -575,14 +595,14 @@ const AdminDashboard = () => {
 
   // Persist active section tab across reloads in sessionStorage
   const [activeTab, setActiveTab] = useState(() => {
-    const saved = sessionStorage.getItem('sk_admin_active_tab');
+    const saved = sessionStorage.getItem('admin_active_tab');
     if (saved === 'houses') return 'properties';
     return VALID_TABS.includes(saved) ? saved : 'dashboard';
   });
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    sessionStorage.setItem('sk_admin_active_tab', tabId);
+    sessionStorage.setItem('admin_active_tab', tabId);
   };
 
   // Modal Form Visibility States
@@ -1333,12 +1353,38 @@ const AdminDashboard = () => {
   const bgRenameInputRef = useRef(null);
   const [videoSectionTab, setVideoSectionTab] = useState('hero'); // 'hero' | 'background'
 
-  // Load session token
+  const checkAuthStatus = async () => {
+    setIsAuthChecking(true);
+    try {
+      const res = await fetch('/api/settings/auth-status');
+      if (res.ok) {
+        const data = await res.json();
+        setHasAdmin(!!data.hasAdmin);
+      } else {
+        setHasAdmin(true);
+      }
+    } catch (e) {
+      setHasAdmin(true);
+    } finally {
+      setIsAuthChecking(false);
+    }
+  };
+
+  // Load session token or check auth status
   useEffect(() => {
-    const token = sessionStorage.getItem('sk_admin_token');
+    const token = sessionStorage.getItem('admin_token');
     if (token) {
       setIsAuthenticated(true);
+      setIsAuthChecking(false);
       fetchData();
+    } else {
+      checkAuthStatus();
+      fetch('/api/settings')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.settings) setSettings(data.settings);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -1399,8 +1445,8 @@ const AdminDashboard = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        sessionStorage.setItem('sk_admin_token', data.token);
-        sessionStorage.setItem('sk_admin_active_tab', 'dashboard');
+        sessionStorage.setItem('admin_token', data.token);
+        sessionStorage.setItem('admin_active_tab', 'dashboard');
         setActiveTab('dashboard');
         setIsAuthenticated(true);
         setLoginError('');
@@ -1410,6 +1456,60 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       setLoginError('Unable to connect to backend server.');
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegisterError('');
+
+    if (!registerForm.username || !registerForm.username.trim()) {
+      setRegisterError('Admin username is required.');
+      return;
+    }
+
+    if (!registerForm.password || registerForm.password.length < 4) {
+      setRegisterError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setRegisterError('Passwords do not match.');
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const res = await fetch('/api/settings/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: registerForm.username.trim(),
+          password: registerForm.password,
+          phone: registerForm.phone,
+          email: registerForm.email,
+          facebook: registerForm.facebook,
+          instagram: registerForm.instagram,
+          whatsapp: registerForm.whatsapp
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        sessionStorage.setItem('admin_token', data.token);
+        sessionStorage.setItem('admin_active_tab', 'dashboard');
+        setActiveTab('dashboard');
+        setIsAuthenticated(true);
+        setHasAdmin(true);
+        setRegisterError('');
+        fetchData();
+      } else {
+        setRegisterError(data.error || 'Registration failed.');
+      }
+    } catch (err) {
+      setRegisterError('Unable to connect to backend server.');
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -1534,10 +1634,11 @@ const AdminDashboard = () => {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('sk_admin_token');
-    sessionStorage.removeItem('sk_admin_active_tab');
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_active_tab');
     sessionStorage.clear();
     setIsAuthenticated(false);
+    checkAuthStatus();
   };
 
   const uploadImageFile = async (file) => {
@@ -2246,8 +2347,251 @@ const AdminDashboard = () => {
   const ongoingProjectsCount = safeProjects.filter(p => p.status === 'Under Construction' || p.status === 'Ongoing').length;
   const startedProjectsCount = safeProjects.filter(p => p.status === 'Planning & Approvals' || p.status === 'Planned' || p.status === 'Started' || p.status === 'Approval').length;
 
-  // 1. LOGIN SCREEN
+  // 1. AUTHENTICATION SCREENS (DYNAMIC REGISTER vs LOGIN)
   if (!isAuthenticated) {
+    // A. LOADING STATE WHILE CHECKING AUTH STATUS
+    if (isAuthChecking) {
+      return (
+        <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 relative overflow-hidden text-white selection:bg-amber-500 selection:text-black">
+          <LoginBackgroundCanvas />
+          <div className="flex flex-col items-center gap-3 relative z-10 animate-pulse">
+            <div className="w-10 h-10 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-amber-400/90 font-bold uppercase tracking-widest">Checking Security System...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // B. REGISTER SCREEN (Rendered when no admin exists, or user toggled to register)
+    const showRegister = authViewOverride ? authViewOverride === 'register' : (hasAdmin === false);
+    if (showRegister) {
+      return (
+        <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 relative overflow-hidden text-white selection:bg-amber-500 selection:text-black">
+          {/* Dynamic Animated Gold Dust Particle Canvas */}
+          <LoginBackgroundCanvas />
+
+          {/* Ambient Gold Glows */}
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-amber-500/15 rounded-full blur-[160px] pointer-events-none" />
+          <div className="absolute bottom-10 right-10 w-[400px] h-[300px] bg-amber-600/10 rounded-full blur-[130px] pointer-events-none" />
+
+          {/* Gold Specular Glassmorphism Form Card */}
+          <div className="gold-specular-card bg-[#121216]/95 border border-amber-500/35 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-[0_0_60px_rgba(245,158,11,0.2)] relative z-10 animate-fadeIn">
+            <div className="specular-glare" />
+
+            {/* Logo & Header */}
+            <div className="text-center mb-6 relative z-10">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-widest mb-4">
+                <Sparkles size={12} className="text-amber-400" />
+                First-Time Setup
+              </div>
+
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
+                {settings?.logo_url ? (
+                  <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-11 h-11 object-contain" />
+                ) : (
+                  <UserPlus size={28} className="text-amber-400" />
+                )}
+              </div>
+
+              <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-1">
+                Create Admin Account
+              </h2>
+              <p className="text-xs font-semibold text-zinc-400 max-w-sm mx-auto">
+                Set up your master administrator username & password to manage your business showcase.
+              </p>
+            </div>
+
+            {registerError && (
+              <div className="bg-red-500/20 border border-red-500/40 text-red-300 text-xs p-3 rounded-xl mb-5 text-center font-bold flex items-center justify-center gap-2">
+                <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                <span>{registerError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRegister} className="space-y-4 relative z-10">
+              {/* Username */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Admin Username <span className="text-amber-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none">
+                    <User size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    value={registerForm.username}
+                    onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
+                    placeholder="Enter admin username"
+                    className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Master Password <span className="text-amber-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    placeholder="Enter password (minimum 4 characters)"
+                    className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-10 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-amber-400 transition-colors p-1"
+                    title={showRegisterPassword ? "Hide password" : "Show password"}
+                  >
+                    {showRegisterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Confirm Password <span className="text-amber-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none">
+                    <ShieldCheck size={16} />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={registerForm.confirmPassword}
+                    onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
+                    placeholder="Re-enter password to confirm"
+                    className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-10 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-amber-400 transition-colors p-1"
+                    title={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible Optional Contact Details */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOptionalSocials(!showOptionalSocials)}
+                  className="w-full flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 hover:text-amber-400 transition-colors py-2 px-3 rounded-xl bg-zinc-900/60 border border-zinc-800"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Phone size={13} className="text-amber-400" /> Optional Contact & Social Links
+                  </span>
+                  {showOptionalSocials ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {showOptionalSocials && (
+                  <div className="mt-3 space-y-3 p-3.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80 animate-fadeIn">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Phone Number</label>
+                        <input
+                          type="text"
+                          value={registerForm.phone}
+                          onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
+                          placeholder="e.g. 7358266257"
+                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Email Address</label>
+                        <input
+                          type="email"
+                          value={registerForm.email}
+                          onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                          placeholder="e.g. info@skbuilders.com"
+                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">WhatsApp</label>
+                        <input
+                          type="text"
+                          value={registerForm.whatsapp}
+                          onChange={(e) => setRegisterForm({ ...registerForm, whatsapp: e.target.value })}
+                          placeholder="WhatsApp number"
+                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Facebook</label>
+                        <input
+                          type="text"
+                          value={registerForm.facebook}
+                          onChange={(e) => setRegisterForm({ ...registerForm, facebook: e.target.value })}
+                          placeholder="Facebook URL"
+                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Instagram</label>
+                        <input
+                          type="text"
+                          value={registerForm.instagram}
+                          onChange={(e) => setRegisterForm({ ...registerForm, instagram: e.target.value })}
+                          placeholder="Instagram URL"
+                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isRegistering}
+                className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 group mt-3 cursor-pointer disabled:opacity-50"
+              >
+                {isRegistering ? (
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle size={16} className="text-black group-hover:scale-110 transition-transform" />
+                    <span>Create Master Admin & Enter Dashboard</span>
+                  </>
+                )}
+              </button>
+
+              {/* Toggle to Login screen for master recovery credentials */}
+              <div className="mt-4 pt-3 border-t border-zinc-800/80 text-center">
+                <button
+                  type="button"
+                  onClick={() => { setAuthViewOverride('login'); setLoginError(''); setRegisterError(''); }}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  Have master recovery or existing credentials? <span className="underline">Sign In</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // C. LOGIN SCREEN (Rendered when admin_users already has a registered admin)
     return (
       <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 relative overflow-hidden text-white selection:bg-amber-500 selection:text-black">
         {/* Dynamic Animated Gold Dust Particle Canvas */}
@@ -2335,12 +2679,25 @@ const AdminDashboard = () => {
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 group mt-2"
+              className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 group mt-2 cursor-pointer"
             >
               <ShieldCheck size={17} className="text-black group-hover:scale-110 transition-transform" />
               <span>Sign In to Dashboard</span>
             </button>
           </form>
+
+          {/* Toggle back to Register screen if first-time setup */}
+          {hasAdmin === false && (
+            <div className="mt-4 pt-3 border-t border-zinc-800/80 text-center">
+              <button
+                type="button"
+                onClick={() => { setAuthViewOverride('register'); setLoginError(''); setRegisterError(''); }}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+              >
+                First-time setup? <span className="underline">Create Admin Account</span>
+              </button>
+            </div>
+          )}
 
           {/* Footer note */}
           <div className="mt-6 pt-4 border-t border-white/5 text-center text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">

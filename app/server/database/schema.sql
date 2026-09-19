@@ -2,11 +2,11 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
-  phone TEXT NOT NULL DEFAULT '7358266257',
-  email TEXT NOT NULL DEFAULT 'info@skbuilders.com',
-  facebook TEXT DEFAULT 'https://facebook.com',
-  instagram TEXT DEFAULT 'https://instagram.com',
-  whatsapp TEXT DEFAULT '7358266257',
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  facebook TEXT DEFAULT '',
+  instagram TEXT DEFAULT '',
+  whatsapp TEXT DEFAULT '',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
