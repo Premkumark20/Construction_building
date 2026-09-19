@@ -14,7 +14,7 @@ def find_primary_video(base_dir):
     if not os.path.exists(video_dir):
         video_dir = os.path.join(base_dir, "uploads")
 
-    # 1. Query SQLite database specifically for active primary HERO construction video (video_type = 'hero' AND is_primary = 1)
+    # Query SQLite database specifically for active primary HERO construction video (is_primary = 1)
     if os.path.exists(db_path):
         try:
             conn = sqlite3.connect(db_path, timeout=10.0)
@@ -36,26 +36,34 @@ def find_primary_video(base_dir):
                 if row:
                     rel_path = row[0]
                     filename = row[1]
-                    full_path = os.path.join(base_dir, rel_path)
-                    if os.path.exists(full_path):
+                    
+                    full_path = os.path.join(base_dir, rel_path) if rel_path else None
+                    if full_path and os.path.exists(full_path):
                         print(f"[INFO] Primary Hero Video in Database: '{filename}'")
                         conn.close()
                         return full_path
-                    alt_path = os.path.join(video_dir, filename)
-                    if os.path.exists(alt_path):
+
+                    alt_path = os.path.join(video_dir, filename) if filename else None
+                    if alt_path and os.path.exists(alt_path):
                         print(f"[INFO] Primary Hero Video in Database: '{filename}'")
                         conn.close()
                         return alt_path
+
+                    # Database path or file is MISSING on disk
+                    print(f"[WARN] Video '{filename}' path in database table 'media_videos' does NOT exist on disk!")
+                    conn.close()
+                    return None
             conn.close()
         except Exception as e:
             print(f"[WARN] Database query failed: {e}")
             pass
 
-    # 2. Fallback: find any valid video file in uploads/videos
+    # Fallback to uploads/videos if database doesn't have records
     if os.path.exists(video_dir):
         for f in os.listdir(video_dir):
             if f.lower().endswith(VALID_EXTENSIONS):
                 return os.path.join(video_dir, f)
+
     return None
 
 def purge_folder(folder_path):
@@ -63,6 +71,27 @@ def purge_folder(folder_path):
         for f in glob.glob(os.path.join(folder_path, "*.webp")):
             try:
                 os.remove(f)
+            except Exception:
+                pass
+
+def purge_all_frame_caches(base_dir):
+    target_dirs = [
+        os.path.join(base_dir, "frames", "desktop"),
+        os.path.join(base_dir, "frames", "mobile"),
+        os.path.join(base_dir, "app", "public", "frames", "desktop"),
+        os.path.join(base_dir, "app", "public", "frames", "mobile"),
+    ]
+    for d in target_dirs:
+        purge_folder(d)
+    
+    meta_paths = [
+        os.path.join(base_dir, "frames", ".video_meta.json"),
+        os.path.join(base_dir, "app", "public", "frames", ".video_meta.json"),
+    ]
+    for mp in meta_paths:
+        if os.path.exists(mp):
+            try:
+                os.remove(mp)
             except Exception:
                 pass
 
@@ -84,16 +113,21 @@ def process_video(base_dir, desktop_target=120):
     frames_dir = os.path.join(base_dir, "frames")
     desktop_dir = os.path.join(frames_dir, "desktop")
     mobile_dir = os.path.join(frames_dir, "mobile")
+    public_desktop_dir = os.path.join(base_dir, "app", "public", "frames", "desktop")
+    public_mobile_dir = os.path.join(base_dir, "app", "public", "frames", "mobile")
     meta_path = os.path.join(frames_dir, ".video_meta.json")
 
     os.makedirs(desktop_dir, exist_ok=True)
     os.makedirs(mobile_dir, exist_ok=True)
+    os.makedirs(public_desktop_dir, exist_ok=True)
+    os.makedirs(public_mobile_dir, exist_ok=True)
 
     video_path = find_primary_video(base_dir)
 
-    # If no video is present, log and return WITHOUT purging existing frame cache
+    # 1. If database path is missing on disk or no primary video exists -> REMOVE ALL FRAMES
     if not video_path:
-        print(f"[INFO] No active video found in '{video_dir}'. Extraction skipped.")
+        print(f"[PURGE] Primary video missing or database path missing on disk. Removing all existing frames...")
+        purge_all_frame_caches(base_dir)
         return
 
     video_filename = os.path.basename(video_path)
@@ -115,7 +149,6 @@ def process_video(base_dir, desktop_target=120):
         except Exception:
             pass
 
-    # Check if cached frames match the CURRENT active primary video filename, size, & mtime
     video_changed = meta.get("video") != video_filename
     meta_valid = (
         not video_changed and
@@ -126,11 +159,17 @@ def process_video(base_dir, desktop_target=120):
     desktop_need = force_mode or video_changed or not (meta_valid and desktop_ready and mobile_ready)
 
     if not desktop_need:
-        print(f"[OK] Up-to-date: {len(desktop_files)} Desktop frames ready for '{video_filename}'. Mobile using final completed frame.")
+        print(f"[OK] Up-to-date: {len(desktop_files)} Desktop frames ready for '{video_filename}'.")
         return
 
-    if video_changed:
-        print(f"[NOTICE] Primary video changed to '{video_filename}'. Re-extracting Desktop WebP frames...")
+    # 2. When changing primary video or re-extracting: FIRST REMOVE ALL EXISTING FRAMES
+    print(f"[PURGE] First removing all existing frames before extraction...")
+    purge_all_frame_caches(base_dir)
+
+    os.makedirs(desktop_dir, exist_ok=True)
+    os.makedirs(mobile_dir, exist_ok=True)
+    os.makedirs(public_desktop_dir, exist_ok=True)
+    os.makedirs(public_mobile_dir, exist_ok=True)
 
     print(f"[EXTRACT] Processing primary video '{video_filename}'...")
     cap = cv2.VideoCapture(video_path)
@@ -148,10 +187,8 @@ def process_video(base_dir, desktop_target=120):
 
     print(f"[INFO] Video Details: {total_frames} total frames @ {fps:.2f} FPS.")
 
-    # 1. Desktop Frames Extraction (121 frames - Full HD 1080p Quality)
+    # 3. Extract fresh frames
     print(f"[EXTRACT] Generating Desktop HD Frames (1080p Quality) -> 'frames/desktop/'")
-    purge_folder(desktop_dir)
-    purge_folder(mobile_dir)
 
     desktop_indices = [int(i * (total_frames - 1) / desktop_target) for i in range(desktop_target + 1)]
     last_pil_img = None
@@ -163,9 +200,18 @@ def process_video(base_dir, desktop_target=120):
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_img = Image.fromarray(rgb_frame)
             desktop_filename = f"frame_{idx + 1:04d}.webp"
+            
+            # Save to root frames directory
             desktop_path = os.path.join(desktop_dir, desktop_filename)
-            # 1080p High Definition WebP saving
             pil_img.save(desktop_path, "WEBP", quality=92, method=6)
+
+            # Also save to public frames directory if it exists
+            pub_desktop_path = os.path.join(public_desktop_dir, desktop_filename)
+            try:
+                pil_img.save(pub_desktop_path, "WEBP", quality=92, method=6)
+            except Exception:
+                pass
+
             last_pil_img = pil_img
         print_progress("Desktop Frames", idx + 1, desktop_target + 1)
 
@@ -173,19 +219,34 @@ def process_video(base_dir, desktop_target=120):
     if last_pil_img:
         mobile_path = os.path.join(mobile_dir, "frame_last.webp")
         last_pil_img.save(mobile_path, "WEBP", quality=90, method=5)
+
+        pub_mobile_path = os.path.join(public_mobile_dir, "frame_last.webp")
+        try:
+            last_pil_img.save(pub_mobile_path, "WEBP", quality=90, method=5)
+        except Exception:
+            pass
+
         print(f"[SUCCESS] Saved final completed house frame -> '{mobile_path}' for Mobile view.")
 
     cap.release()
 
     # Save updated metadata
+    meta_content = {
+        "video": video_filename,
+        "mtime": video_mtime,
+        "size": video_size,
+        "desktop_frames": desktop_target + 1,
+        "mobile_frames": 1
+    }
     with open(meta_path, "w") as mf:
-        json.dump({
-            "video": video_filename,
-            "mtime": video_mtime,
-            "size": video_size,
-            "desktop_frames": desktop_target + 1,
-            "mobile_frames": 1
-        }, mf, indent=2)
+        json.dump(meta_content, mf, indent=2)
+
+    pub_meta_path = os.path.join(base_dir, "app", "public", "frames", ".video_meta.json")
+    try:
+        with open(pub_meta_path, "w") as mf:
+            json.dump(meta_content, mf, indent=2)
+    except Exception:
+        pass
 
     print(f"[SUCCESS] WebP frame extraction complete: {desktop_target + 1} Desktop frames & 1 Mobile static final frame for '{video_filename}'.")
 

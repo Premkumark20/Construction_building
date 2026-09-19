@@ -300,14 +300,20 @@ router.delete('/video/:id', (req, res) => {
             db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [nextPrimary.id], () => {
               res.json({ message: `Primary ${videoType} video deleted, new primary assigned.` });
               if (videoType === 'hero') {
-                console.log(`\n[Auto Frame Extraction] Primary hero video deleted. New primary is '${nextPrimary.filename}'. Processing frames...`);
-                const pyProc = spawn('python', ['-u', 'python/extract_frames.py'], { cwd: projectRoot });
+                console.log(`\n[Auto Frame Extraction] Primary hero video deleted. New primary is '${nextPrimary.filename}'. Purging old frames and processing...`);
+                const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
                 pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
                 pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
               }
             });
           } else {
             res.json({ message: `Primary ${videoType} video deleted. No remaining videos.` });
+            if (videoType === 'hero') {
+              console.log(`\n[Auto Frame Extraction] No remaining hero video. Purging all frames...`);
+              const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
+              pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
+              pyProc.stderr.on('data', data => process.stderr.write(data.toString()));
+            }
           }
         });
       } else {
@@ -340,8 +346,8 @@ router.post('/set-primary-video', (req, res) => {
         });
 
         if (videoType === 'hero') {
-          console.log(`\n[Auto Frame Extraction] Active Primary Hero Video changed to '${row.filename}'. Checking frames...`);
-          const pyProc = spawn('python', ['-u', 'python/extract_frames.py'], { cwd: projectRoot });
+          console.log(`\n[Auto Frame Extraction] Active Primary Hero Video changed to '${row.filename}'. Purging old frames and extracting new frames...`);
+          const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
           pyProc.stdout.on('data', (data) => process.stdout.write(data.toString()));
           pyProc.stderr.on('data', (data) => process.stderr.write(data.toString()));
         }
