@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import Navbar from './components/Navbar.jsx';
 import ConstructionStory from './components/ConstructionStory.jsx';
 import WhyChooseUs from './components/WhyChooseUs.jsx';
@@ -162,6 +163,7 @@ function App() {
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
+      <Analytics />
     </SiteDataProvider>
   );
 }
