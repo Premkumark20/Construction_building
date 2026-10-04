@@ -3,12 +3,28 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {
-      "includeFiles": "app/server/**"
+      "includeFiles": "{app/server/**,uploads/**,logo/**,videos/**,frames/**,app/public/**}"
     }
   },
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/logo/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/videos/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/frames/:path*",
       "destination": "/api"
     },
     {
@@ -17,3 +33,4 @@
     }
   ]
 }
+
