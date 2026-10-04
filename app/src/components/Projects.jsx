@@ -192,7 +192,7 @@ const Projects = () => {
   }, []);
 
   return (
-    <section ref={sectionRef} id="projects" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="projects" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20">
       {/* Stage Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center gap-2 sm:gap-3 pt-6 pb-3 sm:py-20 relative">
         {/* Background Ambient Glow */}

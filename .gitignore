@@ -20,9 +20,9 @@ Thumbs.db
 .system_generated/
 .gemini/
 
-# SQLite lock/journal files
+# SQLite databases & lock/journal files
 *.db
-!app/server/database/showcase.db
+app/server/database/showcase.db
 *.db-journal
 *.sqlite-journal
 *.db-shm
@@ -32,15 +32,21 @@ Thumbs.db
 .cache/
 .temp/
 
-# Uploads, Frames, Logos & Generated Media
+# Uploads, Frames & References
 uploads/
+uploads/images/
+uploads/videos/
 frames/
-app/public/frames/
-app/public/videos/
+app/public/frames/**
+!app/public/frames/
+!app/public/frames/mobile/
+!app/public/frames/mobile/frame_last.webp
+!app/public/frames/desktop/
+!app/public/frames/desktop/frame_0121.webp
+reference/
 app/dist/
 dist/
 
 # Private text and prompt files
 Animated Free Website Prompts.txt
 ai_studio_code.txt
-

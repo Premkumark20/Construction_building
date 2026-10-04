@@ -138,7 +138,7 @@ const ContactCTA = () => {
   };
 
   return (
-    <section ref={sectionRef} id="contact" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10 bg-blueprint-lines">
+    <section ref={sectionRef} id="contact" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20 bg-blueprint-lines">
       {/* Stage Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex items-center justify-center py-10 sm:py-20 relative">
         {/* Ambient Glow */}

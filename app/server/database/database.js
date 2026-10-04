@@ -13,7 +13,46 @@ const safeMkdir = (dir) => {
   } catch (e) {}
 };
 
+// Auto-create all required media, upload, frame, and database storage folders
+const initialDirs = [
+  path.join(projectRoot, 'uploads'),
+  path.join(projectRoot, 'uploads/images'),
+  path.join(projectRoot, 'uploads/images/gallery'),
+  path.join(projectRoot, 'uploads/images/properties'),
+  path.join(projectRoot, 'uploads/images/projects'),
+  path.join(projectRoot, 'uploads/videos'),
+  path.join(projectRoot, 'uploads/videos/temp'),
+  path.join(projectRoot, 'logo'),
+  path.join(projectRoot, 'videos'),
+  path.join(projectRoot, 'frames'),
+  path.join(projectRoot, 'frames/desktop'),
+  path.join(projectRoot, 'frames/mobile'),
+  path.join(projectRoot, 'app/public/videos'),
+  path.join(projectRoot, 'app/public/frames/desktop'),
+  path.join(projectRoot, 'app/public/frames/mobile'),
+];
+
+if (process.env.VERCEL) {
+  initialDirs.push(
+    '/tmp/uploads',
+    '/tmp/uploads/images',
+    '/tmp/uploads/images/gallery',
+    '/tmp/uploads/images/properties',
+    '/tmp/uploads/images/projects',
+    '/tmp/uploads/videos',
+    '/tmp/uploads/videos/temp',
+    '/tmp/logo',
+    '/tmp/videos',
+    '/tmp/frames',
+    '/tmp/frames/desktop',
+    '/tmp/frames/mobile'
+  );
+}
+
+initialDirs.forEach(d => safeMkdir(d));
+
 let dbPath = path.join(__dirname, 'showcase.db');
+safeMkdir(path.dirname(dbPath));
 const schemaPath = path.join(__dirname, 'schema.sql');
 
 if (process.env.VERCEL) {

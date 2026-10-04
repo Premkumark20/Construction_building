@@ -222,32 +222,6 @@ const Gallery = () => {
   const { gallery, properties, land, projects, loading } = useSiteData();
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
-  // Pin section for ~2 seconds of Y-axis scrolling on desktop ONLY (no pinning on mobile view)
-  useEffect(() => {
-    const section = sectionRef.current;
-    const pinContainer = pinContainerRef.current;
-    if (!section || !pinContainer) return;
-
-    let mm = gsap.matchMedia();
-
-    // Desktop only (>= 768px): Pin for 2 seconds
-    mm.add('(min-width: 768px)', () => {
-      ScrollTrigger.create({
-        trigger: section,
-        pin: pinContainer,
-        start: 'top top',
-        end: '+=1600', // ~2 seconds of natural scrolling on desktop
-        pinSpacing: true,
-        anticipatePin: 1,
-        invalidateOnRefresh: true,
-      });
-    });
-
-    // Mobile view (< 768px): No pin section, scrolls naturally!
-
-    return () => mm.revert();
-  }, []);
-
   // Compile unified image list dynamically from database
   const sourceItems = useMemo(() => {
     const dbGalleryItems = Array.isArray(gallery)
@@ -299,6 +273,39 @@ const Gallery = () => {
     };
   }, [sourceItems]);
 
+  // Pin section for smooth Y-axis scroll engagement on desktop (both with and without items)
+  useEffect(() => {
+    const section = sectionRef.current;
+    const pinContainer = pinContainerRef.current;
+    if (!section || !pinContainer) return;
+
+    let mm = gsap.matchMedia();
+
+    // Desktop only (>= 769px): Pinned on Y-axis
+    mm.add('(min-width: 769px)', () => {
+      ScrollTrigger.create({
+        trigger: section,
+        pin: pinContainer,
+        start: 'top top',
+        end: '+=2200', // Pinned for smooth Y-axis engagement on desktop
+        pinSpacing: true,
+        anticipatePin: 1,
+        invalidateOnRefresh: true,
+      });
+    });
+
+    // Mobile view (< 769px): No pin section, scrolls naturally!
+
+    const refreshTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 200);
+
+    return () => {
+      clearTimeout(refreshTimer);
+      mm.revert();
+    };
+  }, [sourceItems.length]);
+
   // Lock body scroll when Lightbox is open
   useEffect(() => {
     if (selectedPhoto) {
@@ -312,14 +319,14 @@ const Gallery = () => {
   }, [selectedPhoto]);
 
   return (
-    <section ref={sectionRef} id="gallery" className="relative z-10 w-full bg-transparent text-white overflow-hidden py-6 sm:py-10 border-t border-white/10">
+    <section ref={sectionRef} id="gallery" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20">
       {/* Scroll Container (Pinned on desktop only) */}
-      <div ref={pinContainerRef} className="w-full h-auto flex flex-col justify-center py-4 sm:py-8 relative">
+      <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center items-center py-10 sm:py-20 relative">
         {/* Background Ambient Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-amber-500/10 rounded-full blur-[160px] pointer-events-none"></div>
 
-        {/* Section Header: Removed "Gallery Showcase" badge, minimal top spacing */}
-        <div className="max-w-4xl mx-auto px-4 mb-2 sm:mb-3 relative z-10 w-full text-center shrink-0">
+        {/* Section Header: Consistent top spacing */}
+        <div className="max-w-4xl mx-auto px-4 mb-3 sm:mb-6 relative z-10 w-full text-center shrink-0">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
             EVERY HOME HAS A <span className="text-gold-gradient">STORY</span>
           </h2>
@@ -341,7 +348,19 @@ const Gallery = () => {
                   />
                 ))}
               </div>
-            ) : null
+            ) : (
+              <div className="w-full max-w-xl mx-auto py-10 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-4 relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
+                  <Sparkles size={28} />
+                </div>
+                <h3 className="text-base font-black text-white uppercase tracking-wider mb-1.5">
+                  No Gallery Photos Uploaded Yet
+                </h3>
+                <p className="text-xs text-zinc-400 font-medium max-w-sm mx-auto">
+                  Photos uploaded in the Admin Portal (or added to properties and projects) will automatically showcase here in this 3D gallery.
+                </p>
+              </div>
+            )
           ) : (
             <div className="space-y-2 sm:space-y-3 w-full overflow-hidden">
               {/* TRACK 1: 7-Card/5-Card 3D Landscape Coverflow sliding Left (stops 2s in center) */}

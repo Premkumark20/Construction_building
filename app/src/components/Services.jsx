@@ -166,7 +166,7 @@ const Services = () => {
   }, []);
 
   return (
-    <section ref={sectionRef} id="services" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="services" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20">
       {/* Stage Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center items-center py-8 sm:py-20 relative">
         {/* Background Ambient Glow */}
@@ -185,31 +185,31 @@ const Services = () => {
           </div>
 
           {/* 2 COLUMNS ON MOBILE / 6 COLUMNS ON DESKTOP: Vertical Rectangle Cards */}
-          <div ref={cardsContainerRef} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 perspective-1200 mb-3.5 sm:mb-6">
+          <div ref={cardsContainerRef} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mb-3.5 sm:mb-6">
             {safeServices.map((srv, idx) => {
               const icon = iconMap[srv.icon_name] || iconMap.Home;
               return (
                 <div
                   key={srv.id || idx}
                   onClick={() => setActiveServiceModal(srv)}
-                  className="gold-specular-card rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-lg transition-all duration-300 preserve-3d cursor-pointer flex flex-col justify-between group tilt-3d relative min-h-[160px] sm:min-h-[220px]"
+                  className="gold-specular-card rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-lg transition-all duration-300 cursor-pointer flex flex-col justify-between group relative min-h-[160px] sm:min-h-[220px]"
                 >
                   <div className="specular-glare" />
 
-                  <div className="preserve-3d relative z-10">
-                    <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2 sm:mb-3.5 group-hover:bg-gradient-to-br group-hover:from-amber-400 group-hover:to-amber-600 transition-colors duration-300 shadow-md translate-z-30">
+                  <div className="relative z-10">
+                    <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2 sm:mb-3.5 group-hover:bg-gradient-to-br group-hover:from-amber-400 group-hover:to-amber-600 transition-colors duration-300 shadow-md">
                       {React.cloneElement(icon, {
                         className: 'transition-colors duration-300 group-hover:text-black w-4 h-4 sm:w-5 sm:h-5'
                       })}
                     </div>
-                    <h3 className="text-[11.5px] sm:text-sm font-extrabold text-white mb-1 leading-snug group-hover:text-amber-300 transition-colors translate-z-20 line-clamp-2">
+                    <h3 className="text-[11.5px] sm:text-sm font-extrabold text-white mb-1 leading-snug group-hover:text-amber-300 transition-colors line-clamp-2">
                       {srv.title}
                     </h3>
                     <p className="text-zinc-400 text-[9.5px] sm:text-[10.5px] leading-tight mb-2 font-medium line-clamp-2 sm:line-clamp-3">
                       {srv.description}
                     </p>
                   </div>
-                  <div className="relative z-10 translate-z-20">
+                  <div className="relative z-10">
                     <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-amber-400 hover:text-amber-300 uppercase tracking-wider group-hover:gap-2 transition-all">
                       Explore <ArrowRight size={10} />
                     </span>

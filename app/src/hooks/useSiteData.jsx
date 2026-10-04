@@ -109,19 +109,32 @@ export const SiteDataProvider = ({ children }) => {
 
   const isFetchingRef = useRef(false);
 
+  const fetchWithTimeout = async (url, ms = 3500) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return res.ok ? await res.json() : null;
+    } catch (e) {
+      clearTimeout(id);
+      return null;
+    }
+  };
+
   const refreshData = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
     try {
       const [settingsRes, servicesRes, propertiesRes, landRes, projectsRes, galleryRes, testimonialsRes] = await Promise.all([
-        fetch('/api/settings').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/services').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/properties').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/land').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/projects').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/gallery').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/testimonials').then(r => r.ok ? r.json() : null).catch(() => null)
+        fetchWithTimeout('/api/settings'),
+        fetchWithTimeout('/api/services'),
+        fetchWithTimeout('/api/properties'),
+        fetchWithTimeout('/api/land'),
+        fetchWithTimeout('/api/projects'),
+        fetchWithTimeout('/api/gallery'),
+        fetchWithTimeout('/api/testimonials')
       ]);
 
       const propsList = Array.isArray(propertiesRes?.properties) ? propertiesRes.properties : (Array.isArray(propertiesRes) ? propertiesRes : null);

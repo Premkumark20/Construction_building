@@ -31,6 +31,8 @@ app.use(express.static(path.join(__dirname, '../../')));
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 app.use('/logo', express.static(path.join(__dirname, '../../logo')));
 app.use('/videos', express.static(path.join(__dirname, '../public/videos'), { acceptRanges: true }));
+app.use('/frames', express.static(path.join(__dirname, '../../frames')));
+app.use('/frames', express.static(path.join(__dirname, '../public/frames')));
 
 // API Routes
 app.use('/api/settings', siteSettingsRouter);

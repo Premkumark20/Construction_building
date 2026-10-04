@@ -93,20 +93,11 @@
 }
 
 /* 3D Z-Axis Elevation for child elements within tilted 3D cards */
-.translate-z-10 {
-  transform: translateZ(6px);
-}
-
-.translate-z-20 {
-  transform: translateZ(10px);
-}
-
-.translate-z-30 {
-  transform: translateZ(15px);
-}
-
+.translate-z-10,
+.translate-z-20,
+.translate-z-30,
 .translate-z-40 {
-  transform: translateZ(20px);
+  transform: none;
 }
 
 /* ==========================================================================

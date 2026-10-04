@@ -67,52 +67,46 @@ const ConstructionStory = () => {
       return;
     }
 
-    let successCount = 0;
-    let finishedCount = 0;
     loadedImagesMapRef.current = {};
     setIsPreloading(true);
 
     const safetyTimeout = setTimeout(() => {
       setIsPreloading(false);
-    }, 400);
+      setShowContent(true);
+    }, 500);
 
-    for (let i = 1; i <= 121; i++) {
-      const img = new Image();
-      const frameNum = String(i).padStart(4, '0');
-      img.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
+    const probe = new Image();
+    const frameNum = String(1).padStart(4, '0');
+    probe.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
 
-      img.onload = () => {
-        successCount++;
-        finishedCount++;
-        loadedImagesMapRef.current[i] = img;
-        setHasFramesAvailable(true);
+    probe.onload = () => {
+      clearTimeout(safetyTimeout);
+      loadedImagesMapRef.current[1] = probe;
+      setHasFramesAvailable(true);
+      setIsPreloading(false);
+      setShowContent(true);
+      renderFrame(1);
 
-        if (successCount === 1) {
-          renderFrame(1);
-          setIsPreloading(false);
-          clearTimeout(safetyTimeout);
-        }
-        if (finishedCount >= 5) {
-          setIsPreloading(false);
-          clearTimeout(safetyTimeout);
-        }
+      // Load remaining frames in background
+      for (let i = 2; i <= 121; i++) {
+        const img = new Image();
+        const num = String(i).padStart(4, '0');
+        img.src = `/frames/desktop/frame_${num}.webp?v=${frameVersion}`;
+        img.onload = () => {
+          loadedImagesMapRef.current[i] = img;
+          if (currentFrameRef.current === i) {
+            renderFrame(i);
+          }
+        };
+      }
+    };
 
-        // Re-render canvas if user is currently at this frame
-        if (currentFrameRef.current === i) {
-          renderFrame(i);
-        }
-      };
-
-      img.onerror = () => {
-        finishedCount++;
-        if (finishedCount === 121 && successCount === 0) {
-          setHasFramesAvailable(false);
-          setShowContent(true);
-          setIsPreloading(false);
-          clearTimeout(safetyTimeout);
-        }
-      };
-    }
+    probe.onerror = () => {
+      clearTimeout(safetyTimeout);
+      setHasFramesAvailable(false);
+      setIsPreloading(false);
+      setShowContent(true);
+    };
 
     return () => clearTimeout(safetyTimeout);
   }, [isMobile, frameVersion]);
@@ -307,6 +301,8 @@ const ConstructionStory = () => {
         {/* Full-bleed Vivid Completed House Background Image */}
         <img
           src={`/frames/mobile/frame_last.webp?v=${frameVersion}`}
+          loading="eager"
+          decoding="sync"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = `/frames/desktop/frame_0121.webp?v=${frameVersion}`;
@@ -409,23 +405,28 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* Fallback View when No Video / Frames Exist */}
-        {!hasFramesAvailable && !isPreloading && (
-          <div className="absolute inset-0 z-30 bg-[#09090b] flex flex-col items-center justify-center text-white p-6 text-center border border-amber-500/20">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4 text-amber-400">
-              <Video size={34} />
-            </div>
-            <h3 className="text-xl font-black uppercase tracking-wider text-white mb-2">No Video Found</h3>
-            <p className="text-xs text-zinc-400 max-w-md font-medium">
-              Upload a construction video in the Admin Portal to automatically generate interactive storytelling frame animations.
-            </p>
-          </div>
+        {/* Seamless Video Playback when frames are not yet extracted */}
+        {!hasFramesAvailable && (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 filter brightness-95"
+            src="/videos/Background.mp4"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = "/app/public/videos/Background.mp4";
+            }}
+          />
         )}
 
         {/* Fullscreen Canvas Frame Animation */}
         <canvas
           ref={canvasDesktopRef}
-          className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0"
+          className={`w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 ${
+            hasFramesAvailable ? 'opacity-100' : 'opacity-0'
+          }`}
         />
 
         {/* Soft Dark Fade Gradient on Left Side */}

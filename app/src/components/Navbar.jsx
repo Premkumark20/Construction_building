@@ -53,6 +53,26 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const scrollToSection = (e, targetId) => {
+    e.preventDefault();
+    const el = document.getElementById(targetId);
+    if (!el) return;
+
+    const navbarHeight = 65;
+    const rect = el.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const targetY = rect.top + scrollTop - navbarHeight;
+
+    window.scrollTo({
+      top: Math.max(0, targetY),
+      behavior: 'smooth'
+    });
+
+    if (window.history.pushState) {
+      window.history.pushState(null, '', `#${targetId}`);
+    }
+  };
+
   // Determine active index for mobile bottom navigation cutout animation
   const activeMobileIndex = Math.max(
     0,
@@ -71,7 +91,11 @@ const Navbar = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           {/* Dynamic Brand Logo */}
-          <a href="#home" className="flex items-center gap-2.5 sm:gap-3 group">
+          <a
+            href="#home"
+            onClick={(e) => scrollToSection(e, 'home')}
+            className="flex items-center gap-2.5 sm:gap-3 group"
+          >
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-lg group-hover:border-amber-400 group-hover:scale-105 transition-all duration-300">
               <img
                 src={settings.logo_url || '/logo/sk-builders-logo.png'}
@@ -111,6 +135,7 @@ const Navbar = () => {
                 <a
                   key={item.id}
                   href={`#${item.id}`}
+                  onClick={(e) => scrollToSection(e, item.id)}
                   className={`py-1 relative transition-colors ${
                     isActive ? 'text-amber-400 font-extrabold' : 'text-zinc-300 hover:text-amber-400'
                   }`}
@@ -212,6 +237,7 @@ const Navbar = () => {
                 <a
                   key={item.id}
                   href={`#${item.id}`}
+                  onClick={(e) => scrollToSection(e, item.id)}
                   className="flex items-center justify-center h-full transition-all duration-300 relative group"
                   title={item.label}
                 >

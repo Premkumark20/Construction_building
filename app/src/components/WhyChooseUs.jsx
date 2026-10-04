@@ -126,19 +126,19 @@ const WhyChooseUs = () => {
   }, []);
 
   return (
-    <section ref={sectionRef} id="about" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="about" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20">
       {/* Scroll Container (Pinned on desktop only) */}
       <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex items-center justify-center py-10 sm:py-20 relative">
         {/* Background Ambient Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-amber-500/10 rounded-full blur-[160px] pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 items-stretch perspective-1200">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 items-stretch">
             
             {/* Left Main Card: Why Choose Us? */}
             <div
               ref={leftCardRef}
-              className="lg:col-span-7 gold-specular-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-white/15 shadow-2xl relative overflow-hidden group min-h-[320px] sm:min-h-[360px] flex flex-col justify-between tilt-3d"
+              className="lg:col-span-7 gold-specular-card rounded-2xl sm:rounded-3xl p-4 sm:p-8 border border-white/15 shadow-2xl relative overflow-hidden group min-h-[320px] sm:min-h-[360px] flex flex-col justify-between"
             >
               {/* Dynamic Specular Glare Layer */}
               <div className="specular-glare" />
@@ -156,14 +156,14 @@ const WhyChooseUs = () => {
               </div>
 
               {/* Foreground Content Overlay */}
-              <div className="relative z-10 w-full max-w-lg preserve-3d">
-                <h2 className="text-xl sm:text-3xl font-black text-white mb-3 sm:mb-6 tracking-tight translate-z-20">
+              <div className="relative z-10 w-full max-w-lg">
+                <h2 className="text-xl sm:text-3xl font-black text-white mb-3 sm:mb-6 tracking-tight">
                   Why Choose Us?
                 </h2>
 
                 <div
                   ref={reasonsContainerRef}
-                  className="flex flex-col items-start gap-2 sm:grid sm:grid-cols-2 sm:gap-3.5 translate-z-30"
+                  className="flex flex-col items-start gap-2 sm:grid sm:grid-cols-2 sm:gap-3.5"
                 >
                   {reasons.map((item, idx) => (
                     <div
@@ -185,17 +185,17 @@ const WhyChooseUs = () => {
             {/* Right Main Card: What Our Clients Say */}
             <div
               ref={rightCardRef}
-              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 tilt-3d relative min-h-[220px] sm:min-h-[360px]"
+              className="lg:col-span-5 gold-specular-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-8 border border-white/15 shadow-2xl flex flex-col justify-between transition-all duration-300 relative min-h-[220px] sm:min-h-[360px]"
             >
               {/* Dynamic Specular Glare Layer */}
               <div className="specular-glare" />
 
-              <div className="preserve-3d relative z-10">
-                <h2 className="text-lg sm:text-3xl font-black text-white mb-2.5 sm:mb-6 translate-z-20">
+              <div className="relative z-10">
+                <h2 className="text-lg sm:text-3xl font-black text-white mb-2.5 sm:mb-6">
                   What Our Clients Say
                 </h2>
 
-                <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 translate-z-30 group-hover:border-amber-500/30 transition-all">
+                <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 group-hover:border-amber-500/30 transition-all">
                   <div className="flex items-center justify-between mb-2.5 sm:mb-4">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-md">
                       <Quote size={16} className="text-amber-400" />

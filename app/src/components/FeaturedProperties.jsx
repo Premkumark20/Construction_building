@@ -172,13 +172,13 @@ const FeaturedProperties = () => {
   };
 
   return (
-    <section ref={sectionRef} id="properties" className="relative z-10 w-full bg-transparent text-white overflow-hidden border-t border-white/10">
+    <section ref={sectionRef} id="properties" className="relative z-10 w-full bg-transparent text-white overflow-hidden scroll-mt-16 sm:scroll-mt-20">
       {/* Stage Container (Pinned on desktop only) */}
-      <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center pt-6 pb-3 sm:py-20 relative">
+      <div ref={pinContainerRef} className="w-full min-h-0 sm:min-h-screen h-auto sm:h-screen overflow-hidden flex flex-col justify-center py-10 sm:py-20 relative">
         {/* Background Glow */}
         <div className="absolute top-1/2 right-10 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[160px] pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full mb-2 sm:mb-5">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10 w-full mb-3 sm:mb-6">
           {/* Section Header & Tab Controls */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4">
             <div ref={headerRef}>
@@ -223,7 +223,7 @@ const FeaturedProperties = () => {
             className={`py-2 sm:py-3 select-none perspective-1200 will-change-transform ${first10Items.length === 0 ? 'w-full flex justify-center' : 'flex gap-3 sm:gap-6 w-max'}`}
           >
             {first10Items.length === 0 ? (
-              <div className="w-full max-w-xl mx-auto py-8 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-2 relative z-10">
+              <div className="w-full max-w-xl mx-auto py-10 px-6 rounded-3xl bg-[#18181b]/90 border border-zinc-800 text-center backdrop-blur-md shadow-2xl my-3 relative z-10">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 text-amber-400">
                   {activeTab === 'Lands for Sale' ? <MapPin size={24} /> : <Home size={24} />}
                 </div>
