@@ -16,6 +16,11 @@ function saveBase64Image(base64Str) {
   if (!base64Str || typeof base64Str !== 'string') return base64Str;
   if (!base64Str.startsWith('data:image/')) return base64Str;
 
+  if (process.env.VERCEL) {
+    // On Vercel serverless, keep base64 Data URL directly so images render permanently in all browsers
+    return base64Str;
+  }
+
   const matches = base64Str.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,([\s\S]+)$/);
   if (!matches || matches.length < 3) return base64Str;
 
