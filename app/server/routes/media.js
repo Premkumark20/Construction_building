@@ -402,4 +402,49 @@ router.post('/set-primary-video', (req, res) => {
   });
 });
 
+// 7. GET active primary background video (for all site sections)
+const formatVideoUrl = (fp) => {
+  if (!fp) return '/videos/Background.mp4';
+  return fp.replace(/^app\/public\//, '/').replace(/^\/?/, '/');
+};
+
+router.get('/background-video', (req, res) => {
+  db.get(
+    "SELECT * FROM media_videos WHERE video_type = 'background' AND is_primary = 1 LIMIT 1",
+    [],
+    (err, row) => {
+      if (!err && row && row.filepath) {
+        return res.json({ videoUrl: formatVideoUrl(row.filepath), filename: row.filename });
+      }
+      // If no background video marked primary, check if any background video exists
+      db.get(
+        "SELECT * FROM media_videos WHERE video_type = 'background' LIMIT 1",
+        [],
+        (err2, row2) => {
+          if (!err2 && row2 && row2.filepath) {
+            return res.json({ videoUrl: formatVideoUrl(row2.filepath), filename: row2.filename });
+          }
+          // Default fallback to Background.mp4
+          res.json({ videoUrl: '/videos/Background.mp4', filename: 'Background.mp4' });
+        }
+      );
+    }
+  );
+});
+
+// 8. GET active primary hero video status
+router.get('/hero-video', (req, res) => {
+  db.get(
+    "SELECT * FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1 LIMIT 1",
+    [],
+    (err, row) => {
+      if (!err && row && row.filepath) {
+        const url = row.filepath.startsWith('/') ? row.filepath : `/${row.filepath}`;
+        return res.json({ videoUrl: url, filename: row.filename, hasHeroVideo: true });
+      }
+      res.json({ videoUrl: null, filename: null, hasHeroVideo: false });
+    }
+  );
+});
+
 export default router;

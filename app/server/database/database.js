@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { hashUsername, hashPassword } from '../utils/authCrypto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,14 +79,256 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
+const EMBEDDED_SCHEMA = `
+CREATE TABLE IF NOT EXISTS admin_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  facebook TEXT DEFAULT '',
+  instagram TEXT DEFAULT '',
+  whatsapp TEXT DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_name TEXT NOT NULL DEFAULT 'SK BUILDERS',
+  company_subtitle TEXT NOT NULL DEFAULT '& PROPERTY CONSULTANT',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT 'info@skbuilders.com',
+  location TEXT NOT NULL DEFAULT 'Poonamallee, Mangadu, Kundrathur, Tamil Nadu - 600056',
+  service_areas TEXT NOT NULL DEFAULT 'Poonamallee • Mangadu • Kundrathur',
+  hero_tagline TEXT NOT NULL DEFAULT 'BUILDING QUALITY HOMES.',
+  hero_headline_find TEXT NOT NULL DEFAULT 'Find',
+  hero_headline_property TEXT NOT NULL DEFAULT 'Right Property',
+  hero_headline_confidence TEXT NOT NULL DEFAULT 'Confidence',
+  hero_subtitle TEXT NOT NULL DEFAULT 'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.',
+  facebook_url TEXT DEFAULT 'https://facebook.com',
+  instagram_url TEXT DEFAULT 'https://instagram.com',
+  whatsapp_number TEXT DEFAULT '',
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS services (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  icon_name TEXT NOT NULL DEFAULT 'Home',
+  link_url TEXT NOT NULL DEFAULT '#properties',
+  display_order INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS properties (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  property_id TEXT,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL,
+  listing_type TEXT NOT NULL DEFAULT 'For Sale',
+  status TEXT NOT NULL DEFAULT 'Available',
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  landmark TEXT,
+  price TEXT NOT NULL,
+  price_display_type TEXT DEFAULT 'Exact Price',
+  negotiable TEXT DEFAULT 'Yes',
+  price_per_sqft TEXT,
+  bhk TEXT,
+  builtup_area TEXT,
+  plot_area TEXT,
+  facing TEXT,
+  floors TEXT,
+  furnished_status TEXT,
+  age_of_property TEXT,
+  possession_status TEXT,
+  bathrooms TEXT,
+  balconies TEXT,
+  parking TEXT,
+  water_source TEXT,
+  power_backup TEXT,
+  description TEXT,
+  features TEXT,
+  image TEXT,
+  images TEXT,
+  video_url TEXT,
+  featured INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS land_plots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  property_id TEXT,
+  title TEXT NOT NULL,
+  land_type TEXT NOT NULL DEFAULT 'Residential Land',
+  status TEXT NOT NULL DEFAULT 'Available',
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  landmark TEXT,
+  total_price TEXT NOT NULL,
+  price_display_type TEXT DEFAULT 'Exact Price',
+  negotiable TEXT DEFAULT 'Yes',
+  price_per_sqft TEXT,
+  plot_area TEXT NOT NULL,
+  plot_area_unit TEXT DEFAULT 'sq.ft',
+  plot_dimensions TEXT,
+  plot_length TEXT,
+  plot_breadth TEXT,
+  road_width TEXT,
+  road_width_unit TEXT DEFAULT 'feet',
+  facing TEXT,
+  boundary_wall TEXT DEFAULT 'No',
+  corner_plot TEXT DEFAULT 'No',
+  gated_community TEXT DEFAULT 'No',
+  dtcp_approved TEXT DEFAULT 'Yes',
+  rera_approved TEXT DEFAULT 'No',
+  cmda_approved TEXT DEFAULT 'No',
+  patta_status TEXT DEFAULT 'Yes',
+  soil_type TEXT,
+  water_source TEXT,
+  electricity TEXT DEFAULT 'Yes',
+  drainage TEXT DEFAULT 'No',
+  description TEXT,
+  features TEXT,
+  image TEXT,
+  images TEXT,
+  video_url TEXT,
+  featured INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Under Construction',
+  current_step INTEGER NOT NULL DEFAULT 1,
+  start_date TEXT,
+  estimated_completion TEXT,
+  actual_completion TEXT,
+  location TEXT,
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  client_name TEXT,
+  project_type TEXT,
+  total_area TEXT,
+  budget TEXT,
+  description TEXT,
+  specifications TEXT,
+  cover_image TEXT,
+  image TEXT,
+  video_url TEXT,
+  featured INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS project_stages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  step_number INTEGER NOT NULL,
+  stage_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  completion_percentage INTEGER DEFAULT 0,
+  start_date TEXT,
+  completion_date TEXT,
+  notes TEXT,
+  images TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS gallery (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  category TEXT DEFAULT 'General',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS testimonials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  quote TEXT NOT NULL,
+  rating INTEGER DEFAULT 5,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT DEFAULT '',
+  service TEXT DEFAULT 'General Inquiry',
+  property_id TEXT,
+  message TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS media_videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  filename TEXT NOT NULL,
+  filepath TEXT NOT NULL,
+  video_type TEXT DEFAULT 'hero',
+  is_primary INTEGER DEFAULT 0,
+  file_size INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_name TEXT NOT NULL,
+  phone TEXT,
+  location TEXT,
+  service TEXT DEFAULT 'General Feedback',
+  rating INTEGER DEFAULT 5,
+  message TEXT NOT NULL,
+  approved INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 function initDatabase() {
-  const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+  let schemaSql = '';
+  const candidatePaths = [
+    schemaPath,
+    path.join(process.cwd(), 'app/server/database/schema.sql'),
+    path.join(projectRoot, 'app/server/database/schema.sql')
+  ];
+
+  for (const p of candidatePaths) {
+    try {
+      if (p && fs.existsSync(p)) {
+        schemaSql = fs.readFileSync(p, 'utf8');
+        if (schemaSql) break;
+      }
+    } catch (e) {}
+  }
+
+  if (!schemaSql) {
+    schemaSql = EMBEDDED_SCHEMA;
+  }
+
   db.exec(schemaSql, (err) => {
     if (err) {
       console.error('Error executing schema SQL:', err);
-      return;
+    } else {
+      console.log('Database tables initialized.');
     }
-    console.log('Database tables initialized.');
     ensureColumns();
   });
 }
@@ -278,6 +521,12 @@ function ensureColumns() {
   safeAdd('admin_users', 'facebook', "TEXT DEFAULT ''");
   safeAdd('admin_users', 'instagram', "TEXT DEFAULT ''");
   safeAdd('admin_users', 'whatsapp', "TEXT DEFAULT ''");
+  safeAdd('admin_users', 'display_username', "TEXT DEFAULT ''");
+
+  safeAdd('leads', 'email', "TEXT DEFAULT ''");
+  safeAdd('leads', 'property_id', 'TEXT');
+  safeAdd('leads', 'service', "TEXT DEFAULT 'General Inquiry'");
+  safeAdd('leads', 'message', 'TEXT');
 
   safeAdd('media_videos', 'video_type', "TEXT DEFAULT 'hero'");
 
@@ -356,7 +605,29 @@ function seedInitialData() {
     }
   });
 
-  // No hardcoded admin user seeding - admin_users remains empty until master registration
+  // Auto-insert Row 1: Master recovery admin (buildername / iambuilder, hashed with salt)
+  // Row 2 will be the first and only registered user credential from the registration form
+  db.get("SELECT * FROM admin_users WHERE id = 1", [], (err, masterRow) => {
+    if (!err && !masterRow) {
+      const masterUser = 'buildername';
+      const masterPass = 'iambuilder';
+      const hashedMasterUser = hashUsername(masterUser);
+      const hashedMasterPass = hashPassword(masterPass);
+      db.run(
+        "INSERT OR IGNORE INTO admin_users (id, username, display_username, password, phone, email, facebook, instagram, whatsapp) VALUES (1, ?, 'buildername', ?, '', 'info@skbuilders.com', '', '', '')",
+        [hashedMasterUser, hashedMasterPass],
+        (insertErr) => {
+          if (insertErr) {
+            console.error('Error auto-inserting Row 1 master recovery admin:', insertErr.message);
+          } else {
+            console.log('Row 1 master recovery admin auto-inserted (buildername / iambuilder).');
+          }
+        }
+      );
+    } else if (masterRow && (!masterRow.display_username || masterRow.display_username === '')) {
+      db.run("UPDATE admin_users SET display_username = 'buildername' WHERE id = 1");
+    }
+  });
 
   // Seed site settings
   db.get("SELECT COUNT(*) as count FROM site_settings", [], (err, row) => {

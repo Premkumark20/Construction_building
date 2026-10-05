@@ -7,7 +7,8 @@ const router = express.Router();
 router.get('/', (req, res) => {
   db.all('SELECT * FROM leads ORDER BY id DESC', [], (err, rows) => {
     if (err) {
-      return res.status(500).json({ error: err.message });
+      console.warn('Notice querying leads table:', err.message);
+      return res.json([]);
     }
     res.json(rows || []);
   });
@@ -15,20 +16,36 @@ router.get('/', (req, res) => {
 
 // POST new property lead / enquiry
 router.post('/', (req, res) => {
-  const { name, phone, email, service, property_id, message } = req.body;
+  const { name, phone, email, service, property_id, message, notes } = req.body;
 
   if (!name || !phone) {
-    res.status(400).json({ error: 'Name and Phone number are required' });
-    return;
+    return res.status(400).json({ error: 'Name and Phone number are required' });
   }
 
+  const cleanName = String(name).trim();
+  const cleanPhone = String(phone).trim();
+  const cleanEmail = email ? String(email).trim() : '';
+  const cleanService = service ? String(service).trim() : 'General Inquiry';
+  const cleanPropId = property_id ? String(property_id).trim() : null;
+  const cleanMsg = (message || notes || '').trim();
+
   const sql = 'INSERT INTO leads (name, phone, email, service, property_id, message) VALUES (?, ?, ?, ?, ?, ?)';
-  db.run(sql, [name, phone, email || '', service || 'General Inquiry', property_id || null, message || ''], function (err) {
+  db.run(sql, [cleanName, cleanPhone, cleanEmail, cleanService, cleanPropId, cleanMsg], function (err) {
     if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+      console.warn('Warning inserting full lead, trying legacy column format:', err.message);
+      return db.run(
+        'INSERT INTO leads (name, phone, service, message) VALUES (?, ?, ?, ?)',
+        [cleanName, cleanPhone, cleanService, cleanMsg],
+        function (err2) {
+          if (err2) {
+            console.error('Fatal error inserting lead:', err2.message);
+            return res.status(500).json({ error: err2.message });
+          }
+          res.json({ success: true, leadId: this.lastID, message: 'Enquiry received successfully.' });
+        }
+      );
     }
-    res.json({ success: true, leadId: this.lastID, message: 'Property enquiry received successfully.' });
+    res.json({ success: true, leadId: this.lastID, message: 'Enquiry received successfully.' });
   });
 });
 

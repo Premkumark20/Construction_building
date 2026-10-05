@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, MessageCircle, MapPin, Send, Sparkles } from 'lucide-react';
+import { Phone, MapPin, Send, Sparkles, Mail } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSiteData } from '../hooks/useSiteData.js';
-import { handlePhoneCall, getWhatsAppUrl } from '../utils/phoneUtils.js';
+import { handlePhoneCall } from '../utils/phoneUtils.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -127,13 +127,16 @@ const ContactCTA = () => {
         body: JSON.stringify(formData)
       });
       if (res.ok) {
-        setStatusMsg('Thank you! Your enquiry has been received. We will call you back shortly.');
-        setFormData({ name: '', phone: '', service: 'House Construction', message: '' });
+        setStatusMsg('Enquiry submitted successfully! We will contact you shortly.');
       } else {
         setStatusMsg('Enquiry submitted successfully! We will contact you shortly.');
       }
     } catch (err) {
       setStatusMsg('Enquiry sent! We will contact you shortly.');
+    } finally {
+      // Always reset all input fields, service selection, and suggestion tags
+      setFormData({ name: '', phone: '', service: 'Contract Construction', message: '' });
+      setTimeout(() => setStatusMsg(''), 6000);
     }
   };
 
@@ -178,18 +181,16 @@ const ContactCTA = () => {
                   </a>
 
                   <a
-                    href={getWhatsAppUrl(settings.whatsapp_number || settings.phone, "Hi, I'm interested in your property services.")}
-                    target={settings.whatsapp_number || settings.phone ? '_blank' : '_self'}
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-[#09090b]/80 hover:bg-[#121216] border border-white/10 hover:border-amber-500/40 transition-all duration-300 group shadow-md"
+                    href={settings?.email ? `mailto:${settings.email}` : 'mailto:info@skbuilders.com'}
+                    className="flex items-center gap-2 sm:gap-2.5 p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-[#09090b]/80 hover:bg-[#121216] border border-white/10 hover:border-amber-500/40 transition-all duration-300 group shadow-md min-w-0"
                   >
-                    <div className="p-2 sm:p-2.5 bg-amber-500/10 rounded-lg sm:rounded-xl text-amber-400 group-hover:bg-amber-500 group-hover:text-black border border-amber-500/30 shrink-0 transition-colors shadow-sm">
-                      <MessageCircle size={16} />
+                    <div className="p-1.5 sm:p-2 bg-amber-500/10 rounded-lg sm:rounded-xl text-amber-400 group-hover:bg-amber-500 group-hover:text-black border border-amber-500/30 shrink-0 transition-colors shadow-sm">
+                      <Mail size={15} />
                     </div>
-                    <div>
-                      <div className="text-[9.5px] text-zinc-400 font-bold uppercase tracking-wider">WhatsApp</div>
-                      <div className="text-[11.5px] sm:text-xs font-black text-amber-400 group-hover:text-amber-300">
-                        {settings.whatsapp_number || settings.phone ? `+91 ${settings.whatsapp_number || settings.phone}` : 'Chat with Us'}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[9.5px] text-zinc-400 font-bold uppercase tracking-wider">Email Us</div>
+                      <div className="text-[10px] sm:text-[11px] lg:text-xs font-black text-amber-400 group-hover:text-amber-300 break-all leading-snug">
+                        {settings?.email || 'info@skbuilders.com'}
                       </div>
                     </div>
                   </a>

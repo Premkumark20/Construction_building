@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
 
 const notifySiteDataUpdated = () => {
   try {
@@ -564,8 +564,7 @@ const AdminDashboard = () => {
   const [loginError, setLoginError] = useState('');
 
   // Dynamic Auth Status & Register Form States
-  const [hasAdmin, setHasAdmin] = useState(null); // null = checking, false = empty (show register), true = admin exists (show login)
-  const [authViewOverride, setAuthViewOverride] = useState(null); // null | 'login' | 'register'
+  const [hasAdmin, setHasAdmin] = useState(null); // null = checking, false = uninitialized (show register), true = registered (show login)
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [registerForm, setRegisterForm] = useState({
     username: '',
@@ -584,12 +583,29 @@ const AdminDashboard = () => {
   const [isRegistering, setIsRegistering] = useState(false);
 
   // Admin Credentials CRUD State
+  const [adminInfo, setAdminInfo] = useState({ username: '', display_username: '' });
   const [adminUserForm, setAdminUserForm] = useState({ currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' });
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [credStatusMsg, setCredStatusMsg] = useState('');
   const [credErrorMsg, setCredErrorMsg] = useState('');
   const [settingStatusMsg, setSettingStatusMsg] = useState('');
+
+  // Security Section Data Reset State
+  const [resetSelection, setResetSelection] = useState({
+    all: false,
+    properties: false,
+    land: false,
+    projects: false,
+    gallery: false,
+    feedbacks: false,
+    leads: false
+  });
+  const [isResettingData, setIsResettingData] = useState(false);
+  const [resetStatusMsg, setResetStatusMsg] = useState('');
+  const [resetErrorMsg, setResetErrorMsg] = useState('');
+
+  const isAnyDataSelectedForReset = resetSelection.properties || resetSelection.land || resetSelection.projects || resetSelection.gallery || resetSelection.feedbacks || resetSelection.leads;
 
   const VALID_TABS = ['dashboard', 'properties', 'land', 'projects', 'gallery', 'feedbacks', 'testimonials', 'leads', 'settings', 'videos'];
 
@@ -603,6 +619,21 @@ const AdminDashboard = () => {
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('admin_active_tab', tabId);
+    if (tabId === 'settings') {
+      fetch('/api/settings')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.settings) setSettings(data.settings);
+          if (data?.admin?.username) {
+            setAdminInfo(data.admin);
+            setAdminUserForm(prev => ({
+              ...prev,
+              newUsername: prev.newUsername || data.admin.username
+            }));
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   // Modal Form Visibility States
@@ -620,8 +651,8 @@ const AdminDashboard = () => {
   const defaultSettingsState = {
     company_name: 'SK BUILDERS',
     company_subtitle: '& PROPERTY CONSULTANT',
-    phone: '9876543210',
-    whatsapp_number: '9876543210',
+    phone: '',
+    whatsapp_number: '',
     email: 'info@skbuilders.com',
     location: 'Poonamallee, Chennai',
     service_areas: 'Poonamallee, Mangadu, Kundrathur',
@@ -740,7 +771,7 @@ const AdminDashboard = () => {
     e.dataTransfer.effectAllowed = 'move';
     try {
       e.dataTransfer.setData('text/plain', String(index));
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const handleImageDragOver = (e, index) => {
@@ -985,7 +1016,7 @@ const AdminDashboard = () => {
   const handleLandImageDragStart = (e, index) => {
     setDraggedLandImgIdx(index);
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) {}
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) { }
   };
 
   const handleLandImageDragOver = (e, index) => {
@@ -1192,7 +1223,7 @@ const AdminDashboard = () => {
   const handleProjImageDragStart = (e, index) => {
     setDraggedProjImgIdx(index);
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) {}
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) { }
   };
 
   const handleProjImageDragOver = (e, index) => {
@@ -1360,6 +1391,10 @@ const AdminDashboard = () => {
       if (res.ok) {
         const data = await res.json();
         setHasAdmin(!!data.hasAdmin);
+        if (data.username) {
+          setAdminInfo(prev => ({ ...prev, username: data.username, display_username: data.username }));
+          setAdminUserForm(prev => ({ ...prev, newUsername: data.username }));
+        }
       } else {
         setHasAdmin(true);
       }
@@ -1383,8 +1418,12 @@ const AdminDashboard = () => {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.settings) setSettings(data.settings);
+          if (data?.admin?.username) {
+            setAdminInfo(data.admin);
+            setAdminUserForm(prev => ({ ...prev, newUsername: data.admin.username }));
+          }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, []);
 
@@ -1417,6 +1456,18 @@ const AdminDashboard = () => {
           }
           return prev;
         });
+      }
+
+      if (sRes?.admin?.username) {
+        setAdminInfo(sRes.admin);
+        // ONLY prefill username inputs from DB inside Admin Settings; passwords remain completely blank
+        setAdminUserForm(prev => ({
+          ...prev,
+          newUsername: sRes.admin.username,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        }));
       }
       setServices(Array.isArray(srvRes) ? srvRes : []);
       setProperties(Array.isArray(propRes?.properties) ? propRes.properties : (Array.isArray(propRes) ? propRes : []));
@@ -1465,6 +1516,11 @@ const AdminDashboard = () => {
 
     if (!registerForm.username || !registerForm.username.trim()) {
       setRegisterError('Admin username is required.');
+      return;
+    }
+
+    if (!registerForm.phone || !registerForm.phone.trim()) {
+      setRegisterError('Mobile number is required.');
       return;
     }
 
@@ -1519,9 +1575,30 @@ const AdminDashboard = () => {
     setCredStatusMsg('');
     setCredErrorMsg('');
 
-    if (adminUserForm.newPassword !== adminUserForm.confirmPassword) {
-      setCredErrorMsg('New passwords do not match!');
+    const newU = (adminUserForm.newUsername || '').trim();
+    const newP = (adminUserForm.newPassword || '').trim();
+    const confirmP = (adminUserForm.confirmPassword || '').trim();
+    const currentP = (adminUserForm.currentPassword || '').trim();
+
+    if (!currentP) {
+      setCredErrorMsg('Current password is required to confirm changes.');
       return;
+    }
+
+    if (!newU && !newP) {
+      setCredErrorMsg('Please provide a new username, a new password, or both to update.');
+      return;
+    }
+
+    if (newP) {
+      if (newP !== confirmP) {
+        setCredErrorMsg('New passwords do not match!');
+        return;
+      }
+      if (newP.length < 4) {
+        setCredErrorMsg('New password must be at least 4 characters long.');
+        return;
+      }
     }
 
     try {
@@ -1529,16 +1606,17 @@ const AdminDashboard = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentPassword: adminUserForm.currentPassword,
-          newUsername: adminUserForm.newUsername,
-          newPassword: adminUserForm.newPassword
+          currentPassword: currentP,
+          newUsername: newU,
+          newPassword: newP
         })
       });
 
       const data = await res.json();
       if (res.ok) {
-        setCredStatusMsg('Admin username & password updated successfully!');
-        setAdminUserForm({ currentPassword: '', newUsername: adminUserForm.newUsername, newPassword: '', confirmPassword: '' });
+        setCredStatusMsg(data.message || 'Admin credentials updated successfully!');
+        setAdminUserForm({ currentPassword: '', newUsername: newU || adminUserForm.newUsername, newPassword: '', confirmPassword: '' });
+        setAdminInfo(prev => ({ ...prev, username: newU || prev.username, display_username: newU || prev.display_username }));
         fetchData();
         setTimeout(() => setCredStatusMsg(''), 4000);
       } else {
@@ -1546,6 +1624,80 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       setCredErrorMsg('Server error updating credentials.');
+    }
+  };
+
+  const handleToggleResetAll = (checked) => {
+    setResetSelection({
+      all: checked,
+      properties: checked,
+      land: checked,
+      projects: checked,
+      gallery: checked,
+      feedbacks: checked,
+      leads: checked
+    });
+  };
+
+  const handleToggleResetItem = (key, checked) => {
+    setResetSelection(prev => {
+      const next = { ...prev, [key]: checked };
+      const allChecked = next.properties && next.land && next.projects && next.gallery && next.feedbacks && next.leads;
+      return { ...next, all: allChecked };
+    });
+  };
+
+  const handleExecuteReset = () => {
+    const selectedKeys = ['properties', 'land', 'projects', 'gallery', 'feedbacks', 'leads'].filter(k => resetSelection[k]);
+    if (selectedKeys.length === 0) {
+      setResetErrorMsg('Please select at least one category to reset.');
+      setTimeout(() => setResetErrorMsg(''), 4000);
+      return;
+    }
+    setModalType('confirm_reset');
+  };
+
+  const performActualReset = async () => {
+    setIsResettingData(true);
+    setResetStatusMsg('');
+    setResetErrorMsg('');
+
+    try {
+      const res = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          properties: resetSelection.properties,
+          land: resetSelection.land,
+          projects: resetSelection.projects,
+          gallery: resetSelection.gallery,
+          feedbacks: resetSelection.feedbacks,
+          leads: resetSelection.leads
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResetStatusMsg(data.message || 'Selected data and physical image files purged successfully!');
+        setResetSelection({
+          all: false,
+          properties: false,
+          land: false,
+          projects: false,
+          gallery: false,
+          feedbacks: false,
+          leads: false
+        });
+        await fetchData();
+        notifySiteDataUpdated();
+        setTimeout(() => setResetStatusMsg(''), 8000);
+      } else {
+        setResetErrorMsg(data.error || 'Failed to execute data reset.');
+      }
+    } catch (err) {
+      setResetErrorMsg('Network error connecting to reset service.');
+    } finally {
+      setIsResettingData(false);
     }
   };
 
@@ -1638,7 +1790,10 @@ const AdminDashboard = () => {
     sessionStorage.removeItem('admin_active_tab');
     sessionStorage.clear();
     setIsAuthenticated(false);
-    checkAuthStatus();
+    setUsername('');
+    setPassword('');
+    setAdminUserForm({ currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' });
+    checkAuthStatus(true);
   };
 
   const uploadImageFile = async (file) => {
@@ -2282,7 +2437,7 @@ const AdminDashboard = () => {
     setDeleteConfig({
       title: `Are you sure you want to delete the inquiry from "${name}"?`,
       onConfirm: async () => {
-        await fetch(`/api/leads/${id}`, { method: 'DELETE' }).catch(() => {});
+        await fetch(`/api/leads/${id}`, { method: 'DELETE' }).catch(() => { });
         setLeads(prev => prev.filter(l => l.id !== id));
         fetchData();
         setModalType(null);
@@ -2362,8 +2517,8 @@ const AdminDashboard = () => {
       );
     }
 
-    // B. REGISTER SCREEN (Rendered when no admin exists, or user toggled to register)
-    const showRegister = authViewOverride ? authViewOverride === 'register' : (hasAdmin === false);
+    // B. REGISTER SCREEN (Rendered for first time setup when user has not registered yet)
+    const showRegister = hasAdmin === false;
     if (showRegister) {
       return (
         <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 relative overflow-hidden text-white selection:bg-amber-500 selection:text-black">
@@ -2376,15 +2531,8 @@ const AdminDashboard = () => {
 
           {/* Gold Specular Glassmorphism Form Card */}
           <div className="gold-specular-card bg-[#121216]/95 border border-amber-500/35 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-[0_0_60px_rgba(245,158,11,0.2)] relative z-10 animate-fadeIn">
-            <div className="specular-glare" />
-
             {/* Logo & Header */}
             <div className="text-center mb-6 relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-widest mb-4">
-                <Sparkles size={12} className="text-amber-400" />
-                First-Time Setup
-              </div>
-
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
                 {settings?.logo_url ? (
                   <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-11 h-11 object-contain" />
@@ -2397,7 +2545,7 @@ const AdminDashboard = () => {
                 Create Admin Account
               </h2>
               <p className="text-xs font-semibold text-zinc-400 max-w-sm mx-auto">
-                Set up your master administrator username & password to manage your business showcase.
+                Set up your administrator username, mobile number & password to manage your business showcase.
               </p>
             </div>
 
@@ -2423,6 +2571,26 @@ const AdminDashboard = () => {
                     value={registerForm.username}
                     onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
                     placeholder="Enter admin username"
+                    className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Mobile Number - Mandatory & Next to Username */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Mobile Number <span className="text-amber-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none">
+                    <Phone size={16} />
+                  </div>
+                  <input
+                    type="tel"
+                    value={registerForm.phone}
+                    onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value.replace(/[^0-9+ ]/g, '') })}
+                    placeholder="Enter mobile number (e.g. 9876543210)"
                     className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
                     required
                   />
@@ -2485,7 +2653,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Collapsible Optional Contact Details */}
+              {/* Collapsible Optional Contact Details (Phone removed, only email & socials) */}
               <div className="pt-2">
                 <button
                   type="button"
@@ -2493,34 +2661,22 @@ const AdminDashboard = () => {
                   className="w-full flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-zinc-400 hover:text-amber-400 transition-colors py-2 px-3 rounded-xl bg-zinc-900/60 border border-zinc-800"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Phone size={13} className="text-amber-400" /> Optional Contact & Social Links
+                    <Share2 size={13} className="text-amber-400" /> Optional Contact & Social Links
                   </span>
                   {showOptionalSocials ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
 
                 {showOptionalSocials && (
                   <div className="mt-3 space-y-3 p-3.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80 animate-fadeIn">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Phone Number</label>
-                        <input
-                          type="text"
-                          value={registerForm.phone}
-                          onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
-                          placeholder="e.g. 7358266257"
-                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Email Address</label>
-                        <input
-                          type="email"
-                          value={registerForm.email}
-                          onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                          placeholder="e.g. info@skbuilders.com"
-                          className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-zinc-400 mb-1 uppercase">Email Address</label>
+                      <input
+                        type="email"
+                        value={registerForm.email}
+                        onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                        placeholder="e.g. info@skbuilders.com"
+                        className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+                      />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2530,7 +2686,7 @@ const AdminDashboard = () => {
                           type="text"
                           value={registerForm.whatsapp}
                           onChange={(e) => setRegisterForm({ ...registerForm, whatsapp: e.target.value })}
-                          placeholder="WhatsApp number"
+                          placeholder="WhatsApp number (optional)"
                           className="w-full bg-[#09090b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
                         />
                       </div>
@@ -2570,21 +2726,10 @@ const AdminDashboard = () => {
                 ) : (
                   <>
                     <CheckCircle size={16} className="text-black group-hover:scale-110 transition-transform" />
-                    <span>Create Master Admin & Enter Dashboard</span>
+                    <span>Create Admin Account & Enter Dashboard</span>
                   </>
                 )}
               </button>
-
-              {/* Toggle to Login screen for master recovery credentials */}
-              <div className="mt-4 pt-3 border-t border-zinc-800/80 text-center">
-                <button
-                  type="button"
-                  onClick={() => { setAuthViewOverride('login'); setLoginError(''); setRegisterError(''); }}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                >
-                  Have master recovery or existing credentials? <span className="underline">Sign In</span>
-                </button>
-              </div>
             </form>
           </div>
         </div>
@@ -2686,18 +2831,7 @@ const AdminDashboard = () => {
             </button>
           </form>
 
-          {/* Toggle back to Register screen if first-time setup */}
-          {hasAdmin === false && (
-            <div className="mt-4 pt-3 border-t border-zinc-800/80 text-center">
-              <button
-                type="button"
-                onClick={() => { setAuthViewOverride('register'); setLoginError(''); setRegisterError(''); }}
-                className="text-[11px] text-amber-400 hover:text-amber-300 font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-              >
-                First-time setup? <span className="underline">Create Admin Account</span>
-              </button>
-            </div>
-          )}
+
 
           {/* Footer note */}
           <div className="mt-6 pt-4 border-t border-white/5 text-center text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
@@ -2726,11 +2860,10 @@ const AdminDashboard = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => handleTabChange('settings')}
-            className={`font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${
-              activeTab === 'settings'
+            className={`font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${activeTab === 'settings'
                 ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
                 : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-amber-400 border-zinc-700/70'
-            }`}
+              }`}
           >
             <Settings size={14} /> Admin Settings
           </button>
@@ -2752,8 +2885,8 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Tab Navigation (Single Line Full Width) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 w-full gap-1.5 pb-2 border-b border-zinc-800 overflow-x-auto scrollbar-none">
+        {/* Tab Navigation (Horizontal X-Axis Scroll on Mobile, Full Grid on Desktop) */}
+        <div className="flex xl:grid xl:grid-cols-9 w-full gap-2 pb-2.5 border-b border-zinc-800 overflow-x-auto scrollbar-none snap-x touch-pan-x -mx-1 px-1 xl:mx-0 xl:px-0">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: <Layers size={14} /> },
             { id: 'properties', label: 'Properties', icon: <Building size={14} /> },
@@ -2770,14 +2903,13 @@ const AdminDashboard = () => {
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
               title={tab.label}
-              className={`w-full px-2 py-2.5 rounded-xl text-[10.5px] xl:text-xs font-black uppercase tracking-tight flex items-center justify-center gap-1.5 transition-all text-center whitespace-nowrap overflow-hidden ${
-                activeTab === tab.id
+              className={`shrink-0 xl:shrink xl:w-full px-3.5 xl:px-2 py-2.5 rounded-xl text-[11px] xl:text-xs font-black uppercase tracking-tight flex items-center justify-center gap-1.5 transition-all text-center whitespace-nowrap snap-start cursor-pointer ${activeTab === tab.id
                   ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20 font-extrabold'
                   : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800 hover:border-amber-500/40'
-              }`}
+                }`}
             >
               <span className="shrink-0">{tab.icon}</span>
-              <span className="truncate">{tab.label}</span>
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -3718,11 +3850,10 @@ const AdminDashboard = () => {
                         <button
                           type="button"
                           onClick={() => handleToggleFeedbackApproval(f.id, f.approved)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                            f.approved
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${f.approved
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
                               : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white'
-                          }`}
+                            }`}
                         >
                           <CheckCircle size={12} className={f.approved ? 'text-emerald-400' : 'text-zinc-500'} />
                           <span className="text-[11px]">{f.approved ? 'Published on Site' : 'Hidden'}</span>
@@ -3790,10 +3921,10 @@ const AdminDashboard = () => {
                     l.service === 'House Construction'
                       ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
                       : l.service === 'House for Sale' || l.service === 'Individual House Purchase'
-                      ? 'bg-blue-500/15 text-blue-300 border-blue-500/40'
-                      : l.service === 'Land for Sale' || l.service === 'Residential Land Purchase'
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                      : 'bg-purple-500/15 text-purple-300 border-purple-500/40';
+                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+                        : l.service === 'Land for Sale' || l.service === 'Residential Land Purchase'
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                          : 'bg-purple-500/15 text-purple-300 border-purple-500/40';
 
                   return (
                     <div
@@ -3924,21 +4055,25 @@ const AdminDashboard = () => {
                     <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">New Admin Username</label>
                     <input
                       type="text"
-                      value={adminUserForm.newUsername}
-                      onChange={(e) => setAdminUserForm({ ...adminUserForm, newUsername: e.target.value })}
-                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
-                      required
+                      value={adminUserForm.newUsername !== '' ? adminUserForm.newUsername : (adminInfo.username || '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAdminUserForm({ ...adminUserForm, newUsername: val });
+                        setAdminInfo(prev => ({ ...prev, username: val }));
+                      }}
+                      placeholder="Enter Username"
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 shadow-sm"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">Current Password (To Confirm Change)</label>
+                    <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">Current Password (Required)</label>
                     <div className="relative">
                       <input
                         type={showCurrentPassword ? 'text' : 'password'}
                         value={adminUserForm.currentPassword}
                         onChange={(e) => setAdminUserForm({ ...adminUserForm, currentPassword: e.target.value })}
-                        placeholder="Current password"
+                        placeholder="Current Password"
                         className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500 pr-10"
                         required
                       />
@@ -3962,7 +4097,7 @@ const AdminDashboard = () => {
                         type={showNewPassword ? 'text' : 'password'}
                         value={adminUserForm.newPassword}
                         onChange={(e) => setAdminUserForm({ ...adminUserForm, newPassword: e.target.value })}
-                        placeholder="Enter new password"
+                        placeholder="Enter New Password"
                         className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500 pr-10"
                         required
                       />
@@ -3983,7 +4118,7 @@ const AdminDashboard = () => {
                       type={showNewPassword ? 'text' : 'password'}
                       value={adminUserForm.confirmPassword}
                       onChange={(e) => setAdminUserForm({ ...adminUserForm, confirmPassword: e.target.value })}
-                      placeholder="Repeat new password"
+                      placeholder="Repeat New Password"
                       className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
                       required
                     />
@@ -3993,7 +4128,7 @@ const AdminDashboard = () => {
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-2 transition-all"
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-2 transition-all cursor-pointer"
                   >
                     <Save size={16} /> Update Admin Credentials
                   </button>
@@ -4105,7 +4240,8 @@ const AdminDashboard = () => {
                     <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">Phone Number</label>
                     <input
                       type="text"
-                      value={settingsForm.phone ?? settings.phone ?? '9876543210'}
+                      value={settingsForm.phone ?? settings.phone ?? ''}
+                      placeholder="Enter phone number"
                       onChange={(e) => {
                         setIsSettingsFormDirty(true);
                         setSettingsForm({ ...settingsForm, phone: e.target.value });
@@ -4118,7 +4254,8 @@ const AdminDashboard = () => {
                     <label className="block text-xs font-extrabold uppercase text-zinc-400 mb-1">WhatsApp Number</label>
                     <input
                       type="text"
-                      value={settingsForm.whatsapp_number ?? settings.whatsapp_number ?? '9876543210'}
+                      value={settingsForm.whatsapp_number ?? settings.whatsapp_number ?? ''}
+                      placeholder="Enter WhatsApp number"
                       onChange={(e) => {
                         setIsSettingsFormDirty(true);
                         setSettingsForm({ ...settingsForm, whatsapp_number: e.target.value });
@@ -4192,6 +4329,196 @@ const AdminDashboard = () => {
                 </div>
               </form>
             </div>
+
+            {/* Section C: Security Data Reset & Physical File Purge (Simplified) */}
+            <div className="bg-[#121114] rounded-3xl border border-red-950/40 p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-2">
+                <div className="flex items-center gap-2.5 text-white">
+                  <div className="w-8 h-8 rounded-xl bg-red-950/50 border border-red-800/40 flex items-center justify-center text-red-400 shrink-0">
+                    <Trash2 size={16} />
+                  </div>
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-white">
+                    SECURITY: DATA RESET & PHYSICAL FILE PURGE
+                  </h3>
+                </div>
+                <span className="text-[10px] font-black bg-red-950/60 text-red-400 px-3 py-1 rounded-full uppercase border border-red-800/40 tracking-wider">
+                  DANGER SECURITY
+                </span>
+              </div>
+
+              {resetStatusMsg && (
+                <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold p-3.5 rounded-2xl flex items-center gap-2">
+                  <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                  <span>{resetStatusMsg}</span>
+                </div>
+              )}
+
+              {resetErrorMsg && (
+                <div className="bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold p-3.5 rounded-2xl flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-red-400 shrink-0" />
+                  <span>{resetErrorMsg}</span>
+                </div>
+              )}
+
+              {/* SELECT ALL Row */}
+              <div
+                onClick={() => handleToggleResetAll(!resetSelection.all)}
+                className="bg-[#0b0a0d] border border-zinc-800/80 hover:border-zinc-700 rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-all select-none"
+              >
+                <label className="flex items-center gap-3 cursor-pointer pointer-events-none">
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.all}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-black uppercase tracking-wider text-white">SELECT ALL</span>
+                </label>
+                <span className="text-[10px] font-black uppercase tracking-wider text-red-400 bg-red-950/50 border border-red-800/40 px-2.5 py-0.5 rounded-md">
+                  ALL
+                </span>
+              </div>
+
+              {/* 3x2 Category Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {/* Properties */}
+                <div
+                  onClick={() => handleToggleResetItem('properties', !resetSelection.properties)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.properties ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.properties}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <Home size={15} className="text-amber-400" />
+                    <span className="text-xs font-extrabold text-white">Properties</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({properties.length})</span>
+                  </div>
+                </div>
+
+                {/* Land / Plots */}
+                <div
+                  onClick={() => handleToggleResetItem('land', !resetSelection.land)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.land ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.land}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <Map size={15} className="text-teal-400" />
+                    <span className="text-xs font-extrabold text-white">Land / Plots</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({land.length})</span>
+                  </div>
+                </div>
+
+                {/* Projects */}
+                <div
+                  onClick={() => handleToggleResetItem('projects', !resetSelection.projects)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.projects ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.projects}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <Building size={15} className="text-blue-400" />
+                    <span className="text-xs font-extrabold text-white">Projects</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({projects.length})</span>
+                  </div>
+                </div>
+
+                {/* Gallery */}
+                <div
+                  onClick={() => handleToggleResetItem('gallery', !resetSelection.gallery)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.gallery ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.gallery}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <ImageIcon size={15} className="text-purple-400" />
+                    <span className="text-xs font-extrabold text-white">Gallery</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({gallery.length})</span>
+                  </div>
+                </div>
+
+                {/* Feedbacks */}
+                <div
+                  onClick={() => handleToggleResetItem('feedbacks', !resetSelection.feedbacks)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.feedbacks ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.feedbacks}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <Star size={15} className="text-amber-400" />
+                    <span className="text-xs font-extrabold text-white">Feedbacks</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({feedbacks.length})</span>
+                  </div>
+                </div>
+
+                {/* Leads */}
+                <div
+                  onClick={() => handleToggleResetItem('leads', !resetSelection.leads)}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
+                    resetSelection.leads ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={resetSelection.leads}
+                    onChange={() => {}}
+                    className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
+                  />
+                  <div className="flex items-center gap-2 pointer-events-none">
+                    <Mail size={15} className="text-rose-400" />
+                    <span className="text-xs font-extrabold text-white">Leads</span>
+                    <span className="text-[11px] text-zinc-400 font-semibold">({leads.length})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleExecuteReset}
+                  disabled={isResettingData || !isAnyDataSelectedForReset}
+                  className={`font-black text-xs uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg ${
+                    isResettingData || !isAnyDataSelectedForReset
+                      ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 opacity-40 cursor-not-allowed pointer-events-none'
+                      : 'bg-red-950/80 hover:bg-red-900 border border-red-800/60 text-red-300 hover:text-white cursor-pointer'
+                  }`}
+                >
+                  <Trash2 size={15} />
+                  <span>{isResettingData ? 'RESETTING DATA...' : 'RESET SELECTED DATA (DB & FILES)'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -4203,17 +4530,15 @@ const AdminDashboard = () => {
               <button
                 type="button"
                 onClick={() => setVideoSectionTab('hero')}
-                className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${
-                  videoSectionTab === 'hero'
+                className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${videoSectionTab === 'hero'
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
                     : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
-                }`}
+                  }`}
               >
                 <Video size={14} />
                 <span>Hero Construction Video</span>
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
-                  videoSectionTab === 'hero' ? 'bg-black/20 text-black' : 'bg-zinc-800 text-amber-400'
-                }`}>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${videoSectionTab === 'hero' ? 'bg-black/20 text-black' : 'bg-zinc-800 text-amber-400'
+                  }`}>
                   {heroVideos.length}
                 </span>
               </button>
@@ -4221,17 +4546,15 @@ const AdminDashboard = () => {
               <button
                 type="button"
                 onClick={() => setVideoSectionTab('background')}
-                className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${
-                  videoSectionTab === 'background'
+                className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${videoSectionTab === 'background'
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
                     : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
-                }`}
+                  }`}
               >
                 <Layers size={14} />
                 <span>Site Background Video</span>
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
-                  videoSectionTab === 'background' ? 'bg-black/20 text-black' : 'bg-zinc-800 text-amber-400'
-                }`}>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${videoSectionTab === 'background' ? 'bg-black/20 text-black' : 'bg-zinc-800 text-amber-400'
+                  }`}>
                   {bgVideos.length}
                 </span>
               </button>
@@ -4285,11 +4608,10 @@ const AdminDashboard = () => {
                           setCustomHeroVideoName(e.target.value);
                           setHeroDupError(false);
                         }}
-                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${
-                          heroDupError
+                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${heroDupError
                             ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
                             : 'bg-[#09090b] border border-zinc-800'
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -4331,9 +4653,8 @@ const AdminDashboard = () => {
                             setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
                             setModalType('rename_video');
                           }}
-                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${
-                            vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
-                          }`}
+                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
+                            }`}
                         >
                           <div className="space-y-1">
                             <div className="font-extrabold text-xs text-white flex items-center gap-2">
@@ -4426,11 +4747,10 @@ const AdminDashboard = () => {
                           setCustomBgVideoName(e.target.value);
                           setBgDupError(false);
                         }}
-                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${
-                          bgDupError
+                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${bgDupError
                             ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
                             : 'bg-[#09090b] border border-zinc-800'
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -4474,9 +4794,8 @@ const AdminDashboard = () => {
                             setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
                             setModalType('rename_video');
                           }}
-                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${
-                            vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
-                          }`}
+                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
+                            }`}
                         >
                           <div className="space-y-1">
                             <div className="font-extrabold text-xs text-white flex items-center gap-2">
@@ -4558,11 +4877,10 @@ const AdminDashboard = () => {
                       key={idx}
                       type="button"
                       onClick={() => setFormStep(idx + 1)}
-                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${
-                        formStep === idx + 1
+                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${formStep === idx + 1
                           ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold'
                           : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {label}
                     </button>
@@ -4625,15 +4943,14 @@ const AdminDashboard = () => {
                                 onDragLeave={(e) => handleImageDragLeave(e, idx)}
                                 onDrop={(e) => handleImageDrop(e, idx)}
                                 onDragEnd={handleImageDragEnd}
-                                className={`relative rounded-xl overflow-hidden border cursor-grab active:cursor-grabbing select-none transition-all duration-150 flex flex-col ${
-                                  isBeingDragged
+                                className={`relative rounded-xl overflow-hidden border cursor-grab active:cursor-grabbing select-none transition-all duration-150 flex flex-col ${isBeingDragged
                                     ? 'opacity-30 scale-95 border-dashed border-amber-500 ring-2 ring-amber-500/50'
                                     : isDragTarget
-                                    ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-500/20 scale-[1.03] shadow-xl'
-                                    : idx === 0
-                                    ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg bg-black/60'
-                                    : 'border-zinc-800 bg-black/60 hover:border-zinc-700'
-                                }`}
+                                      ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-500/20 scale-[1.03] shadow-xl'
+                                      : idx === 0
+                                        ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg bg-black/60'
+                                        : 'border-zinc-800 bg-black/60 hover:border-zinc-700'
+                                  }`}
                               >
                                 <div className="aspect-video w-full overflow-hidden flex items-center justify-center bg-zinc-950 relative pointer-events-none">
                                   <img src={imgItem.url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
@@ -5246,9 +5563,8 @@ const AdminDashboard = () => {
                       key={idx}
                       type="button"
                       onClick={() => setFormStep(idx + 1)}
-                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${
-                        formStep === idx + 1 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold' : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${formStep === idx + 1 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold' : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
+                        }`}
                     >
                       {label}
                     </button>
@@ -5309,15 +5625,14 @@ const AdminDashboard = () => {
                                 onDragLeave={(e) => handleLandImageDragLeave(e, idx)}
                                 onDrop={(e) => handleLandImageDrop(e, idx)}
                                 onDragEnd={handleLandImageDragEnd}
-                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${
-                                  isBeingDragged
+                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${isBeingDragged
                                     ? 'opacity-30 scale-95 border-amber-500'
                                     : isOver
-                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
-                                    : isCover
-                                    ? 'border-amber-500 ring-1 ring-amber-500/40'
-                                    : 'border-zinc-800 hover:border-zinc-600'
-                                }`}
+                                      ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                      : isCover
+                                        ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                        : 'border-zinc-800 hover:border-zinc-600'
+                                  }`}
                               >
                                 <img
                                   src={imgItem.url}
@@ -5951,9 +6266,8 @@ const AdminDashboard = () => {
                       key={idx}
                       type="button"
                       onClick={() => setFormStep(idx + 1)}
-                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${
-                        formStep === idx + 1 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold' : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${formStep === idx + 1 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold' : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
+                        }`}
                     >
                       {label}
                     </button>
@@ -6014,15 +6328,14 @@ const AdminDashboard = () => {
                                 onDragLeave={(e) => handleProjImageDragLeave(e, idx)}
                                 onDrop={(e) => handleProjImageDrop(e, idx)}
                                 onDragEnd={handleProjImageDragEnd}
-                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${
-                                  isBeingDragged
+                                className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${isBeingDragged
                                     ? 'opacity-30 scale-95 border-amber-500'
                                     : isOver
-                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
-                                    : isCover
-                                    ? 'border-amber-500 ring-1 ring-amber-500/40'
-                                    : 'border-zinc-800 hover:border-zinc-600'
-                                }`}
+                                      ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                      : isCover
+                                        ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                        : 'border-zinc-800 hover:border-zinc-600'
+                                  }`}
                               >
                                 <img
                                   src={imgItem.url}
@@ -6644,6 +6957,66 @@ const AdminDashboard = () => {
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* SECURITY DATA RESET CONFIRMATION MODAL */}
+            {modalType === 'confirm_reset' && (
+              <div className="space-y-4 py-2">
+                <div className="flex items-center gap-3 text-red-400 border-b border-zinc-800 pb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-950/60 border border-red-800/50 flex items-center justify-center shrink-0 shadow-inner">
+                    <AlertTriangle size={22} className="text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+                      SECURITY DATA RESET CONFIRMATION
+                    </h3>
+                    <p className="text-[11px] text-zinc-400 font-semibold">
+                      Irreversible Data & Physical File Purge
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 bg-[#09090b] p-4 rounded-2xl border border-zinc-800/80 text-xs">
+                  <p className="font-extrabold text-red-400 uppercase tracking-wider text-[11px]">
+                    You are about to PERMANENTLY PURGE:
+                  </p>
+                  <ul className="space-y-1.5 text-zinc-200 font-bold text-xs pl-1">
+                    {resetSelection.properties && <li className="flex items-center gap-2 text-amber-300">• Properties (Houses & physical image files)</li>}
+                    {resetSelection.land && <li className="flex items-center gap-2 text-teal-300">• Land / Plots (Plots & physical image files)</li>}
+                    {resetSelection.projects && <li className="flex items-center gap-2 text-blue-300">• Projects (Projects & physical image files)</li>}
+                    {resetSelection.gallery && <li className="flex items-center gap-2 text-purple-300">• Gallery (Showcase photos & physical files)</li>}
+                    {resetSelection.feedbacks && <li className="flex items-center gap-2 text-amber-400">• Client Feedbacks</li>}
+                    {resetSelection.leads && <li className="flex items-center gap-2 text-rose-300">• Customer Leads</li>}
+                  </ul>
+
+                  <p className="text-zinc-400 text-[11px] leading-relaxed pt-2 border-t border-zinc-800/80 font-semibold">
+                    This will delete the selected records from the database AND permanently remove uploaded physical image files from disk.
+                  </p>
+                  <p className="text-amber-400/90 text-[10.5px] font-extrabold">
+                    (Videos and Frame assets are strictly preserved).
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setModalType(null)}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-5 py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalType(null);
+                      performActualReset();
+                    }}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-red-900/30 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Trash2 size={15} /> Yes, Purge Selected Data
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* DELETE CONFIRMATION MODAL */}

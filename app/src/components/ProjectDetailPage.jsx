@@ -109,8 +109,8 @@ const ProjectDetailPage = () => {
   const locationDisplay = activeItem.location || activeItem.area || 'Poonamallee, Chennai';
   const statusDisplay = activeItem.status || 'Under Construction';
 
-  const phoneNum = settings?.phone || '7358266257';
-  const waNum = settings?.whatsapp_number || phoneNum;
+  const phoneNum = settings?.phone || '';
+  const waNum = settings?.whatsapp_number || '';
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex flex-col justify-between selection:bg-amber-500 selection:text-black">
@@ -257,14 +257,16 @@ const ProjectDetailPage = () => {
                 <Phone size={16} /> Call Builder ({phoneNum})
               </a>
 
-              <a
-                href={`https://wa.me/91${waNum}?text=${encodeURIComponent(`Hi SK Builders, I would like to inquire about project: ${nameDisplay} in ${locationDisplay}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
-              >
-                <MessageSquare size={16} /> WhatsApp Inquiry
-              </a>
+              {waNum && (
+                <a
+                  href={`https://wa.me/91${waNum}?text=${encodeURIComponent(`Hi SK Builders, I would like to inquire about project: ${nameDisplay} in ${locationDisplay}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
+                >
+                  <MessageSquare size={16} /> WhatsApp Inquiry
+                </a>
+              )}
             </div>
 
             {/* Project Inquiry Form */}

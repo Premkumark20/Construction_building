@@ -154,7 +154,7 @@ const Navbar = () => {
           {/* Top Right Quick Contact Action (Opens phone dialer on mobile view, scrolls to section on desktop) */}
           <div className="flex items-center gap-3">
             <a
-              href={`tel:+91${(settings?.phone || '7358266257').replace(/[^0-9]/g, '') || '7358266257'}`}
+              href={`tel:+91${(settings?.phone || '').replace(/[^0-9]/g, '') || ''}`}
               onClick={(e) => {
                 if (window.innerWidth >= 768) {
                   const contactSec = document.getElementById('contact');

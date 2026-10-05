@@ -47,15 +47,17 @@ const Footer = () => {
               >
                 <Instagram size={15} />
               </a>
-              <a
-                href={settings.whatsapp_number ? `https://wa.me/91${settings.whatsapp_number}` : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:text-green-400 hover:border-green-400/50 hover:bg-green-500/10 transition-all shadow-sm"
-                aria-label="WhatsApp"
-              >
-                <MessageCircle size={15} />
-              </a>
+              {settings.whatsapp_number && (
+                <a
+                  href={`https://wa.me/91${settings.whatsapp_number}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 hover:text-green-400 hover:border-green-400/50 hover:bg-green-500/10 transition-all shadow-sm"
+                  aria-label="WhatsApp"
+                >
+                  <MessageCircle size={15} />
+                </a>
+              )}
             </div>
           </div>
 

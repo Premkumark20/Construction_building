@@ -1,12 +1,20 @@
 // Phone and WhatsApp Handler Utility
 export const getCleanPhone = (phone) => {
-  if (!phone) return '7358266257';
-  const cleaned = phone.replace(/[^0-9]/g, '');
-  return cleaned || '7358266257';
+  if (!phone) return '';
+  return phone.replace(/[^0-9]/g, '');
 };
 
 export const handlePhoneCall = (e, phone) => {
   const clean = getCleanPhone(phone);
+  if (!clean) {
+    if (e && e.preventDefault) e.preventDefault();
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
+
   const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   if (!isMobile) {
@@ -25,6 +33,7 @@ export const handlePhoneCall = (e, phone) => {
 
 export const getWhatsAppUrl = (phone, text = "Hi, I'm interested in your construction and property services.") => {
   const clean = getCleanPhone(phone);
+  if (!clean) return '#contact';
   const numWithCountry = clean.length === 10 ? `91${clean}` : clean;
   return `https://api.whatsapp.com/send/?phone=${numWithCountry}&text=${encodeURIComponent(text)}&type=phone_number&app_absent=0`;
 };

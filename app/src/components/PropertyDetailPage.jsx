@@ -114,8 +114,8 @@ const PropertyDetailPage = () => {
     ? `${activeItem.builtup_area} ${activeItem.builtup_area_unit || 'sq.ft'}`
     : (activeItem.plot_area ? `${activeItem.plot_area} ${activeItem.plot_area_unit || 'sq.ft'}` : 'Contact for dimensions');
 
-  const phoneNum = settings?.phone || '7358266257';
-  const waNum = settings?.whatsapp_number || phoneNum;
+  const phoneNum = settings?.phone || '';
+  const waNum = settings?.whatsapp_number || '';
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex flex-col justify-between selection:bg-amber-500 selection:text-black">
@@ -275,14 +275,16 @@ const PropertyDetailPage = () => {
                 <Phone size={16} /> Call Builder ({phoneNum})
               </a>
 
-              <a
-                href={`https://wa.me/91${waNum}?text=${encodeURIComponent(`Hi SK Builders, I am interested in property: ${activeItem.title} (${priceDisplay})`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
-              >
-                <MessageSquare size={16} /> WhatsApp Inquiry
-              </a>
+              {waNum && (
+                <a
+                  href={`https://wa.me/91${waNum}?text=${encodeURIComponent(`Hi SK Builders, I am interested in property: ${activeItem.title} (${priceDisplay})`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
+                >
+                  <MessageSquare size={16} /> WhatsApp Inquiry
+                </a>
+              )}
             </div>
 
             {/* Buyer Inquiry Form */}

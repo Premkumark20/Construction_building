@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, MessageCircle, Home, ShieldCheck, Video, Users } from 'lucide-react';
+import { Phone, MessageCircle, Home, ShieldCheck, Video, VideoOff, Users } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSiteData } from '../hooks/useSiteData';
@@ -26,7 +26,8 @@ const ConstructionStory = () => {
   const [isPreloading, setIsPreloading] = useState(true);
   const [showContent, setShowContent] = useState(false);
   const [hidePrompt, setHidePrompt] = useState(false);
-  const [hasFramesAvailable, setHasFramesAvailable] = useState(true);
+  const [hasFramesAvailable, setHasFramesAvailable] = useState(false);
+  const [hasHeroVideo, setHasHeroVideo] = useState(false);
   
   const currentFrameRef = useRef(1);
   const loadedImagesMapRef = useRef({});
@@ -58,57 +59,107 @@ const ConstructionStory = () => {
     };
   }, []);
 
-  // Adaptive Frame Preloading for Desktop View
+  // Adaptive Hero Video Check and Frame Preloading
   useEffect(() => {
-    if (isMobile) {
-      setIsPreloading(false);
-      setShowContent(true);
-      setHasFramesAvailable(true);
-      return;
-    }
+    let isCancelled = false;
 
-    loadedImagesMapRef.current = {};
-    setIsPreloading(true);
+    const checkHeroVideoAndFrames = async () => {
+      try {
+        const res = await fetch('/api/media/hero-video');
+        if (res.ok) {
+          const data = await res.json();
+          if (!isCancelled) {
+            const hasHero = Boolean(data && data.hasHeroVideo);
+            setHasHeroVideo(hasHero);
 
-    const safetyTimeout = setTimeout(() => {
-      setIsPreloading(false);
-      setShowContent(true);
-    }, 500);
-
-    const probe = new Image();
-    const frameNum = String(1).padStart(4, '0');
-    probe.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
-
-    probe.onload = () => {
-      clearTimeout(safetyTimeout);
-      loadedImagesMapRef.current[1] = probe;
-      setHasFramesAvailable(true);
-      setIsPreloading(false);
-      setShowContent(true);
-      renderFrame(1);
-
-      // Load remaining frames in background
-      for (let i = 2; i <= 121; i++) {
-        const img = new Image();
-        const num = String(i).padStart(4, '0');
-        img.src = `/frames/desktop/frame_${num}.webp?v=${frameVersion}`;
-        img.onload = () => {
-          loadedImagesMapRef.current[i] = img;
-          if (currentFrameRef.current === i) {
-            renderFrame(i);
+            if (!hasHero) {
+              setHasFramesAvailable(false);
+              setIsPreloading(false);
+              setShowContent(true);
+              return;
+            }
           }
-        };
+        } else {
+          if (!isCancelled) {
+            setHasHeroVideo(false);
+            setHasFramesAvailable(false);
+            setIsPreloading(false);
+            setShowContent(true);
+            return;
+          }
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setHasHeroVideo(false);
+          setHasFramesAvailable(false);
+          setIsPreloading(false);
+          setShowContent(true);
+          return;
+        }
       }
+
+      // If hero video exists and we're on mobile, activate mobile stage
+      if (isMobile) {
+        if (!isCancelled) {
+          setIsPreloading(false);
+          setShowContent(true);
+          setHasFramesAvailable(true);
+        }
+        return;
+      }
+
+      // Hero video exists on desktop: pre-load desktop frames
+      loadedImagesMapRef.current = {};
+      if (!isCancelled) setIsPreloading(true);
+
+      const safetyTimeout = setTimeout(() => {
+        if (!isCancelled) {
+          setIsPreloading(false);
+          setShowContent(true);
+        }
+      }, 500);
+
+      const probe = new Image();
+      const frameNum = String(1).padStart(4, '0');
+      probe.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
+
+      probe.onload = () => {
+        if (isCancelled) return;
+        clearTimeout(safetyTimeout);
+        loadedImagesMapRef.current[1] = probe;
+        setHasFramesAvailable(true);
+        setIsPreloading(false);
+        setShowContent(true);
+        renderFrame(1);
+
+        // Load remaining frames in background
+        for (let i = 2; i <= 121; i++) {
+          const img = new Image();
+          const num = String(i).padStart(4, '0');
+          img.src = `/frames/desktop/frame_${num}.webp?v=${frameVersion}`;
+          img.onload = () => {
+            loadedImagesMapRef.current[i] = img;
+            if (currentFrameRef.current === i) {
+              renderFrame(i);
+            }
+          };
+        }
+      };
+
+      probe.onerror = () => {
+        if (isCancelled) return;
+        clearTimeout(safetyTimeout);
+        setHasFramesAvailable(false);
+        setIsPreloading(false);
+        setShowContent(true);
+      };
     };
 
-    probe.onerror = () => {
-      clearTimeout(safetyTimeout);
-      setHasFramesAvailable(false);
-      setIsPreloading(false);
-      setShowContent(true);
-    };
+    checkHeroVideoAndFrames();
 
-    return () => clearTimeout(safetyTimeout);
+    return () => {
+      isCancelled = true;
+    };
   }, [isMobile, frameVersion]);
 
   // Find nearest loaded frame for ultra-smooth scrubbing fallback
@@ -298,20 +349,26 @@ const ConstructionStory = () => {
     >
       {/* 1. MOBILE VIEW: Full-Bleed High-Visibility Stage (Bright Vivid House Background + Left-Aligned Overlay Content) */}
       <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-black">
-        {/* Full-bleed Vivid Completed House Background Image */}
-        <img
-          src={`/frames/mobile/frame_last.webp?v=${frameVersion}`}
-          loading="eager"
-          decoding="sync"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = `/frames/desktop/frame_0121.webp?v=${frameVersion}`;
-          }}
-          alt="Completed Dream Home"
-          className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-115 contrast-105"
-        />
+        {/* Full-bleed Vivid Completed House Background Image - ONLY if Hero Video exists */}
+        {hasHeroVideo && hasFramesAvailable ? (
+          <img
+            src={`/frames/mobile/frame_last.webp?v=${frameVersion}`}
+            loading="eager"
+            decoding="sync"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = `/frames/desktop/frame_0121.webp?v=${frameVersion}`;
+            }}
+            alt="Completed Dream Home"
+            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-115 contrast-105"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-b from-[#18181b] via-[#09090b] to-black z-0">
+            <div className="absolute top-10 right-4 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          </div>
+        )}
 
-        {/* Subtle Dark Gradient Focused on Left Side to Keep House Highly Visible on Center/Right */}
+        {/* Subtle Dark Gradient Focused on Left Side to Keep Content Highly Visible */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-transparent z-10 pointer-events-none w-[85%]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 z-10 pointer-events-none" />
 
@@ -378,14 +435,16 @@ const ConstructionStory = () => {
               <Phone size={14} /> Call Now
             </a>
 
-            <a
-              href={getWhatsAppUrl(settings.whatsapp_number || settings.phone, "Hi, I want to know more about properties/construction.")}
-              target={settings.whatsapp_number || settings.phone ? '_blank' : '_self'}
-              rel="noopener noreferrer"
-              className="bg-black/85 hover:bg-black/95 text-amber-400 border border-amber-500/40 font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xl backdrop-blur-md transition-all active:scale-95"
-            >
-              <MessageCircle size={14} /> WhatsApp
-            </a>
+            {settings.whatsapp_number && (
+              <a
+                href={getWhatsAppUrl(settings.whatsapp_number, "Hi, I want to know more about properties/construction.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-black/85 hover:bg-black/95 text-amber-400 border border-amber-500/40 font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xl backdrop-blur-md transition-all active:scale-95"
+              >
+                <MessageCircle size={14} /> WhatsApp
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -405,20 +464,28 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* Seamless Video Playback when frames are not yet extracted */}
-        {!hasFramesAvailable && (
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 filter brightness-95"
-            src="/videos/Background.mp4"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = "/app/public/videos/Background.mp4";
-            }}
-          />
+        {/* "No Video Available" Container on Right Side of Desktop Hero Stage */}
+        {!hasFramesAvailable && !isPreloading && (
+          <div className="absolute top-24 bottom-10 right-8 lg:right-16 w-full max-w-md lg:max-w-lg z-20 hidden md:flex flex-col justify-center items-center pointer-events-auto">
+            <div className="w-full bg-[#121216]/80 backdrop-blur-2xl border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.8)] text-center relative overflow-hidden group">
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/40 flex items-center justify-center mx-auto mb-5 text-amber-400 shadow-lg shadow-amber-500/20">
+                <VideoOff size={32} />
+              </div>
+              <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full mb-3">
+                <span>HERO SECTION VIDEO</span>
+              </div>
+              <h3 className="text-lg font-black text-white uppercase tracking-wide mb-2">
+                No Video Uploaded
+              </h3>
+              <p className="text-xs text-zinc-300 font-medium leading-relaxed max-w-xs mx-auto mb-6">
+                Upload your site hero video in the Admin Dashboard to activate the cinematic frame-by-frame construction storytelling stage.
+              </p>
+              <div className="flex items-center justify-center gap-2 text-[11px] font-extrabold text-amber-400/90 bg-black/50 border border-amber-500/20 py-2.5 px-4 rounded-xl">
+                <span>Awaiting video upload in Admin Portal</span>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Fullscreen Canvas Frame Animation */}
@@ -498,14 +565,16 @@ const ConstructionStory = () => {
               <Phone size={14} /> Call Now
             </a>
 
-            <a
-              href={getWhatsAppUrl(settings.whatsapp_number || settings.phone, "Hi, I want to know more about properties/construction.")}
-              target={settings.whatsapp_number || settings.phone ? '_blank' : '_self'}
-              rel="noopener noreferrer"
-              className="bg-zinc-900/90 hover:bg-zinc-800 text-amber-400 border border-amber-500/30 font-extrabold px-4 sm:px-7 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-lg transition-all active:scale-95"
-            >
-              <MessageCircle size={14} /> WhatsApp
-            </a>
+            {settings.whatsapp_number && (
+              <a
+                href={getWhatsAppUrl(settings.whatsapp_number, "Hi, I want to know more about properties/construction.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-zinc-900/90 hover:bg-zinc-800 text-amber-400 border border-amber-500/30 font-extrabold px-4 sm:px-7 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-lg transition-all active:scale-95"
+              >
+                <MessageCircle size={14} /> WhatsApp
+              </a>
+            )}
           </div>
         </div>
 

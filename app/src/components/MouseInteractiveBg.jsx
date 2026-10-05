@@ -10,7 +10,7 @@ const MouseInteractiveBg = () => {
   const canvasRef = useRef(null);
   const spotlightInnerRef = useRef(null);
   const spotlightOuterRef = useRef(null);
-  const [bgVideoSrc, setBgVideoSrc] = useState('');
+  const [bgVideoSrc, setBgVideoSrc] = useState('/videos/Background.mp4');
   const [inHero, setInHero] = useState(false);
 
   // 1. Fetch active primary background video & listen for admin changes
@@ -21,10 +21,12 @@ const MouseInteractiveBg = () => {
         const data = await res.json();
         if (data.videoUrl) {
           setBgVideoSrc(data.videoUrl);
+          return;
         }
       }
+      setBgVideoSrc('/videos/Background.mp4');
     } catch (e) {
-      console.log("Using fallback background video:", e);
+      setBgVideoSrc('/videos/Background.mp4');
     }
   };
 
@@ -322,7 +324,11 @@ const MouseInteractiveBg = () => {
             playsInline
             webkit-playsinline="true"
             preload="metadata"
-            onError={() => setBgVideoSrc('')}
+            onError={() => {
+              if (bgVideoSrc !== '/videos/Background.mp4') {
+                setBgVideoSrc('/videos/Background.mp4');
+              }
+            }}
             onCanPlay={(e) => {
               e.currentTarget.muted = true;
               e.currentTarget.play().catch(() => {});

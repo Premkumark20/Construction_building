@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS site_settings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_name TEXT NOT NULL DEFAULT 'SK BUILDERS',
   company_subtitle TEXT NOT NULL DEFAULT '& PROPERTY CONSULTANT',
-  phone TEXT NOT NULL DEFAULT '7358266257',
+  phone TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT 'info@skbuilders.com',
   location TEXT NOT NULL DEFAULT 'Poonamallee, Mangadu, Kundrathur, Tamil Nadu - 600056',
   service_areas TEXT NOT NULL DEFAULT 'Poonamallee • Mangadu • Kundrathur',
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS site_settings (
   hero_subtitle TEXT NOT NULL DEFAULT 'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.',
   facebook_url TEXT DEFAULT 'https://facebook.com',
   instagram_url TEXT DEFAULT 'https://instagram.com',
-  whatsapp_number TEXT DEFAULT '7358266257',
+  whatsapp_number TEXT DEFAULT '',
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -273,7 +273,9 @@ CREATE TABLE IF NOT EXISTS leads (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
-  service TEXT,
+  email TEXT DEFAULT '',
+  service TEXT DEFAULT 'General Inquiry',
+  property_id TEXT,
   message TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
