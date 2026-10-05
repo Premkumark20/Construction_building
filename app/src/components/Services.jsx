@@ -25,11 +25,11 @@ const defaultServices = [
   { id: 6, title: 'Construction Consultation', icon_name: 'Compass', description: 'Technical site inspection, structural estimation, material guidance and cost optimization.' }
 ];
 
-const stats = [
-  { icon: <Home size={20} className="text-amber-400" />, number: '40+', label: 'Homes Built' },
-  { icon: <MapPin size={20} className="text-amber-400" />, number: '75+', label: 'Plots Sold' },
-  { icon: <Users size={20} className="text-amber-400" />, number: '150+', label: 'Property Deals' },
-  { icon: <Users size={20} className="text-amber-400" />, number: '100+', label: 'Happy Families' }
+const defaultStats = [
+  { icon_name: 'Home', value: '40+', label: 'Homes Built' },
+  { icon_name: 'MapPin', value: '75+', label: 'Plots Sold' },
+  { icon_name: 'Users', value: '150+', label: 'Property Deals' },
+  { icon_name: 'Users', value: '100+', label: 'Happy Families' }
 ];
 
 const Services = () => {
@@ -41,7 +41,7 @@ const Services = () => {
 
   const [statsActive, setStatsActive] = useState(false);
   const [activeServiceModal, setActiveServiceModal] = useState(null);
-  const { services } = useSiteData();
+  const { services, stats: dbStats } = useSiteData();
 
   // Lock background scroll when service modal is open
   useEffect(() => {
@@ -55,9 +55,13 @@ const Services = () => {
     };
   }, [activeServiceModal]);
 
-  const safeServices = (Array.isArray(services) && services.length >= 6)
+  const safeServices = (Array.isArray(services) && services.length > 0)
     ? services
     : defaultServices;
+
+  const activeStats = (Array.isArray(dbStats) && dbStats.length > 0)
+    ? dbStats
+    : defaultStats;
 
   // Dynamic Counter Trigger via IntersectionObserver for Mobile & Desktop
   useEffect(() => {
@@ -91,6 +95,11 @@ const Services = () => {
     mm.add('(min-width: 769px)', () => {
       const cards = Array.from(cardsContainer.children);
 
+      // Pre-set elements hidden initially so they never bleed through while scrolling earlier sections
+      if (header) gsap.set(header, { opacity: 0, y: -25 });
+      if (cards.length > 0) gsap.set(cards, { opacity: 0, y: 55, rotateX: 20, scale: 0.9 });
+      if (statsStrip) gsap.set(statsStrip, { opacity: 0, y: 35, scale: 0.95 });
+
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
@@ -99,6 +108,8 @@ const Services = () => {
           end: '+=2600',
           scrub: 1.5,
           anticipatePin: 1,
+          pinSpacing: true,
+          refreshPriority: 7,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             if (self.progress >= 0.35) {
@@ -162,7 +173,16 @@ const Services = () => {
       if (statsStrip) gsap.set(statsStrip, { clearProps: 'all' });
     });
 
-    return () => mm.revert();
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    });
+
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
   }, []);
 
   return (
@@ -225,28 +245,32 @@ const Services = () => {
             className="w-full bg-[#121216]/90 sm:backdrop-blur-2xl text-white border border-amber-500/40 rounded-xl sm:rounded-2xl p-3 sm:py-5 sm:px-6 shadow-2xl relative z-10"
           >
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-0 divide-y-0 lg:divide-x divide-white/10">
-              {stats.map((st, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-center gap-2 sm:gap-3.5 ${
-                    i !== 0 ? 'lg:px-6' : 'lg:pr-6'
-                  }`}
-                >
-                  <div className="p-1.5 sm:p-2.5 bg-amber-500/15 border border-amber-500/35 rounded-lg sm:rounded-xl shrink-0 shadow-md">
-                    {React.cloneElement(st.icon, {
-                      className: 'text-amber-400 w-4 h-4 sm:w-5 sm:h-5'
-                    })}
-                  </div>
-                  <div>
-                    <div className="text-base sm:text-2xl lg:text-3xl font-black text-white leading-none tracking-tight">
-                      <AnimatedCounter targetString={st.number} trigger={statsActive} />
+              {activeStats.map((st, i) => {
+                const icon = iconMap[st.icon_name] || iconMap.Home;
+                const valueStr = st.value || st.number || '0';
+                return (
+                  <div
+                    key={st.id || i}
+                    className={`flex items-center justify-center gap-2 sm:gap-3.5 ${
+                      i !== 0 ? 'lg:px-6' : 'lg:pr-6'
+                    }`}
+                  >
+                    <div className="p-1.5 sm:p-2.5 bg-amber-500/15 border border-amber-500/35 rounded-lg sm:rounded-xl shrink-0 shadow-md">
+                      {React.cloneElement(icon, {
+                        className: 'text-amber-400 w-4 h-4 sm:w-5 sm:h-5'
+                      })}
                     </div>
-                    <div className="text-[9.5px] sm:text-[11px] font-bold text-amber-300 mt-0.5 sm:mt-1 uppercase tracking-wider">
-                      {st.label}
+                    <div>
+                      <div className="text-base sm:text-2xl lg:text-3xl font-black text-white leading-none tracking-tight">
+                        <AnimatedCounter targetString={valueStr} trigger={statsActive} />
+                      </div>
+                      <div className="text-[9.5px] sm:text-[11px] font-bold text-amber-300 mt-0.5 sm:mt-1 uppercase tracking-wider">
+                        {st.label}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

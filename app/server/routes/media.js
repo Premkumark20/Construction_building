@@ -14,12 +14,16 @@ const uploadsDir = process.env.VERCEL ? '/tmp/uploads' : path.join(projectRoot, 
 const imageUploadsDir = path.join(uploadsDir, 'images');
 const videoUploadsDir = path.join(uploadsDir, 'videos');
 const tempUploadsDir = path.join(videoUploadsDir, 'temp');
-const bgVideosDir = process.env.VERCEL ? '/tmp/videos' : path.join(projectRoot, 'app/public/videos');
+const rootVideosDir = path.join(projectRoot, 'videos');
+const appPublicVideosDir = path.join(projectRoot, 'app/public/videos');
+const bgVideosDir = process.env.VERCEL ? '/tmp/videos' : rootVideosDir;
 
 try {
   fs.mkdirSync(imageUploadsDir, { recursive: true });
   fs.mkdirSync(videoUploadsDir, { recursive: true });
   fs.mkdirSync(tempUploadsDir, { recursive: true });
+  fs.mkdirSync(rootVideosDir, { recursive: true });
+  fs.mkdirSync(appPublicVideosDir, { recursive: true });
   fs.mkdirSync(bgVideosDir, { recursive: true });
 } catch (e) {}
 
@@ -49,36 +53,72 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 const router = express.Router();
 
-// Helper to auto-sync background videos from app/public/videos
+// Helper to auto-sync background videos from videos folder and fallback paths
 const syncBackgroundVideos = (callback) => {
   try {
-    const bgFiles = fs.readdirSync(bgVideosDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm'));
-    
-    // Purge records for missing background files
-    db.all("SELECT id, filename FROM media_videos WHERE video_type = 'background'", [], (err, rows) => {
-      if (!err && Array.isArray(rows)) {
-        rows.forEach(r => {
-          if (!fs.existsSync(path.join(bgVideosDir, r.filename))) {
-            db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
+    const candidateDirs = [
+      path.join(projectRoot, 'videos'),
+      path.join(projectRoot, 'app/public/videos'),
+      path.join(projectRoot, 'uploads/videos')
+    ];
+    if (process.env.VERCEL) {
+      candidateDirs.unshift('/tmp/videos');
+    }
+
+    let foundDir = candidateDirs.find(d => fs.existsSync(d));
+    const activeDir = foundDir || bgVideosDir;
+
+    let bgFiles = [];
+    try {
+      if (fs.existsSync(activeDir)) {
+        bgFiles = fs.readdirSync(activeDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm'));
+      }
+    } catch (e) {}
+
+    // Only purge records if NOT on Vercel
+    if (!process.env.VERCEL) {
+      db.all("SELECT id, filename FROM media_videos WHERE video_type = 'background'", [], (err, rows) => {
+        if (!err && Array.isArray(rows)) {
+          rows.forEach(r => {
+            const existsAnywhere = candidateDirs.some(d => fs.existsSync(path.join(d, r.filename)));
+            if (!existsAnywhere) {
+              db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
+            }
+          });
+        }
+      });
+    }
+
+    // Ensure Background.mp4 is registered if no background videos exist in DB
+    db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = 'background'", [], (err, countRow) => {
+      if (!err && (!countRow || countRow.count === 0)) {
+        db.run(
+          "INSERT OR IGNORE INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'background', 1, ?)",
+          ['Background.mp4', 'videos/Background.mp4', 15420212],
+          () => {
+            if (callback) callback();
           }
-        });
+        );
+        return;
       }
 
-      let processed = 0;
       if (bgFiles.length === 0) {
         return callback ? callback() : null;
       }
 
+      let processed = 0;
       bgFiles.forEach(file => {
-        const fullP = path.join(bgVideosDir, file);
-        const stats = fs.statSync(fullP);
+        const fullP = path.join(activeDir, file);
+        let fileSize = 0;
+        try { fileSize = fs.statSync(fullP).size; } catch (e) {}
+
         db.get("SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND video_type = 'background'", [file], (err, existing) => {
           if (!existing) {
             db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = 'background' AND is_primary = 1", [], (err, primRow) => {
               const isPrim = (!primRow || primRow.count === 0) ? 1 : 0;
               db.run(
                 "INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'background', ?, ?)",
-                [file, `app/public/videos/${file}`, isPrim, stats.size],
+                [file, `videos/${file}`, isPrim, fileSize],
                 () => {
                   processed++;
                   if (processed >= bgFiles.length && callback) callback();
@@ -101,44 +141,70 @@ const syncBackgroundVideos = (callback) => {
 // Helper to auto-sync hero construction videos from uploads/videos into database
 const syncHeroVideos = (callback) => {
   try {
-    const videoFiles = fs.readdirSync(videoUploadsDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm') || f.toLowerCase().endsWith('.mov') || f.toLowerCase().endsWith('.mkv') || f.toLowerCase().endsWith('.avi'));
+    const candidateDirs = [
+      videoUploadsDir,
+      path.join(projectRoot, 'app/public/videos'),
+      path.join(projectRoot, 'videos')
+    ];
+    if (process.env.VERCEL) {
+      candidateDirs.unshift('/tmp/videos');
+      candidateDirs.unshift('/tmp/uploads/videos');
+    }
 
-    // Purge records for missing hero video files
-    db.all("SELECT id, filename FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [], (err, rows) => {
-      if (!err && Array.isArray(rows)) {
-        rows.forEach(r => {
-          if (!fs.existsSync(path.join(videoUploadsDir, r.filename))) {
-            db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
-          }
-        });
+    let videoFiles = [];
+    try {
+      if (fs.existsSync(videoUploadsDir)) {
+        videoFiles = fs.readdirSync(videoUploadsDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm') || f.toLowerCase().endsWith('.mov') || f.toLowerCase().endsWith('.mkv') || f.toLowerCase().endsWith('.avi'));
       }
+    } catch (e) {}
 
-      let processed = 0;
-      if (videoFiles.length === 0) {
-        return callback ? callback() : null;
-      }
+    // Only purge records if file doesn't exist in ANY candidate dir, isn't on Vercel, and isn't a URL
+    if (!process.env.VERCEL) {
+      db.all("SELECT id, filename, filepath FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [], (err, rows) => {
+        if (!err && Array.isArray(rows)) {
+          rows.forEach(r => {
+            if (r.filepath && (r.filepath.startsWith('http://') || r.filepath.startsWith('https://'))) {
+              return; // Keep remote/external URLs
+            }
+            const existsAnywhere = candidateDirs.some(d => fs.existsSync(path.join(d, r.filename)));
+            if (!existsAnywhere) {
+              const altPath = path.join(projectRoot, r.filepath || '');
+              if (!fs.existsSync(altPath)) {
+                // Don't purge if it was just registered or if filename exists in candidateDirs
+                // db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
+              }
+            }
+          });
+        }
+      });
+    }
 
-      videoFiles.forEach(file => {
-        const fullP = path.join(videoUploadsDir, file);
-        const stats = fs.statSync(fullP);
-        db.get("SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [file], (err, existing) => {
-          if (!existing) {
-            db.get("SELECT COUNT(*) as count FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1", [], (err, primRow) => {
-              const isPrim = (!primRow || primRow.count === 0) ? 1 : 0;
-              db.run(
-                "INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'hero', ?, ?)",
-                [file, `uploads/videos/${file}`, isPrim, stats.size],
-                () => {
-                  processed++;
-                  if (processed >= videoFiles.length && callback) callback();
-                }
-              );
-            });
-          } else {
-            processed++;
-            if (processed >= videoFiles.length && callback) callback();
-          }
-        });
+    let processed = 0;
+    if (videoFiles.length === 0) {
+      return callback ? callback() : null;
+    }
+
+    videoFiles.forEach(file => {
+      const fullP = path.join(videoUploadsDir, file);
+      let stats = { size: 0 };
+      try { stats = fs.statSync(fullP); } catch (e) {}
+      db.get("SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND (video_type = 'hero' OR video_type IS NULL OR video_type = '')", [file], (err, existing) => {
+        if (!existing) {
+          db.get("SELECT COUNT(*) as count FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1", [], (err, primRow) => {
+            const isPrim = (!primRow || primRow.count === 0) ? 1 : 0;
+            db.run(
+              "INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'hero', ?, ?)",
+              [file, `uploads/videos/${file}`, isPrim, stats.size],
+              () => {
+                processed++;
+                if (processed >= videoFiles.length && callback) callback();
+              }
+            );
+          });
+        } else {
+          processed++;
+          if (processed >= videoFiles.length && callback) callback();
+        }
       });
     });
   } catch (e) {
@@ -229,7 +295,7 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
   const tempPath = req.file.path;
   const targetDir = videoType === 'background' ? bgVideosDir : videoUploadsDir;
   const targetPath = path.join(targetDir, finalFilename);
-  const relativePath = videoType === 'background' ? `app/public/videos/${finalFilename}` : `uploads/videos/${finalFilename}`;
+  const relativePath = videoType === 'background' ? `videos/${finalFilename}` : `uploads/videos/${finalFilename}`;
 
   db.get('SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND video_type = ?', [finalFilename, videoType], (err, row) => {
     if (row || fs.existsSync(targetPath)) {
@@ -246,6 +312,13 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
     } catch (e) {
       fs.copyFileSync(tempPath, targetPath);
       try { fs.unlinkSync(tempPath); } catch (err) {}
+    }
+
+    if (videoType === 'background') {
+      try {
+        fs.mkdirSync(appPublicVideosDir, { recursive: true });
+        fs.copyFileSync(targetPath, path.join(appPublicVideosDir, finalFilename));
+      } catch (copyErr) {}
     }
 
     db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = ?", [videoType], (err, countRow) => {
@@ -271,6 +344,46 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
   });
 });
 
+// 3b. Register video by direct URL / Cloud link (ideal for Vercel > 4.5MB limitation)
+router.post('/register-video-url', (req, res) => {
+  const { videoUrl, filename, videoType = 'hero', isPrimary = false } = req.body;
+  if (!videoUrl || !videoUrl.trim()) {
+    return res.status(400).json({ error: 'Video URL is required.' });
+  }
+  const cleanUrl = videoUrl.trim();
+  const cleanType = (videoType || 'hero').toLowerCase() === 'background' ? 'background' : 'hero';
+  let cleanName = (filename || path.basename(cleanUrl.split('?')[0]) || `${cleanType}-video.mp4`).trim();
+  if (!cleanName.includes('.')) cleanName += '.mp4';
+
+  db.get('SELECT COUNT(*) as count FROM media_videos WHERE video_type = ?', [cleanType], (err, countRow) => {
+    const setPrimary = (isPrimary || !countRow || countRow.count === 0) ? 1 : 0;
+    const finishInsert = () => {
+      db.run(
+        'INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, ?, ?, 0)',
+        [cleanName, cleanUrl, cleanType, setPrimary],
+        function (insertErr) {
+          if (insertErr) {
+            return res.status(500).json({ error: insertErr.message });
+          }
+          res.json({
+            id: this.lastID,
+            filename: cleanName,
+            filepath: cleanUrl,
+            video_type: cleanType,
+            is_primary: setPrimary
+          });
+        }
+      );
+    };
+
+    if (setPrimary === 1) {
+      db.run('UPDATE media_videos SET is_primary = 0 WHERE video_type = ?', [cleanType], () => finishInsert());
+    } else {
+      finishInsert();
+    }
+  });
+});
+
 // 4. Rename video file
 router.put('/video/:id/rename', (req, res) => {
   const { newFilename } = req.body;
@@ -290,7 +403,7 @@ router.put('/video/:id/rename', (req, res) => {
 
     const baseDir = videoType === 'background' ? bgVideosDir : videoUploadsDir;
     const oldPath = path.join(baseDir, row.filename);
-    const newRelativePath = videoType === 'background' ? `app/public/videos/${finalName}` : `uploads/videos/${finalName}`;
+    const newRelativePath = videoType === 'background' ? `videos/${finalName}` : `uploads/videos/${finalName}`;
     const newPath = path.join(baseDir, finalName);
 
     if (oldPath !== newPath && fs.existsSync(newPath)) {
@@ -329,15 +442,22 @@ router.delete('/video/:id', (req, res) => {
     const videoType = row.video_type || 'hero';
     const wasPrimary = Number(row.is_primary) === 1;
 
-    const baseDir = videoType === 'background' ? bgVideosDir : videoUploadsDir;
-    const fullPath = path.join(baseDir, row.filename);
-    const altPath = path.join(projectRoot, row.filepath);
-
-    if (fs.existsSync(fullPath)) {
-      try { fs.unlinkSync(fullPath); } catch (e) { console.error('Error removing video:', e); }
-    } else if (fs.existsSync(altPath)) {
-      try { fs.unlinkSync(altPath); } catch (e) { console.error('Error removing video:', e); }
+    const candidatePaths = [
+      path.join(projectRoot, 'videos', row.filename),
+      path.join(projectRoot, 'app/public/videos', row.filename),
+      path.join(projectRoot, 'uploads/videos', row.filename),
+      path.join(projectRoot, row.filepath || '')
+    ];
+    if (process.env.VERCEL) {
+      candidatePaths.push(path.join('/tmp/videos', row.filename));
+      candidatePaths.push(path.join('/tmp/uploads/videos', row.filename));
     }
+
+    candidatePaths.forEach(p => {
+      if (p && fs.existsSync(p)) {
+        try { fs.unlinkSync(p); } catch (e) { console.error('Error physically removing video file:', p, e); }
+      }
+    });
 
     db.run('DELETE FROM media_videos WHERE id = ?', [req.params.id], () => {
       if (wasPrimary) {
@@ -405,6 +525,7 @@ router.post('/set-primary-video', (req, res) => {
 // 7. GET active primary background video (for all site sections)
 const formatVideoUrl = (fp) => {
   if (!fp) return '/videos/Background.mp4';
+  if (fp.startsWith('http://') || fp.startsWith('https://')) return fp;
   return fp.replace(/^app\/public\//, '/').replace(/^\/?/, '/');
 };
 
@@ -439,7 +560,9 @@ router.get('/hero-video', (req, res) => {
     [],
     (err, row) => {
       if (!err && row && row.filepath) {
-        const url = row.filepath.startsWith('/') ? row.filepath : `/${row.filepath}`;
+        const url = row.filepath.startsWith('http://') || row.filepath.startsWith('https://')
+          ? row.filepath
+          : (row.filepath.startsWith('/') ? row.filepath : `/${row.filepath}`);
         return res.json({ videoUrl: url, filename: row.filename, hasHeroVideo: true });
       }
       res.json({ videoUrl: null, filename: null, hasHeroVideo: false });

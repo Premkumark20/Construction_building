@@ -96,6 +96,8 @@ const Projects = () => {
           end: `+=${scrollDistance}`,
           scrub: 1.6,
           anticipatePin: 1,
+          pinSpacing: true,
+          refreshPriority: 5,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             const cardCount = track.children.length || 1;
@@ -164,12 +166,6 @@ const Projects = () => {
           0.94
         );
       }
-
-      const refreshTimeout = setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 100);
-
-      return () => clearTimeout(refreshTimeout);
     });
 
     // 2. MOBILE: Simple Section View with Auto-Advancing Storyline Highlight
@@ -188,7 +184,16 @@ const Projects = () => {
       return () => clearInterval(interval);
     });
 
-    return () => mm.revert();
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    });
+
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
   }, []);
 
   return (

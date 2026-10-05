@@ -34,33 +34,46 @@ const MainSite = () => {
 
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
     let lenisInstance = null;
+    let updateLenis = null;
+    let onRefresh = null;
+
+    ScrollTrigger.defaults({ anticipatePin: 1 });
 
     if (!isMobile) {
-      // Initialize Lenis Smooth & Slow Momentum Scroll Engine for Desktop
+      // Initialize Lenis Smooth Momentum Scroll Engine for Desktop
       const lenis = new Lenis({
-        duration: 1.8,
+        duration: 1.2,
         easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
         smoothWheel: true,
-        wheelMultiplier: 0.85,
+        wheelMultiplier: 1.0,
         touchMultiplier: 1.0,
         syncTouch: false,
       });
       lenisInstance = lenis;
+      if (typeof window !== 'undefined') {
+        window.lenis = lenis;
+      }
 
       lenis.on('scroll', ScrollTrigger.update);
 
-      const updateLenis = (time) => {
+      updateLenis = (time) => {
         lenis.raf(time * 1000);
       };
 
       gsap.ticker.add(updateLenis);
       gsap.ticker.lagSmoothing(0);
+
+      onRefresh = () => {
+        lenis.resize();
+      };
+      ScrollTrigger.addEventListener('refresh', onRefresh);
     }
 
     // Refresh ScrollTrigger calculations and handle scrolling to target section
     const targetId = location.state?.scrollTo || (window.location.hash ? window.location.hash.replace('#', '') : null);
 
     const timer = setTimeout(() => {
+      ScrollTrigger.sort();
       ScrollTrigger.refresh();
 
       if (targetId) {
@@ -73,7 +86,7 @@ const MainSite = () => {
           }
         }
       }
-    }, 350);
+    }, 250);
 
     // Track active visible section and sync hash in URL
     const handleScrollHash = () => {
@@ -100,8 +113,17 @@ const MainSite = () => {
     return () => {
       clearTimeout(timer);
       window.removeEventListener('scroll', handleScrollHash);
+      if (onRefresh) {
+        ScrollTrigger.removeEventListener('refresh', onRefresh);
+      }
+      if (updateLenis) {
+        gsap.ticker.remove(updateLenis);
+      }
       if (lenisInstance) {
         lenisInstance.destroy();
+        if (typeof window !== 'undefined' && window.lenis === lenisInstance) {
+          window.lenis = null;
+        }
       }
     };
   }, [location]);

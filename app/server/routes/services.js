@@ -25,6 +25,26 @@ router.post('/', (req, res) => {
   });
 });
 
+// PUT reorder services
+router.put('/reorder', (req, res) => {
+  const items = req.body;
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: 'Array of items required' });
+  }
+  const stmt = db.prepare('UPDATE services SET display_order = ? WHERE id = ?');
+  db.serialize(() => {
+    items.forEach((item) => {
+      stmt.run([item.display_order, item.id]);
+    });
+    stmt.finalize((err) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ message: 'Services reordered.' });
+    });
+  });
+});
+
 // PUT update service
 router.put('/:id', (req, res) => {
   const { title, description, icon_name, link_url, display_order } = req.body;

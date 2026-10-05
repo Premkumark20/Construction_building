@@ -1,5 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
+import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp, Share2, HardHat, Edit3, BarChart2, Zap } from 'lucide-react';
+
+const renderIconByName = (iconName, size = 18, className = 'text-amber-400') => {
+  switch (iconName) {
+    case 'Home': return <Home size={size} className={className} />;
+    case 'MapPin': return <MapPin size={size} className={className} />;
+    case 'HardHat': return <HardHat size={size} className={className} />;
+    case 'Users': return <Users size={size} className={className} />;
+    case 'FileText': return <FileText size={size} className={className} />;
+    case 'Compass': return <Compass size={size} className={className} />;
+    case 'Building': return <Building size={size} className={className} />;
+    case 'ShieldCheck': return <ShieldCheck size={size} className={className} />;
+    case 'Star': return <Star size={size} className={className} />;
+    default: return <Home size={size} className={className} />;
+  }
+};
+
+const getVideoSrcUrl = (filepath, filename) => {
+  if (!filepath && !filename) return '';
+  if (filepath && (filepath.startsWith('http://') || filepath.startsWith('https://'))) return filepath;
+  if (filepath && filepath.startsWith('/')) return filepath;
+  if (filepath && filepath.includes('app/public/videos/')) return `/videos/${filepath.split('app/public/videos/')[1]}`;
+  if (filepath && filepath.includes('uploads/videos/')) return `/${filepath}`;
+  if (filepath && filepath.includes('videos/')) return `/${filepath}`;
+  return `/videos/${filename || ''}`;
+};
 
 const notifySiteDataUpdated = () => {
   try {
@@ -632,7 +657,7 @@ const AdminDashboard = () => {
             }));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   };
 
@@ -665,6 +690,9 @@ const AdminDashboard = () => {
   const [settingsForm, setSettingsForm] = useState(defaultSettingsState);
   const [isSettingsFormDirty, setIsSettingsFormDirty] = useState(false);
   const [services, setServices] = useState([]);
+  const [stats, setStats] = useState([]);
+  const [formService, setFormService] = useState({ id: null, title: '', description: '', icon_name: 'Home', link_url: '#contact', display_order: 1 });
+  const [formStat, setFormStat] = useState({ id: null, icon_name: 'Home', value: '', label: '', display_order: 1 });
   const [properties, setProperties] = useState([]);
   const [land, setLand] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -673,6 +701,8 @@ const AdminDashboard = () => {
   const [testimonials, setTestimonials] = useState([]);
   const [leads, setLeads] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [videoUrlType, setVideoUrlType] = useState('background');
   const [statusNotice, setStatusNotice] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
@@ -1366,9 +1396,103 @@ const AdminDashboard = () => {
     }
   };
 
-  const [formSrv, setFormSrv] = useState({ id: null, title: '', description: '', icon_name: 'Home', link_url: '#properties', display_order: 1 });
+  const [formSrv, setFormSrv] = useState({ id: null, title: '', description: '', icon_name: 'Home', link_url: '#contact', display_order: 1 });
   const [formGal, setFormGal] = useState({ id: null, image: '' });
   const [videoRename, setVideoRename] = useState({ id: null, currentName: '', newName: '' });
+
+  // Services & Stats Drag & Drop Reorder State & Handlers
+  const [draggedSrvIdx, setDraggedSrvIdx] = useState(null);
+  const [dragOverSrvIdx, setDragOverSrvIdx] = useState(null);
+  const [draggedStatIdx, setDraggedStatIdx] = useState(null);
+  const [dragOverStatIdx, setDragOverStatIdx] = useState(null);
+
+  const handleSrvDragStart = (e, index) => {
+    setDraggedSrvIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) { }
+  };
+
+  const handleSrvDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverSrvIdx !== index) setDragOverSrvIdx(index);
+  };
+
+  const handleSrvDragLeave = (e, index) => {
+    if (dragOverSrvIdx === index) setDragOverSrvIdx(null);
+  };
+
+  const handleSrvDrop = async (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedSrvIdx === null || draggedSrvIdx === targetIndex) {
+      setDraggedSrvIdx(null);
+      setDragOverSrvIdx(null);
+      return;
+    }
+    const list = [...services];
+    const [draggedItem] = list.splice(draggedSrvIdx, 1);
+    list.splice(targetIndex, 0, draggedItem);
+
+    const reorderedList = list.map((item, idx) => ({ ...item, display_order: idx + 1 }));
+    setServices(reorderedList);
+    setDraggedSrvIdx(null);
+    setDragOverSrvIdx(null);
+
+    try {
+      await fetch('/api/services/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reorderedList.map(s => ({ id: s.id, display_order: s.display_order })))
+      });
+      notifySiteDataUpdated();
+    } catch (err) {
+      console.error('Error reordering services:', err);
+    }
+  };
+
+  const handleStatDragStart = (e, index) => {
+    setDraggedStatIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) { }
+  };
+
+  const handleStatDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverStatIdx !== index) setDragOverStatIdx(index);
+  };
+
+  const handleStatDragLeave = (e, index) => {
+    if (dragOverStatIdx === index) setDragOverStatIdx(null);
+  };
+
+  const handleStatDrop = async (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedStatIdx === null || draggedStatIdx === targetIndex) {
+      setDraggedStatIdx(null);
+      setDragOverStatIdx(null);
+      return;
+    }
+    const list = [...stats];
+    const [draggedItem] = list.splice(draggedStatIdx, 1);
+    list.splice(targetIndex, 0, draggedItem);
+
+    const reorderedList = list.map((item, idx) => ({ ...item, display_order: idx + 1 }));
+    setStats(reorderedList);
+    setDraggedStatIdx(null);
+    setDragOverStatIdx(null);
+
+    try {
+      await fetch('/api/stats/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reorderedList.map(s => ({ id: s.id, display_order: s.display_order })))
+      });
+      notifySiteDataUpdated();
+    } catch (err) {
+      console.error('Error reordering stats:', err);
+    }
+  };
 
   // Hero & Background Video Upload State & Refs
   const [selectedHeroVideoFile, setSelectedHeroVideoFile] = useState(null);
@@ -1429,9 +1553,10 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [sRes, srvRes, propRes, landRes, projRes, galRes, feedRes, testRes, leadRes, vidRes] = await Promise.all([
+      const [sRes, srvRes, statRes, propRes, landRes, projRes, galRes, feedRes, testRes, leadRes, vidRes] = await Promise.all([
         fetch('/api/settings').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/services').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/stats').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/properties').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/land').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/projects').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -1470,6 +1595,7 @@ const AdminDashboard = () => {
         }));
       }
       setServices(Array.isArray(srvRes) ? srvRes : []);
+      setStats(Array.isArray(statRes) ? statRes : []);
       setProperties(Array.isArray(propRes?.properties) ? propRes.properties : (Array.isArray(propRes) ? propRes : []));
       setLand(Array.isArray(landRes?.land) ? landRes.land : (Array.isArray(landRes) ? landRes : []));
       setProjects(Array.isArray(projRes?.projects) ? projRes.projects : (Array.isArray(projRes) ? projRes : []));
@@ -2216,6 +2342,154 @@ const AdminDashboard = () => {
     setModalType('confirm_delete');
   };
 
+  // Service CRUD Handlers
+  const openCreateService = () => {
+    setFormService({
+      id: null,
+      title: '',
+      description: '',
+      icon_name: 'Home',
+      link_url: '#contact',
+      display_order: (services.length + 1)
+    });
+    setModalType('service_form');
+  };
+
+  const openEditService = (srv) => {
+    setFormService({
+      id: srv.id,
+      title: srv.title || '',
+      description: srv.description || '',
+      icon_name: srv.icon_name || 'Home',
+      link_url: srv.link_url || '#contact',
+      display_order: srv.display_order || 1
+    });
+    setModalType('service_form');
+  };
+
+  const handleSaveService = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!formService.title.trim() || !formService.description.trim()) {
+      setStatusNotice('Title and description are required.');
+      setTimeout(() => setStatusNotice(''), 3000);
+      return;
+    }
+    const isEdit = Boolean(formService.id);
+    const url = isEdit ? `/api/services/${formService.id}` : '/api/services';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formService)
+      });
+      if (res.ok) {
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice(isEdit ? 'Service updated successfully!' : 'Service created successfully!');
+        setTimeout(() => setStatusNotice(''), 3000);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setStatusNotice(d.error || 'Failed to save service.');
+        setTimeout(() => setStatusNotice(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error saving service:', err);
+      setStatusNotice('Network error saving service.');
+      setTimeout(() => setStatusNotice(''), 3000);
+    }
+  };
+
+  const requestDeleteService = (srv) => {
+    setDeleteConfig({
+      title: `Delete service "${srv.title}"?`,
+      onConfirm: async () => {
+        await fetch(`/api/services/${srv.id}`, { method: 'DELETE' });
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice('Service deleted.');
+        setTimeout(() => setStatusNotice(''), 3000);
+      }
+    });
+    setModalType('confirm_delete');
+  };
+
+  // Stat CRUD Handlers
+  const openCreateStat = () => {
+    setFormStat({
+      id: null,
+      icon_name: 'Home',
+      value: '',
+      label: '',
+      display_order: (stats.length + 1)
+    });
+    setModalType('stat_form');
+  };
+
+  const openEditStat = (st) => {
+    setFormStat({
+      id: st.id,
+      icon_name: st.icon_name || 'Home',
+      value: st.value || '',
+      label: st.label || '',
+      display_order: st.display_order || 1
+    });
+    setModalType('stat_form');
+  };
+
+  const handleSaveStat = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!formStat.value.trim() || !formStat.label.trim()) {
+      setStatusNotice('Value (e.g. 40+) and Label (e.g. HOMES BUILT) are required.');
+      setTimeout(() => setStatusNotice(''), 3000);
+      return;
+    }
+    const isEdit = Boolean(formStat.id);
+    const url = isEdit ? `/api/stats/${formStat.id}` : '/api/stats';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formStat)
+      });
+      if (res.ok) {
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice(isEdit ? 'Milestone stat updated successfully!' : 'Milestone stat created successfully!');
+        setTimeout(() => setStatusNotice(''), 3000);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setStatusNotice(d.error || 'Failed to save stat.');
+        setTimeout(() => setStatusNotice(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error saving stat:', err);
+      setStatusNotice('Network error saving stat.');
+      setTimeout(() => setStatusNotice(''), 3000);
+    }
+  };
+
+  const requestDeleteStat = (st) => {
+    setDeleteConfig({
+      title: `Delete milestone stat "${st.value} ${st.label}"?`,
+      onConfirm: async () => {
+        await fetch(`/api/stats/${st.id}`, { method: 'DELETE' });
+        fetchData();
+        notifySiteDataUpdated();
+        setModalType(null);
+        setStatusNotice('Milestone stat deleted.');
+        setTimeout(() => setStatusNotice(''), 3000);
+      }
+    });
+    setModalType('confirm_delete');
+  };
+
   // Toggle Property Published / Featured
   const togglePropertyStatus = async (id, field, currentVal) => {
     await fetch(`/api/properties/${id}`, {
@@ -2249,6 +2523,127 @@ const AdminDashboard = () => {
     notifySiteDataUpdated();
   };
 
+  // Register Video URL (for external / cloud / large videos)
+  const handleRegisterVideoUrl = async (e, targetType = 'background') => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!videoUrlInput || !videoUrlInput.trim()) return;
+
+    try {
+      const res = await fetch('/api/media/register-video-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrl: videoUrlInput.trim(), videoType: targetType })
+      });
+      let data = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {}
+
+      if (res.ok) {
+        setVideoUrlInput('');
+        setStatusNotice(`${targetType === 'background' ? 'Background' : 'Hero'} video link registered successfully!`);
+        fetchData();
+        notifySiteDataUpdated();
+        notifyPrimaryVideoUpdated();
+        setTimeout(() => setStatusNotice(''), 3000);
+      } else {
+        setStatusNotice(data.error || 'Failed to register video link.');
+        setTimeout(() => setStatusNotice(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error registering video URL:', err);
+      setStatusNotice('Network error registering video link.');
+      setTimeout(() => setStatusNotice(''), 3000);
+    }
+  };
+
+  // Register Video File from Local Public / Uploads Directory (Uploads directly or bypasses Vercel limit)
+  const handleRegisterLocalVideoFile = async (rawFilename, videoType = 'hero') => {
+    if (!rawFilename || !rawFilename.trim()) return;
+    const isBg = videoType === 'background';
+    const file = isBg ? selectedBgVideoFile : selectedHeroVideoFile;
+    let cleanName = rawFilename.trim();
+    if (!cleanName.includes('.')) {
+      const ext = file?.name ? (file.name.substring(file.name.lastIndexOf('.')) || '.mp4') : '.mp4';
+      cleanName += ext;
+    }
+
+    const relativeUrl = isBg ? `app/public/videos/${cleanName}` : `uploads/videos/${cleanName}`;
+
+    // If file is selected in browser, try direct upload first (works on local Express backend for files > 4.5MB)
+    if (file) {
+      try {
+        const formData = new FormData();
+        formData.append('videoType', videoType);
+        formData.append('customName', cleanName);
+        formData.append('video', file);
+
+        const res = await fetch('/api/media/upload-video', { method: 'POST', body: formData });
+        if (res.ok) {
+          if (isBg) {
+            setSelectedBgVideoFile(null);
+            setCustomBgVideoName('');
+            setBgDupError(false);
+            if (bgFileInputRef.current) bgFileInputRef.current.value = '';
+          } else {
+            setSelectedHeroVideoFile(null);
+            setCustomHeroVideoName('');
+            setHeroDupError(false);
+            if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+          }
+          setStatusNotice(`Uploaded and registered video "${cleanName}" successfully!`);
+          fetchData();
+          notifySiteDataUpdated();
+          notifyPrimaryVideoUpdated();
+          setTimeout(() => setStatusNotice(''), 4000);
+          return;
+        }
+      } catch (uploadErr) {
+        console.warn('Direct upload failed, falling back to URL registration:', uploadErr);
+      }
+    }
+
+    // Fallback: Register path/URL in database (for Vercel serverless deployments)
+    try {
+      const res = await fetch('/api/media/register-video-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: relativeUrl,
+          filename: cleanName,
+          videoType
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (isBg) {
+          setSelectedBgVideoFile(null);
+          setCustomBgVideoName('');
+          setBgDupError(false);
+          if (bgFileInputRef.current) bgFileInputRef.current.value = '';
+        } else {
+          setSelectedHeroVideoFile(null);
+          setCustomHeroVideoName('');
+          setHeroDupError(false);
+          if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+        }
+        setStatusNotice(`Registered video "${cleanName}" in database! Place file in "${relativeUrl}".`);
+        fetchData();
+        notifySiteDataUpdated();
+        notifyPrimaryVideoUpdated();
+        setTimeout(() => setStatusNotice(''), 5000);
+      } else {
+        setStatusNotice(data.error || 'Failed to register video file.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    } catch (err) {
+      console.error('Error registering local video:', err);
+      setStatusNotice('Network error registering file.');
+      setTimeout(() => setStatusNotice(''), 4000);
+    }
+  };
+
   // Video Upload Handler (Supports both 'hero' and 'background')
   const handleVideoUploadSubmit = async (e, videoType = 'hero') => {
     e.preventDefault();
@@ -2257,6 +2652,11 @@ const AdminDashboard = () => {
     const customName = isBg ? customBgVideoName : customHeroVideoName;
     if (!file) return;
 
+    if (file.size > 4.5 * 1024 * 1024) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      setStatusNotice(`⚠️ File size is ${sizeMB}MB (Vercel limit is 4.5MB). Attempting upload... If it fails, click "Register from app/public/videos/".`);
+    }
+
     const formData = new FormData();
     formData.append('videoType', videoType);
     if (customName && customName.trim()) {
@@ -2264,37 +2664,60 @@ const AdminDashboard = () => {
     }
     formData.append('video', file);
 
-    const res = await fetch('/api/media/upload-video', { method: 'POST', body: formData });
-    const data = await res.json();
-
-    if (res.status === 409) {
-      if (isBg) {
-        setBgDupError(true);
-        setTimeout(() => { if (bgRenameInputRef.current) bgRenameInputRef.current.focus(); }, 50);
-      } else {
-        setHeroDupError(true);
-        setTimeout(() => { if (heroRenameInputRef.current) heroRenameInputRef.current.focus(); }, 50);
+    try {
+      const res = await fetch('/api/media/upload-video', { method: 'POST', body: formData });
+      let data = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch (parseErr) {
+        console.warn('Non-JSON response from upload-video:', parseErr);
       }
-      return;
-    }
 
-    if (res.ok) {
-      if (isBg) {
-        setSelectedBgVideoFile(null);
-        setCustomBgVideoName('');
-        setBgDupError(false);
-        if (bgFileInputRef.current) bgFileInputRef.current.value = '';
-      } else {
-        setSelectedHeroVideoFile(null);
-        setCustomHeroVideoName('');
-        setHeroDupError(false);
-        if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+      if (res.status === 409) {
+        if (isBg) {
+          setBgDupError(true);
+          setTimeout(() => { if (bgRenameInputRef.current) bgRenameInputRef.current.focus(); }, 50);
+        } else {
+          setHeroDupError(true);
+          setTimeout(() => { if (heroRenameInputRef.current) heroRenameInputRef.current.focus(); }, 50);
+        }
+        return;
       }
-      setStatusNotice(`${isBg ? 'Background' : 'Hero Construction'} video uploaded successfully!`);
-      fetchData();
-      notifySiteDataUpdated();
-      notifyPrimaryVideoUpdated();
-      setTimeout(() => setStatusNotice(''), 3000);
+
+      if (res.status === 413) {
+        const targetFilename = (customName || file.name).trim();
+        setStatusNotice(`⚠️ Video file exceeds Vercel 4.5MB upload limit! Place file in ${isBg ? 'app/public/videos/' : 'uploads/videos/'}${targetFilename} and click Register below.`);
+        setTimeout(() => setStatusNotice(''), 6000);
+        return;
+      }
+
+      if (res.ok) {
+        if (isBg) {
+          setSelectedBgVideoFile(null);
+          setCustomBgVideoName('');
+          setBgDupError(false);
+          if (bgFileInputRef.current) bgFileInputRef.current.value = '';
+        } else {
+          setSelectedHeroVideoFile(null);
+          setCustomHeroVideoName('');
+          setHeroDupError(false);
+          if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+        }
+        setStatusNotice(`${isBg ? 'Background' : 'Hero Construction'} video uploaded successfully!`);
+        fetchData();
+        notifySiteDataUpdated();
+        notifyPrimaryVideoUpdated();
+        setTimeout(() => setStatusNotice(''), 3000);
+      } else {
+        setStatusNotice(data.error || 'Failed to upload video.');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    } catch (err) {
+      console.error('Error uploading video:', err);
+      const targetFilename = (customName || file.name).trim();
+      setStatusNotice(`⚠️ Serverless upload failed due to payload size limit. Place file in ${isBg ? 'app/public/videos/' : 'uploads/videos/'}${targetFilename} and click Register below.`);
+      setTimeout(() => setStatusNotice(''), 6000);
     }
   };
 
@@ -2590,7 +3013,7 @@ const AdminDashboard = () => {
                     type="tel"
                     value={registerForm.phone}
                     onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value.replace(/[^0-9+ ]/g, '') })}
-                    placeholder="Enter mobile number (e.g. 9876543210)"
+                    placeholder="Enter mobile number"
                     className="w-full bg-[#09090b] border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 font-semibold shadow-inner transition-all"
                     required
                   />
@@ -2861,8 +3284,8 @@ const AdminDashboard = () => {
           <button
             onClick={() => handleTabChange('settings')}
             className={`font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${activeTab === 'settings'
-                ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
-                : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-amber-400 border-zinc-700/70'
+              ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
+              : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-amber-400 border-zinc-700/70'
               }`}
           >
             <Settings size={14} /> Admin Settings
@@ -2904,8 +3327,8 @@ const AdminDashboard = () => {
               onClick={() => handleTabChange(tab.id)}
               title={tab.label}
               className={`shrink-0 xl:shrink xl:w-full px-3.5 xl:px-2 py-2.5 rounded-xl text-[11px] xl:text-xs font-black uppercase tracking-tight flex items-center justify-center gap-1.5 transition-all text-center whitespace-nowrap snap-start cursor-pointer ${activeTab === tab.id
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20 font-extrabold'
-                  : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800 hover:border-amber-500/40'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20 font-extrabold'
+                : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800 hover:border-amber-500/40'
                 }`}
             >
               <span className="shrink-0">{tab.icon}</span>
@@ -3008,6 +3431,184 @@ const AdminDashboard = () => {
                   <Plus size={15} /> Add Construction Project
                 </button>
               </div>
+            </div>
+
+            {/* SERVICES MANAGEMENT SECTION */}
+            <div className="bg-[#18181b]/80 border border-zinc-800/80 p-4 sm:p-5 rounded-2xl shadow-md space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                    <Building size={16} className="text-amber-400" /> Services Management ({services.length})
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Manage service offerings. Drag cards to reorder display on website.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openCreateService}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-3.5 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md border border-amber-300/40 cursor-pointer"
+                >
+                  <Plus size={14} /> Add Service
+                </button>
+              </div>
+
+              {services.length === 0 ? (
+                <div className="text-center py-6 text-xs text-zinc-500 font-medium">
+                  No services configured in database. Click "Add Service" above to add one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {services.map((srv, idx) => {
+                    const isBeingDragged = draggedSrvIdx === idx;
+                    const isOver = dragOverSrvIdx === idx;
+
+                    return (
+                      <div
+                        key={srv.id}
+                        draggable
+                        onDragStart={(e) => handleSrvDragStart(e, idx)}
+                        onDragOver={(e) => handleSrvDragOver(e, idx)}
+                        onDragLeave={(e) => handleSrvDragLeave(e, idx)}
+                        onDrop={(e) => handleSrvDrop(e, idx)}
+                        className={`bg-[#09090b] border p-3.5 rounded-xl flex flex-col justify-between transition-all group shadow-sm cursor-grab active:cursor-grabbing ${
+                          isBeingDragged
+                            ? 'opacity-40 border-amber-500 scale-95'
+                            : isOver
+                            ? 'border-amber-400 ring-2 ring-amber-400/40 z-10'
+                            : 'border-zinc-800/80 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              {renderIconByName(srv.icon_name, 16)}
+                            </div>
+                            <span className="text-[10px] font-black uppercase text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md font-mono flex items-center gap-1">
+                              <GripVertical size={12} className="text-zinc-500" /> #{idx + 1}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-xs text-white group-hover:text-amber-400 transition-colors">
+                              {srv.title}
+                            </h4>
+                            <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2 leading-relaxed">
+                              {srv.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-2.5 mt-2.5 border-t border-zinc-900">
+                          <button
+                            type="button"
+                            onClick={() => openEditService(srv)}
+                            className="bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 font-bold px-2.5 py-1 rounded-md text-[11px] uppercase flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Edit3 size={12} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => requestDeleteService(srv)}
+                            className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                            title="Delete Service"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* STATS & MILESTONES MANAGEMENT SECTION */}
+            <div className="bg-[#18181b]/80 border border-zinc-800/80 p-4 sm:p-5 rounded-2xl shadow-md space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                    <BarChart2 size={16} className="text-amber-400" /> Milestones & Stats Counter ({stats.length})
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Manage key numerical achievements displayed on the site counter bar. Drag cards to reorder.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openCreateStat}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-extrabold px-3.5 py-2 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Plus size={14} /> Add Stat
+                </button>
+              </div>
+
+              {stats.length === 0 ? (
+                <div className="text-center py-6 text-xs text-zinc-500 font-medium">
+                  No stats configured in database. Click "Add Stat" above to add one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {stats.map((st, idx) => {
+                    const isBeingDragged = draggedStatIdx === idx;
+                    const isOver = dragOverStatIdx === idx;
+
+                    return (
+                      <div
+                        key={st.id}
+                        draggable
+                        onDragStart={(e) => handleStatDragStart(e, idx)}
+                        onDragOver={(e) => handleStatDragOver(e, idx)}
+                        onDragLeave={(e) => handleStatDragLeave(e, idx)}
+                        onDrop={(e) => handleStatDrop(e, idx)}
+                        className={`bg-[#09090b] border p-3.5 rounded-xl flex flex-col justify-between transition-all group shadow-sm cursor-grab active:cursor-grabbing ${
+                          isBeingDragged
+                            ? 'opacity-40 border-amber-500 scale-95'
+                            : isOver
+                            ? 'border-amber-400 ring-2 ring-amber-400/40 z-10'
+                            : 'border-zinc-800/80 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              {renderIconByName(st.icon_name, 16)}
+                            </div>
+                            <span className="text-[10px] font-black uppercase text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md font-mono flex items-center gap-1">
+                              <GripVertical size={12} className="text-zinc-500" /> #{idx + 1}
+                            </span>
+                          </div>
+                          <div className="pt-1">
+                            <div className="text-xl font-black text-amber-400 tracking-tight">
+                              {st.value}
+                            </div>
+                            <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mt-0.5">
+                              {st.label}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-2 mt-2 border-t border-zinc-900">
+                          <button
+                            type="button"
+                            onClick={() => openEditStat(st)}
+                            className="bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 font-bold px-2.5 py-1 rounded-md text-[11px] uppercase flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Edit3 size={12} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => requestDeleteStat(st)}
+                            className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                            title="Delete Stat"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3851,8 +4452,8 @@ const AdminDashboard = () => {
                           type="button"
                           onClick={() => handleToggleFeedbackApproval(f.id, f.approved)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${f.approved
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                              : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                            : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-white'
                             }`}
                         >
                           <CheckCircle size={12} className={f.approved ? 'text-emerald-400' : 'text-zinc-500'} />
@@ -4099,7 +4700,6 @@ const AdminDashboard = () => {
                         onChange={(e) => setAdminUserForm({ ...adminUserForm, newPassword: e.target.value })}
                         placeholder="Enter New Password"
                         className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500 pr-10"
-                        required
                       />
                       <button
                         type="button"
@@ -4120,7 +4720,6 @@ const AdminDashboard = () => {
                       onChange={(e) => setAdminUserForm({ ...adminUserForm, confirmPassword: e.target.value })}
                       placeholder="Repeat New Password"
                       className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
-                      required
                     />
                   </div>
                 </div>
@@ -4369,7 +4968,7 @@ const AdminDashboard = () => {
                   <input
                     type="checkbox"
                     checked={resetSelection.all}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer"
                   />
                   <span className="text-xs font-black uppercase tracking-wider text-white">SELECT ALL</span>
@@ -4384,14 +4983,13 @@ const AdminDashboard = () => {
                 {/* Properties */}
                 <div
                   onClick={() => handleToggleResetItem('properties', !resetSelection.properties)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.properties ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.properties ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.properties}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4404,14 +5002,13 @@ const AdminDashboard = () => {
                 {/* Land / Plots */}
                 <div
                   onClick={() => handleToggleResetItem('land', !resetSelection.land)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.land ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.land ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.land}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4424,14 +5021,13 @@ const AdminDashboard = () => {
                 {/* Projects */}
                 <div
                   onClick={() => handleToggleResetItem('projects', !resetSelection.projects)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.projects ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.projects ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.projects}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4444,14 +5040,13 @@ const AdminDashboard = () => {
                 {/* Gallery */}
                 <div
                   onClick={() => handleToggleResetItem('gallery', !resetSelection.gallery)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.gallery ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.gallery ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.gallery}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4464,14 +5059,13 @@ const AdminDashboard = () => {
                 {/* Feedbacks */}
                 <div
                   onClick={() => handleToggleResetItem('feedbacks', !resetSelection.feedbacks)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.feedbacks ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.feedbacks ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.feedbacks}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4484,14 +5078,13 @@ const AdminDashboard = () => {
                 {/* Leads */}
                 <div
                   onClick={() => handleToggleResetItem('leads', !resetSelection.leads)}
-                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${
-                    resetSelection.leads ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
-                  }`}
+                  className={`bg-[#0b0a0d] border rounded-2xl px-4 py-3.5 flex items-center gap-3 cursor-pointer transition-all select-none ${resetSelection.leads ? 'border-red-500/60 bg-red-950/10' : 'border-zinc-800/80 hover:border-zinc-700'
+                    }`}
                 >
                   <input
                     type="checkbox"
                     checked={resetSelection.leads}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     className="w-4 h-4 accent-red-500 rounded cursor-pointer pointer-events-none"
                   />
                   <div className="flex items-center gap-2 pointer-events-none">
@@ -4508,11 +5101,10 @@ const AdminDashboard = () => {
                   type="button"
                   onClick={handleExecuteReset}
                   disabled={isResettingData || !isAnyDataSelectedForReset}
-                  className={`font-black text-xs uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg ${
-                    isResettingData || !isAnyDataSelectedForReset
-                      ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 opacity-40 cursor-not-allowed pointer-events-none'
-                      : 'bg-red-950/80 hover:bg-red-900 border border-red-800/60 text-red-300 hover:text-white cursor-pointer'
-                  }`}
+                  className={`font-black text-xs uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg ${isResettingData || !isAnyDataSelectedForReset
+                    ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 opacity-40 cursor-not-allowed pointer-events-none'
+                    : 'bg-red-950/80 hover:bg-red-900 border border-red-800/60 text-red-300 hover:text-white cursor-pointer'
+                    }`}
                 >
                   <Trash2 size={15} />
                   <span>{isResettingData ? 'RESETTING DATA...' : 'RESET SELECTED DATA (DB & FILES)'}</span>
@@ -4531,8 +5123,8 @@ const AdminDashboard = () => {
                 type="button"
                 onClick={() => setVideoSectionTab('hero')}
                 className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${videoSectionTab === 'hero'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
-                    : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
+                  : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
                   }`}
               >
                 <Video size={14} />
@@ -4547,8 +5139,8 @@ const AdminDashboard = () => {
                 type="button"
                 onClick={() => setVideoSectionTab('background')}
                 className={`py-2 px-4 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all ${videoSectionTab === 'background'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
-                    : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20'
+                  : 'bg-[#18181b] text-zinc-300 hover:text-white border border-zinc-800'
                   }`}
               >
                 <Layers size={14} />
@@ -4562,26 +5154,26 @@ const AdminDashboard = () => {
 
             {/* SECTION 1: HERO CONSTRUCTION VIDEO */}
             {videoSectionTab === 'hero' && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 {/* Upload Form Container */}
-                <form onSubmit={(e) => handleVideoUploadSubmit(e, 'hero')} className="bg-[#18181b] p-6 sm:p-7 rounded-3xl border border-zinc-800 shadow-xl space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+                <form onSubmit={(e) => handleVideoUploadSubmit(e, 'hero')} className="bg-[#18181b]/80 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 shadow-md space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
                     <div>
                       <h3 className="text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
-                        <Upload size={18} className="text-amber-400" /> Upload Construction Video
+                        <Upload size={16} className="text-amber-400" /> Upload Construction Video
                       </h3>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Upload high-resolution video for Hero section timeline & automated 3D frame extraction.
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Upload video for Hero section timeline & 3D frame extraction.
                       </p>
                     </div>
-                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/30">
+                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
                       Hero Section
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1">Select Hero Video File</label>
+                      <label className="block text-[11px] font-bold text-zinc-400 mb-1">Select Hero Video File</label>
                       <input
                         ref={heroFileInputRef}
                         type="file"
@@ -4590,13 +5182,13 @@ const AdminDashboard = () => {
                           setSelectedHeroVideoFile(e.target.files[0]);
                           setHeroDupError(false);
                         }}
-                        className="bg-[#09090b] border border-zinc-800 text-white rounded-xl px-4 py-2 text-xs w-full focus:border-amber-500"
+                        className="bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 text-xs w-full focus:border-amber-500 cursor-pointer"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1">
+                      <label className="block text-[11px] font-bold text-zinc-400 mb-1">
                         Rename File {heroDupError && <span className="text-amber-400 font-bold text-xs ml-2">⚠️ File exists! Rename here</span>}
                       </label>
                       <input
@@ -4608,84 +5200,116 @@ const AdminDashboard = () => {
                           setCustomHeroVideoName(e.target.value);
                           setHeroDupError(false);
                         }}
-                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${heroDupError
-                            ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
-                            : 'bg-[#09090b] border border-zinc-800'
+                        className={`rounded-xl px-3 py-2 text-xs w-full transition-all text-white ${heroDupError
+                          ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
+                          : 'bg-[#09090b] border border-zinc-800'
                           }`}
                       />
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all"
-                  >
-                    <Upload size={14} /> Submit
-                  </button>
+                  {selectedHeroVideoFile && selectedHeroVideoFile.size > 4.5 * 1024 * 1024 && (
+                    <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-3 text-xs space-y-2 text-amber-200 animate-fadeIn">
+                      <div className="flex items-center gap-2 font-extrabold text-amber-400">
+                        <AlertTriangle size={16} />
+                        <span>File size is {(selectedHeroVideoFile.size / (1024 * 1024)).toFixed(1)}MB (Vercel limit: 4.5MB)</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        Vercel serverless has a 4.5MB direct upload limit. If direct API upload fails, place this file in <code className="bg-black/50 text-amber-300 font-mono px-1.5 py-0.5 rounded border border-amber-500/30">uploads/videos/{customHeroVideoName || selectedHeroVideoFile.name}</code> or <code className="bg-black/50 text-amber-300 font-mono px-1.5 py-0.5 rounded border border-amber-500/30">app/public/videos/{customHeroVideoName || selectedHeroVideoFile.name}</code> and click register:
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleRegisterLocalVideoFile(customHeroVideoName || selectedHeroVideoFile.name, 'hero')}
+                          className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-3.5 py-1.5 rounded-lg text-[11px] uppercase shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Zap size={14} /> Register from Local / Public Folder
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(!selectedHeroVideoFile || selectedHeroVideoFile.size <= 4.5 * 1024 * 1024) && (
+                    <button
+                      type="submit"
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Upload size={14} /> Submit Video
+                    </button>
+                  )}
                 </form>
 
                 {/* Preview / List Container */}
-                <div className="bg-[#18181b] rounded-3xl border border-zinc-800 overflow-hidden p-6 sm:p-7 shadow-xl">
-                  <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
+                <div className="bg-[#18181b]/80 rounded-2xl border border-zinc-800/80 overflow-hidden p-4 sm:p-5 shadow-md space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
-                        <Video size={16} className="text-amber-400" /> Hero Construction Videos
+                      <h3 className="text-xs sm:text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                        <Video size={16} className="text-amber-400" /> Hero Construction Videos ({heroVideos.length})
                       </h3>
-                      <p className="text-xs text-zinc-400">Active video used for Hero 3D interactive frame animation.</p>
+                      <p className="text-[11px] text-zinc-400">Manage uploaded Hero video files.</p>
                     </div>
-                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
-                      {heroVideos.length} Videos
-                    </span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {isInitialLoading ? (
                       <AdminLoadingSkeleton />
                     ) : heroVideos.length === 0 ? (
-                      <div className="text-center py-8 text-xs text-zinc-500 font-medium">
+                      <div className="text-center py-6 text-xs text-zinc-500 font-medium">
                         No construction videos found. Upload a video above.
                       </div>
                     ) : (
                       heroVideos.map((vid) => (
                         <div
                           key={vid.id}
-                          onClick={() => {
-                            setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
-                            setModalType('rename_video');
-                          }}
-                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
-                            }`}
+                          className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                            Boolean(vid.is_primary) ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' : 'bg-[#09090b] border-zinc-800/80 hover:border-amber-500/30'
+                          }`}
                         >
-                          <div className="space-y-1">
-                            <div className="font-extrabold text-xs text-white flex items-center gap-2">
-                              <Video size={16} className="text-amber-400 shrink-0" />
-                              <span>{vid.filename}</span>
-                              {vid.is_primary ? (
-                                <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-black text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <Star size={10} fill="currentColor" /> PRIMARY HERO
-                                </span>
-                              ) : null}
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              <Video size={18} />
                             </div>
-                            <div className="text-[11px] font-mono text-zinc-400 flex flex-wrap items-center gap-3">
-                              <span>Path: <strong className="text-zinc-200">{vid.filepath || `uploads/videos/${vid.filename}`}</strong></span>
-                              <span>•</span>
-                              <span>Last Updated: <strong className="text-zinc-200">{formatLastUpdated(vid.created_at)}</strong></span>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                                <span className="truncate">{vid.filename}</span>
+                                {Boolean(vid.is_primary) && (
+                                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                                    <Star size={10} fill="currentColor" /> PRIMARY
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-mono text-zinc-400 truncate mt-1">
+                                {vid.filepath || `uploads/videos/${vid.filename}`} • Updated: {formatLastUpdated(vid.created_at)}
+                              </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {!vid.is_primary && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!Boolean(vid.is_primary) && (
                               <button
+                                type="button"
                                 onClick={() => handleSetPrimaryVideo(vid.id, 'hero')}
-                                className="bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-black font-extrabold px-3 py-1.5 rounded-xl text-[11px] uppercase transition-all flex items-center gap-1 border border-amber-500/30"
+                                className="p-2 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
                                 title="Set as Primary Hero Video"
                               >
-                                <Star size={12} />
+                                <Star size={18} />
                               </button>
                             )}
                             <button
+                              type="button"
+                              onClick={() => {
+                                setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
+                                setModalType('rename_video');
+                              }}
+                              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
+                              title="Rename Video"
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => requestDeleteVideo(vid.id, vid.filename)}
-                              className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
                               title="Delete Video"
                             >
                               <Trash2 size={16} />
@@ -4701,26 +5325,26 @@ const AdminDashboard = () => {
 
             {/* SECTION 2: SITE BACKGROUND VIDEO */}
             {videoSectionTab === 'background' && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 {/* Upload Form Container */}
-                <form onSubmit={(e) => handleVideoUploadSubmit(e, 'background')} className="bg-[#18181b] p-6 sm:p-7 rounded-3xl border border-zinc-800 shadow-xl space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+                <form onSubmit={(e) => handleVideoUploadSubmit(e, 'background')} className="bg-[#18181b]/80 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 shadow-md space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
                     <div>
                       <h3 className="text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
-                        <Upload size={18} className="text-amber-400" /> Upload Background Video
+                        <Upload size={16} className="text-amber-400" /> Upload Background Video
                       </h3>
-                      <p className="text-xs text-zinc-400 mt-0.5">
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
                         Upload an ambient background video.
                       </p>
                     </div>
-                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/30">
+                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
                       Site Background
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1">Select Background Video File</label>
+                      <label className="block text-[11px] font-bold text-zinc-400 mb-1">Select Background Video File</label>
                       <input
                         ref={bgFileInputRef}
                         type="file"
@@ -4729,13 +5353,13 @@ const AdminDashboard = () => {
                           setSelectedBgVideoFile(e.target.files[0]);
                           setBgDupError(false);
                         }}
-                        className="bg-[#09090b] border border-zinc-800 text-white rounded-xl px-4 py-2 text-xs w-full focus:border-amber-500"
+                        className="bg-[#09090b] border border-zinc-800 text-white rounded-xl px-3 py-2 text-xs w-full focus:border-amber-500 cursor-pointer"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1">
+                      <label className="block text-[11px] font-bold text-zinc-400 mb-1">
                         Rename File {bgDupError && <span className="text-amber-400 font-bold text-xs ml-2">⚠️ File exists! Rename here</span>}
                       </label>
                       <input
@@ -4747,86 +5371,116 @@ const AdminDashboard = () => {
                           setCustomBgVideoName(e.target.value);
                           setBgDupError(false);
                         }}
-                        className={`rounded-xl px-4 py-2.5 text-xs w-full transition-all text-white ${bgDupError
-                            ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
-                            : 'bg-[#09090b] border border-zinc-800'
+                        className={`rounded-xl px-3 py-2 text-xs w-full transition-all text-white ${bgDupError
+                          ? 'bg-amber-500/20 border-2 border-amber-500 font-bold text-amber-300'
+                          : 'bg-[#09090b] border border-zinc-800'
                           }`}
                       />
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all"
-                  >
-                    <Upload size={14} /> Submit
-                  </button>
+                  {selectedBgVideoFile && selectedBgVideoFile.size > 4.5 * 1024 * 1024 && (
+                    <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-3 text-xs space-y-2 text-amber-200 animate-fadeIn">
+                      <div className="flex items-center gap-2 font-extrabold text-amber-400">
+                        <AlertTriangle size={16} />
+                        <span>File size is {(selectedBgVideoFile.size / (1024 * 1024)).toFixed(1)}MB (Vercel limit: 4.5MB)</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        Vercel serverless has a 4.5MB direct upload limit. Place this file in <code className="bg-black/50 text-amber-300 font-mono px-1.5 py-0.5 rounded border border-amber-500/30">videos/{customBgVideoName || selectedBgVideoFile.name}</code> and click register:
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleRegisterLocalVideoFile(customBgVideoName || selectedBgVideoFile.name, 'background')}
+                          className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-3.5 py-1.5 rounded-lg text-[11px] uppercase shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Zap size={14} /> Register from `videos/` Folder
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(!selectedBgVideoFile || selectedBgVideoFile.size <= 4.5 * 1024 * 1024) && (
+                    <button
+                      type="submit"
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Upload size={14} /> Submit Video
+                    </button>
+                  )}
                 </form>
 
                 {/* Preview / List Container */}
-                <div className="bg-[#18181b] rounded-3xl border border-zinc-800 overflow-hidden p-6 sm:p-7 shadow-xl">
-                  <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
+                <div className="bg-[#18181b]/80 rounded-2xl border border-zinc-800/80 overflow-hidden p-4 sm:p-5 shadow-md space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
-                        <Video size={16} className="text-amber-400" /> Site Background Videos
+                      <h3 className="text-xs sm:text-sm font-extrabold uppercase text-amber-400 flex items-center gap-2">
+                        <Video size={16} className="text-amber-400" /> Site Background Videos ({bgVideos.length})
                       </h3>
-                      <p className="text-xs text-zinc-400">
-                        Ambient videos for website background.
-                      </p>
+                      <p className="text-[11px] text-zinc-400">Manage ambient site background videos.</p>
                     </div>
-                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
-                      {bgVideos.length} Videos
-                    </span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {isInitialLoading ? (
                       <AdminLoadingSkeleton />
                     ) : bgVideos.length === 0 ? (
-                      <div className="text-center py-8 text-xs text-zinc-500 font-medium">
-                        No background videos found. Upload a video above or place one in <code className="text-amber-400">app/public/videos</code>.
+                      <div className="text-center py-6 text-xs text-zinc-500 font-medium">
+                        No background videos found. Upload a video above.
                       </div>
                     ) : (
                       bgVideos.map((vid) => (
                         <div
                           key={vid.id}
-                          onClick={() => {
-                            setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
-                            setModalType('rename_video');
-                          }}
-                          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all ${vid.is_primary ? 'bg-amber-500/10 border-amber-500/60 shadow-md' : 'bg-[#09090b] border-zinc-800 hover:border-amber-500/30'
-                            }`}
+                          className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                            Boolean(vid.is_primary) ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' : 'bg-[#09090b] border-zinc-800/80 hover:border-amber-500/30'
+                          }`}
                         >
-                          <div className="space-y-1">
-                            <div className="font-extrabold text-xs text-white flex items-center gap-2">
-                              <Video size={16} className="text-amber-400 shrink-0" />
-                              <span>{vid.filename}</span>
-                              {vid.is_primary ? (
-                                <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-black text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <Star size={10} fill="currentColor" /> PRIMARY BACKGROUND
-                                </span>
-                              ) : null}
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              <Video size={18} />
                             </div>
-                            <div className="text-[11px] font-mono text-zinc-400 flex flex-wrap items-center gap-3">
-                              <span>Path: <strong className="text-zinc-200">{vid.filepath || `app/public/videos/${vid.filename}`}</strong></span>
-                              <span>•</span>
-                              <span>Last Updated: <strong className="text-zinc-200">{formatLastUpdated(vid.created_at)}</strong></span>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                                <span className="truncate">{vid.filename}</span>
+                                {Boolean(vid.is_primary) && (
+                                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                                    <Star size={10} fill="currentColor" /> PRIMARY
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-mono text-zinc-400 truncate mt-1">
+                                {vid.filepath || `app/public/videos/${vid.filename}`} • Updated: {formatLastUpdated(vid.created_at)}
+                              </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {!vid.is_primary && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!Boolean(vid.is_primary) && (
                               <button
+                                type="button"
                                 onClick={() => handleSetPrimaryVideo(vid.id, 'background')}
-                                className="bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-black font-extrabold px-3 py-1.5 rounded-xl text-[11px] uppercase transition-all flex items-center gap-1 border border-amber-500/30"
+                                className="p-2 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
                                 title="Set as Primary Background Video"
                               >
-                                <Star size={12} />
+                                <Star size={18} />
                               </button>
                             )}
                             <button
+                              type="button"
+                              onClick={() => {
+                                setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
+                                setModalType('rename_video');
+                              }}
+                              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
+                              title="Rename Video"
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => requestDeleteVideo(vid.id, vid.filename)}
-                              className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
                               title="Delete Video"
                             >
                               <Trash2 size={16} />
@@ -4878,8 +5532,8 @@ const AdminDashboard = () => {
                       type="button"
                       onClick={() => setFormStep(idx + 1)}
                       className={`px-3 py-1.5 rounded-lg shrink-0 transition-all ${formStep === idx + 1
-                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold'
-                          : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black font-extrabold'
+                        : 'bg-[#09090b] text-zinc-400 border border-zinc-800 hover:text-white'
                         }`}
                     >
                       {label}
@@ -4944,12 +5598,12 @@ const AdminDashboard = () => {
                                 onDrop={(e) => handleImageDrop(e, idx)}
                                 onDragEnd={handleImageDragEnd}
                                 className={`relative rounded-xl overflow-hidden border cursor-grab active:cursor-grabbing select-none transition-all duration-150 flex flex-col ${isBeingDragged
-                                    ? 'opacity-30 scale-95 border-dashed border-amber-500 ring-2 ring-amber-500/50'
-                                    : isDragTarget
-                                      ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-500/20 scale-[1.03] shadow-xl'
-                                      : idx === 0
-                                        ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg bg-black/60'
-                                        : 'border-zinc-800 bg-black/60 hover:border-zinc-700'
+                                  ? 'opacity-30 scale-95 border-dashed border-amber-500 ring-2 ring-amber-500/50'
+                                  : isDragTarget
+                                    ? 'border-amber-400 ring-2 ring-amber-400 bg-amber-500/20 scale-[1.03] shadow-xl'
+                                    : idx === 0
+                                      ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg bg-black/60'
+                                      : 'border-zinc-800 bg-black/60 hover:border-zinc-700'
                                   }`}
                               >
                                 <div className="aspect-video w-full overflow-hidden flex items-center justify-center bg-zinc-950 relative pointer-events-none">
@@ -5626,12 +6280,12 @@ const AdminDashboard = () => {
                                 onDrop={(e) => handleLandImageDrop(e, idx)}
                                 onDragEnd={handleLandImageDragEnd}
                                 className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${isBeingDragged
-                                    ? 'opacity-30 scale-95 border-amber-500'
-                                    : isOver
-                                      ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
-                                      : isCover
-                                        ? 'border-amber-500 ring-1 ring-amber-500/40'
-                                        : 'border-zinc-800 hover:border-zinc-600'
+                                  ? 'opacity-30 scale-95 border-amber-500'
+                                  : isOver
+                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                    : isCover
+                                      ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                      : 'border-zinc-800 hover:border-zinc-600'
                                   }`}
                               >
                                 <img
@@ -6329,12 +6983,12 @@ const AdminDashboard = () => {
                                 onDrop={(e) => handleProjImageDrop(e, idx)}
                                 onDragEnd={handleProjImageDragEnd}
                                 className={`group relative rounded-xl overflow-hidden border bg-zinc-950/80 aspect-video flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${isBeingDragged
-                                    ? 'opacity-30 scale-95 border-amber-500'
-                                    : isOver
-                                      ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
-                                      : isCover
-                                        ? 'border-amber-500 ring-1 ring-amber-500/40'
-                                        : 'border-zinc-800 hover:border-zinc-600'
+                                  ? 'opacity-30 scale-95 border-amber-500'
+                                  : isOver
+                                    ? 'border-amber-400 ring-2 ring-amber-400/50 scale-102 z-10'
+                                    : isCover
+                                      ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                      : 'border-zinc-800 hover:border-zinc-600'
                                   }`}
                               >
                                 <img
@@ -6916,9 +7570,145 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
-                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Cancel</button>
+                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
                   <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
                     <Save size={14} /> Save Testimonial
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* SERVICE FORM MODAL */}
+            {modalType === 'service_form' && (
+              <form onSubmit={handleSaveService} className="space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Services Configuration</span>
+                  <h3 className="text-lg font-black text-white">
+                    {formService.id ? 'Edit Service' : 'Add New Service'}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Service Title *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Houses for Sale"
+                      value={formService.title}
+                      onChange={(e) => setFormService({ ...formService, title: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Icon</label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        {renderIconByName(formService.icon_name, 20)}
+                      </div>
+                      <select
+                        value={formService.icon_name}
+                        onChange={(e) => setFormService({ ...formService, icon_name: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Home">Home (Houses)</option>
+                        <option value="MapPin">MapPin (Land / Plots)</option>
+                        <option value="HardHat">HardHat (Contract Construction)</option>
+                        <option value="Users">Users (Consultant)</option>
+                        <option value="FileText">FileText (Documentation)</option>
+                        <option value="Compass">Compass (Planning & Advice)</option>
+                        <option value="Building">Building (Commercial / Flats)</option>
+                        <option value="ShieldCheck">ShieldCheck (Trust & Legal)</option>
+                        <option value="Star">Star (Premium)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-zinc-400 mb-1">Service Description *</label>
+                    <textarea
+                      rows="3"
+                      placeholder="Short description of this service..."
+                      value={formService.description}
+                      onChange={(e) => setFormService({ ...formService, description: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 resize-none leading-relaxed"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
+                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
+                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
+                    <Save size={14} /> Save Service
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* STAT FORM MODAL */}
+            {modalType === 'stat_form' && (
+              <form onSubmit={handleSaveStat} className="space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Milestone Counter Form</span>
+                  <h3 className="text-lg font-black text-white">
+                    {formStat.id ? 'Edit Milestone Stat' : 'Add New Milestone Stat'}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Stat Value * (e.g. 40+)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 40+"
+                      value={formStat.value}
+                      onChange={(e) => setFormStat({ ...formStat, value: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-amber-400 focus:outline-none focus:border-amber-500 font-black"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Stat Label * (e.g. HOMES BUILT)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. HOMES BUILT"
+                      value={formStat.label}
+                      onChange={(e) => setFormStat({ ...formStat, label: e.target.value })}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-zinc-400 mb-1">Icon</label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        {renderIconByName(formStat.icon_name, 20)}
+                      </div>
+                      <select
+                        value={formStat.icon_name}
+                        onChange={(e) => setFormStat({ ...formStat, icon_name: e.target.value })}
+                        className="w-full bg-[#09090b] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Home">Home</option>
+                        <option value="MapPin">MapPin</option>
+                        <option value="HardHat">HardHat</option>
+                        <option value="Users">Users</option>
+                        <option value="Building">Building</option>
+                        <option value="ShieldCheck">ShieldCheck</option>
+                        <option value="Star">Star</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
+                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
+                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
+                    <Save size={14} /> Save Stat
                   </button>
                 </div>
               </form>

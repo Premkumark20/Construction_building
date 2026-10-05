@@ -16,27 +16,6 @@ const reasons = [
   'Trusted by Many Families'
 ];
 
-const fallbackTestimonials = [
-  {
-    quote: "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.",
-    client_name: "Ramesh & Family",
-    location: "Poonamallee",
-    rating: 5
-  },
-  {
-    quote: "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!",
-    client_name: "Karthik Raja",
-    location: "Mangadu",
-    rating: 5
-  },
-  {
-    quote: "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.",
-    client_name: "Suresh Kumar",
-    location: "Kundrathur",
-    rating: 5
-  }
-];
-
 const WhyChooseUs = () => {
   const sectionRef = useRef(null);
   const pinContainerRef = useRef(null);
@@ -45,15 +24,13 @@ const WhyChooseUs = () => {
   const reasonsContainerRef = useRef(null);
 
   const { testimonials: dbTestimonials } = useSiteData();
-  const safeTestimonials = Array.isArray(dbTestimonials) && dbTestimonials.length > 0
-    ? dbTestimonials
-    : fallbackTestimonials;
+  const safeTestimonials = Array.isArray(dbTestimonials) ? dbTestimonials : [];
 
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
-  // Auto-change reviews every 4 seconds
+  // Auto-change reviews every 4.5 seconds
   useEffect(() => {
-    if (safeTestimonials.length === 0) return;
+    if (safeTestimonials.length <= 1) return;
     const timer = setInterval(() => {
       setActiveTestimonial((prev) => (prev + 1) % safeTestimonials.length);
     }, 4500);
@@ -84,6 +61,8 @@ const WhyChooseUs = () => {
           end: '+=2400',
           scrub: 1.5,
           anticipatePin: 1,
+          pinSpacing: true,
+          refreshPriority: 9,
           invalidateOnRefresh: true,
         },
       });
@@ -122,7 +101,11 @@ const WhyChooseUs = () => {
       }
     });
 
-    return () => mm.revert();
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
   }, []);
 
   return (
@@ -195,25 +178,31 @@ const WhyChooseUs = () => {
                   What Our Clients Say
                 </h2>
 
-                <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 group-hover:border-amber-500/30 transition-all">
-                  <div className="flex items-center justify-between mb-2.5 sm:mb-4">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-md">
-                      <Quote size={16} className="text-amber-400" />
+                {safeTestimonials.length === 0 ? (
+                  <div className="bg-[#18181c]/85 p-5 sm:p-8 rounded-xl sm:rounded-2xl border border-white/10 text-center mt-1 sm:mt-4">
+                    <p className="text-zinc-400 text-xs sm:text-sm">Client testimonials will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="bg-[#18181c]/85 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-inner relative mt-1 sm:mt-4 group-hover:border-amber-500/30 transition-all">
+                    <div className="flex items-center justify-between mb-2.5 sm:mb-4">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-md">
+                        <Quote size={16} className="text-amber-400" />
+                      </div>
+                      {safeTestimonials[activeTestimonial % safeTestimonials.length]?.rating && (
+                        <span className="text-amber-400 text-xs sm:text-sm tracking-widest font-black">
+                          {'★'.repeat(Math.min(5, Math.max(1, safeTestimonials[activeTestimonial % safeTestimonials.length].rating || 5)))}
+                        </span>
+                      )}
                     </div>
-                    {safeTestimonials[activeTestimonial % safeTestimonials.length]?.rating && (
-                      <span className="text-amber-400 text-xs sm:text-sm tracking-widest font-black">
-                        {'★'.repeat(Math.min(5, Math.max(1, safeTestimonials[activeTestimonial % safeTestimonials.length].rating || 5)))}
-                      </span>
-                    )}
+                    <p className="text-zinc-200 text-xs sm:text-base italic leading-relaxed mb-2.5 sm:mb-4 font-medium min-h-[50px] sm:min-h-[72px] transition-all duration-500">
+                      "{safeTestimonials[activeTestimonial % safeTestimonials.length]?.quote}"
+                    </p>
+                    <div className="font-extrabold text-[11px] sm:text-sm text-amber-400 transition-all duration-500">
+                      – {safeTestimonials[activeTestimonial % safeTestimonials.length]?.client_name || 'Happy Client'}
+                      {safeTestimonials[activeTestimonial % safeTestimonials.length]?.location ? `, ${safeTestimonials[activeTestimonial % safeTestimonials.length].location}` : ''}
+                    </div>
                   </div>
-                  <p className="text-zinc-200 text-xs sm:text-base italic leading-relaxed mb-2.5 sm:mb-4 font-medium min-h-[50px] sm:min-h-[72px] transition-all duration-500">
-                    "{safeTestimonials[activeTestimonial % safeTestimonials.length]?.quote}"
-                  </p>
-                  <div className="font-extrabold text-[11px] sm:text-sm text-amber-400 transition-all duration-500">
-                    – {safeTestimonials[activeTestimonial % safeTestimonials.length]?.client_name || safeTestimonials[activeTestimonial % safeTestimonials.length]?.author || 'Happy Client'}
-                    {safeTestimonials[activeTestimonial % safeTestimonials.length]?.location ? `, ${safeTestimonials[activeTestimonial % safeTestimonials.length].location}` : ''}
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Interactive Pagination Dots */}

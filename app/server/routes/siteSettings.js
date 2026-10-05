@@ -439,38 +439,65 @@ router.put('/', (req, res) => {
   const finalTitle = site_title || (company_name ? `${company_name} ${company_subtitle || ''}`.trim() : 'SK Builders & Property Consultant');
   const finalDesc = meta_description ?? description ?? hero_subtitle ?? '';
 
-  const sqlSettings = `
-    UPDATE site_settings SET
-      company_name = ?, company_subtitle = ?, site_title = ?, meta_description = ?,
-      phone = ?, email = ?, location = ?, service_areas = ?,
-      hero_tagline = ?, hero_headline_find = ?, hero_headline_property = ?, hero_headline_confidence = ?, hero_subtitle = ?,
-      facebook_url = ?, instagram_url = ?, whatsapp_number = ?, logo_url = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1
-  `;
+  db.get('SELECT id FROM site_settings ORDER BY id ASC LIMIT 1', [], (checkErr, existingRow) => {
+    const handleSuccess = () => {
+      updateIndexHtmlFiles(finalTitle, finalDesc);
+      db.run(
+        `UPDATE admin_users SET phone = ?, email = ?, facebook = ?, instagram = ?, whatsapp = ? WHERE id = (SELECT id FROM admin_users ORDER BY id DESC LIMIT 1)`,
+        [phone, email, facebook_url, instagram_url, whatsapp_number],
+        () => {
+          res.json({
+            message: 'Site settings updated successfully.',
+            site_title: finalTitle,
+            meta_description: finalDesc
+          });
+        }
+      );
+    };
 
-  db.run(sqlSettings, [
-    company_name, company_subtitle, finalTitle, finalDesc,
-    phone, email, location, service_areas,
-    hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
-    facebook_url, instagram_url, whatsapp_number, logo_url || '/logo/sk-builders-logo.png'
-  ], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+    if (!existingRow) {
+      const sqlInsert = `
+        INSERT INTO site_settings (
+          id, company_name, company_subtitle, site_title, meta_description,
+          phone, email, location, service_areas,
+          hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
+          facebook_url, instagram_url, whatsapp_number, logo_url
+        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      db.run(sqlInsert, [
+        company_name || 'SK BUILDERS', company_subtitle || '& PROPERTY CONSULTANT', finalTitle, finalDesc,
+        phone || '', email || 'info@skbuilders.com', location || '', service_areas || '',
+        hero_tagline || 'BUILDING QUALITY HOMES.', hero_headline_find || 'Find', hero_headline_property || 'Right Property', hero_headline_confidence || 'Confidence', hero_subtitle || '',
+        facebook_url || '', instagram_url || '', whatsapp_number || '', logo_url || '/logo/sk-builders-logo.png'
+      ], function(insertErr) {
+        if (insertErr) {
+          return res.status(500).json({ error: insertErr.message });
+        }
+        handleSuccess();
+      });
+    } else {
+      const sqlSettings = `
+        UPDATE site_settings SET
+          company_name = ?, company_subtitle = ?, site_title = ?, meta_description = ?,
+          phone = ?, email = ?, location = ?, service_areas = ?,
+          hero_tagline = ?, hero_headline_find = ?, hero_headline_property = ?, hero_headline_confidence = ?, hero_subtitle = ?,
+          facebook_url = ?, instagram_url = ?, whatsapp_number = ?, logo_url = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+
+      db.run(sqlSettings, [
+        company_name, company_subtitle, finalTitle, finalDesc,
+        phone, email, location, service_areas,
+        hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
+        facebook_url, instagram_url, whatsapp_number, logo_url || '/logo/sk-builders-logo.png',
+        existingRow.id
+      ], function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+        handleSuccess();
+      });
     }
-
-    updateIndexHtmlFiles(finalTitle, finalDesc);
-
-    db.run(
-      `UPDATE admin_users SET phone = ?, email = ?, facebook = ?, instagram = ?, whatsapp = ? WHERE id = (SELECT id FROM admin_users ORDER BY id DESC LIMIT 1)`,
-      [phone, email, facebook_url, instagram_url, whatsapp_number],
-      () => {
-        res.json({
-          message: 'Site settings updated successfully.',
-          site_title: finalTitle,
-          meta_description: finalDesc
-        });
-      }
-    );
   });
 });
 

@@ -91,6 +91,8 @@ const ContactCTA = () => {
           end: '+=800',
           scrub: 1.2,
           anticipatePin: 1,
+          pinSpacing: true,
+          refreshPriority: 4,
           invalidateOnRefresh: true,
         },
       });
@@ -115,7 +117,16 @@ const ContactCTA = () => {
       gsap.set([leftColumn, rightForm], { clearProps: 'all' });
     });
 
-    return () => mm.revert();
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    });
+
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
   }, []);
 
   const handleSubmit = async (e) => {

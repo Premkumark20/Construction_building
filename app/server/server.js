@@ -15,6 +15,7 @@ import galleryRouter from './routes/gallery.js';
 import testimonialsRouter from './routes/testimonials.js';
 import feedbackRouter from './routes/feedback.js';
 import mediaRouter from './routes/media.js';
+import statsRouter from './routes/stats.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,15 +30,40 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Serve static assets from project root, uploads, logo, and videos folders
 app.use(express.static(path.join(__dirname, '../../')));
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/logo', express.static(path.join(__dirname, '../../logo')));
+app.use('/logo', express.static(path.join(process.cwd(), 'logo')));
 app.use('/videos', express.static(path.join(__dirname, '../public/videos'), { acceptRanges: true }));
 app.use('/videos', express.static(path.join(__dirname, '../../videos'), { acceptRanges: true }));
 app.use('/frames', express.static(path.join(__dirname, '../../frames')));
 app.use('/frames', express.static(path.join(__dirname, '../public/frames')));
 
+if (process.env.VERCEL) {
+  app.use('/uploads', express.static('/tmp/uploads'));
+  app.use('/logo', express.static('/tmp/logo'));
+  app.use('/videos', express.static('/tmp/videos', { acceptRanges: true }));
+}
+
+// Fallback explicit static handler for /uploads/*
+app.get('/uploads/*', (req, res, next) => {
+  const subPath = req.params[0];
+  const candidates = [
+    path.join(__dirname, '../../uploads', subPath),
+    path.join(process.cwd(), 'uploads', subPath),
+    path.join('/tmp/uploads', subPath)
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return res.sendFile(c);
+    }
+  }
+  next();
+});
+
 // API Routes
 app.use('/api/settings', siteSettingsRouter);
 app.use('/api/services', servicesRouter);
+app.use('/api/stats', statsRouter);
 app.use('/api/properties', propertiesRouter);
 app.use('/api/land', landRouter);
 app.use('/api/projects', projectsRouter);

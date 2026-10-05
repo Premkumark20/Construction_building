@@ -1,8 +1,11 @@
 import sqlite3 from 'sqlite3';
+import pg from 'pg';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { hashUsername, hashPassword } from '../utils/authCrypto.js';
+
+const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,36 +55,144 @@ if (process.env.VERCEL) {
 
 initialDirs.forEach(d => safeMkdir(d));
 
-let dbPath = path.join(__dirname, 'showcase.db');
-safeMkdir(path.dirname(dbPath));
-const schemaPath = path.join(__dirname, 'schema.sql');
+const postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING;
 
-if (process.env.VERCEL) {
-  const tmpDbPath = '/tmp/showcase.db';
-  try {
-    if (!fs.existsSync(tmpDbPath) && fs.existsSync(dbPath)) {
-      fs.copyFileSync(dbPath, tmpDbPath);
+let db;
+
+if (postgresUrl) {
+  console.log('Connecting to PostgreSQL database via environment variable...');
+  const pool = new Pool({
+    connectionString: postgresUrl,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  const convertSql = (sql) => {
+    let count = 1;
+    return sql.replace(/\?/g, () => `$${count++}`);
+  };
+
+  db = {
+    isPg: true,
+    pool,
+    all(sql, params = [], cb) {
+      if (typeof params === 'function') {
+        cb = params;
+        params = [];
+      }
+      const pgSql = convertSql(sql);
+      pool.query(pgSql, params)
+        .then(res => cb && cb(null, res.rows))
+        .catch(err => cb && cb(err));
+    },
+    get(sql, params = [], cb) {
+      if (typeof params === 'function') {
+        cb = params;
+        params = [];
+      }
+      const pgSql = convertSql(sql);
+      pool.query(pgSql, params)
+        .then(res => cb && cb(null, res.rows[0] || null))
+        .catch(err => cb && cb(err));
+    },
+    run(sql, params = [], cb) {
+      if (typeof params === 'function') {
+        cb = params;
+        params = [];
+      }
+      let pgSql = convertSql(sql);
+      if (/INSERT OR IGNORE INTO/i.test(pgSql)) {
+        pgSql = pgSql.replace(/INSERT OR IGNORE INTO/i, 'INSERT INTO') + ' ON CONFLICT DO NOTHING';
+      }
+      const isInsert = /^\s*INSERT\s+INTO/i.test(pgSql);
+      const hasReturning = /RETURNING/i.test(pgSql);
+      if (isInsert && !hasReturning && !/ON CONFLICT DO NOTHING/i.test(pgSql)) {
+        pgSql += ' RETURNING id';
+      }
+
+      pool.query(pgSql, params)
+        .then(res => {
+          const context = {
+            lastID: isInsert && res.rows && res.rows[0] ? (res.rows[0].id || res.rows[0].ID) : null,
+            changes: res.rowCount
+          };
+          if (cb) cb.call(context, null);
+        })
+        .catch(err => cb && cb(err));
+    },
+    exec(sql, cb) {
+      pool.query(sql)
+        .then(() => cb && cb(null))
+        .catch(err => cb && cb(err));
+    },
+    serialize(fn) {
+      if (fn) fn();
+    },
+    prepare(sql) {
+      const pgSql = convertSql(sql);
+      return {
+        run(params = [], cb) {
+          let runSql = pgSql;
+          if (/INSERT OR IGNORE INTO/i.test(runSql)) {
+            runSql = runSql.replace(/INSERT OR IGNORE INTO/i, 'INSERT INTO') + ' ON CONFLICT DO NOTHING';
+          }
+          const isInsert = /^\s*INSERT\s+INTO/i.test(runSql);
+          const hasReturning = /RETURNING/i.test(runSql);
+          if (isInsert && !hasReturning && !/ON CONFLICT DO NOTHING/i.test(runSql)) {
+            runSql += ' RETURNING id';
+          }
+          pool.query(runSql, params)
+            .then(res => {
+              const context = {
+                lastID: isInsert && res.rows && res.rows[0] ? (res.rows[0].id || res.rows[0].ID) : null,
+                changes: res.rowCount
+              };
+              if (cb) cb.call(context, null);
+            })
+            .catch(err => cb && cb(err));
+        },
+        finalize(cb) {
+          if (cb) cb(null);
+        }
+      };
     }
-    dbPath = tmpDbPath;
-  } catch (e) {
-    console.error('Failed to copy SQLite database to /tmp:', e);
-  }
-}
+  };
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error connecting to SQLite database:', err);
-  } else {
-    console.log('Connected to SQLite database at', dbPath);
-    db.run('PRAGMA journal_mode = WAL;');
-    db.run('PRAGMA busy_timeout = 5000;');
-    initDatabase();
+  initDatabase();
+
+} else {
+  let dbPath = path.join(__dirname, 'showcase.db');
+  safeMkdir(path.dirname(dbPath));
+
+  if (process.env.VERCEL) {
+    const tmpDbPath = '/tmp/showcase.db';
+    try {
+      if (!fs.existsSync(tmpDbPath) && fs.existsSync(dbPath)) {
+        fs.copyFileSync(dbPath, tmpDbPath);
+      }
+      dbPath = tmpDbPath;
+    } catch (e) {
+      console.error('Failed to copy SQLite database to /tmp:', e);
+    }
   }
-});
+
+  const sqliteDb = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      console.error('Error connecting to SQLite database:', err);
+    } else {
+      console.log('Connected to SQLite database at', dbPath);
+      sqliteDb.run('PRAGMA journal_mode = WAL;');
+      sqliteDb.run('PRAGMA busy_timeout = 5000;');
+      initDatabase();
+    }
+  });
+
+  db = sqliteDb;
+  db.isPg = false;
+}
 
 const EMBEDDED_SCHEMA = `
 CREATE TABLE IF NOT EXISTS admin_users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   phone TEXT DEFAULT '',
@@ -89,11 +200,11 @@ CREATE TABLE IF NOT EXISTS admin_users (
   facebook TEXT DEFAULT '',
   instagram TEXT DEFAULT '',
   whatsapp TEXT DEFAULT '',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS site_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   company_name TEXT NOT NULL DEFAULT 'SK BUILDERS',
   company_subtitle TEXT NOT NULL DEFAULT '& PROPERTY CONSULTANT',
   phone TEXT NOT NULL DEFAULT '',
@@ -108,11 +219,11 @@ CREATE TABLE IF NOT EXISTS site_settings (
   facebook_url TEXT DEFAULT 'https://facebook.com',
   instagram_url TEXT DEFAULT 'https://instagram.com',
   whatsapp_number TEXT DEFAULT '',
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS services (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   icon_name TEXT NOT NULL DEFAULT 'Home',
@@ -120,8 +231,16 @@ CREATE TABLE IF NOT EXISTS services (
   display_order INTEGER DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS stats (
+  id SERIAL PRIMARY KEY,
+  icon_name TEXT NOT NULL DEFAULT 'Home',
+  value TEXT NOT NULL,
+  label TEXT NOT NULL,
+  display_order INTEGER DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS properties (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   property_id TEXT,
   title TEXT NOT NULL,
   type TEXT NOT NULL,
@@ -158,11 +277,11 @@ CREATE TABLE IF NOT EXISTS properties (
   images TEXT,
   video_url TEXT,
   featured INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS land_plots (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   property_id TEXT,
   title TEXT NOT NULL,
   land_type TEXT NOT NULL DEFAULT 'Residential Land',
@@ -204,11 +323,11 @@ CREATE TABLE IF NOT EXISTS land_plots (
   images TEXT,
   video_url TEXT,
   featured INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS projects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   project_id TEXT,
   name TEXT NOT NULL,
   category TEXT NOT NULL,
@@ -233,11 +352,11 @@ CREATE TABLE IF NOT EXISTS projects (
   image TEXT,
   video_url TEXT,
   featured INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS project_stages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   project_id INTEGER NOT NULL,
   step_number INTEGER NOT NULL,
   stage_name TEXT NOT NULL,
@@ -247,50 +366,50 @@ CREATE TABLE IF NOT EXISTS project_stages (
   completion_date TEXT,
   notes TEXT,
   images TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS gallery (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   image_url TEXT NOT NULL,
   category TEXT DEFAULT 'General',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS testimonials (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   client_name TEXT NOT NULL,
   location TEXT NOT NULL,
   quote TEXT NOT NULL,
   rating INTEGER DEFAULT 5,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS leads (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT DEFAULT '',
   service TEXT DEFAULT 'General Inquiry',
   property_id TEXT,
   message TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS media_videos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   filename TEXT NOT NULL,
   filepath TEXT NOT NULL,
   video_type TEXT DEFAULT 'hero',
   is_primary INTEGER DEFAULT 0,
   file_size INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS feedback (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   client_name TEXT NOT NULL,
   phone TEXT,
   location TEXT,
@@ -298,11 +417,17 @@ CREATE TABLE IF NOT EXISTS feedback (
   rating INTEGER DEFAULT 5,
   message TEXT NOT NULL,
   approved INTEGER DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;
 
 function initDatabase() {
+  if (db.isPg) {
+    ensureColumns();
+    return;
+  }
+
+  const schemaPath = path.join(__dirname, 'schema.sql');
   let schemaSql = '';
   const candidatePaths = [
     schemaPath,
@@ -336,8 +461,22 @@ function initDatabase() {
 // Safely ensure all columns exist for existing databases
 function ensureColumns() {
   const safeAdd = (table, col, def) => {
-    db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`, () => {});
+    if (db.isPg) {
+      db.run(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${def}`, () => {});
+    } else {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`, () => {});
+    }
   };
+
+  if (!db.isPg) {
+    db.run(`CREATE TABLE IF NOT EXISTS stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      icon_name TEXT NOT NULL DEFAULT 'Home',
+      value TEXT NOT NULL,
+      label TEXT NOT NULL,
+      display_order INTEGER DEFAULT 1
+    );`);
+  }
 
   // Properties table columns
   safeAdd('properties', 'property_id', 'TEXT');
@@ -513,6 +652,8 @@ function ensureColumns() {
   safeAdd('projects', 'location', 'TEXT');
 
   safeAdd('site_settings', 'logo_url', "TEXT DEFAULT '/logo/sk-builders-logo.png'");
+  safeAdd('site_settings', 'site_title', "TEXT DEFAULT 'SK Builders & Property Consultant'");
+  safeAdd('site_settings', 'meta_description', "TEXT DEFAULT ''");
   safeAdd('site_settings', 'phone', 'TEXT');
   safeAdd('site_settings', 'whatsapp_number', 'TEXT');
 
@@ -530,83 +671,77 @@ function ensureColumns() {
 
   safeAdd('media_videos', 'video_type', "TEXT DEFAULT 'hero'");
 
-  // Migrate gallery table to only (id, image, created_at) and clean image paths
-  db.all("PRAGMA table_info(gallery)", [], (err, columns) => {
-    if (!err && Array.isArray(columns)) {
-      const colNames = columns.map(c => c.name);
-      if (colNames.includes('title') || colNames.includes('location') || colNames.includes('category')) {
-        db.serialize(() => {
-          db.run(`CREATE TABLE IF NOT EXISTS gallery_clean (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )`);
-          db.run(`INSERT INTO gallery_clean (id, image, created_at) SELECT id, image, created_at FROM gallery WHERE image IS NOT NULL AND image != ''`);
-          db.run(`DROP TABLE gallery`);
-          db.run(`ALTER TABLE gallery_clean RENAME TO gallery`);
-          console.log('Gallery table successfully migrated to only (id, image, created_at).');
+  if (!db.isPg) {
+    // Migrate gallery table to only (id, image, created_at) in SQLite if needed
+    db.all("PRAGMA table_info(gallery)", [], (err, columns) => {
+      if (!err && Array.isArray(columns)) {
+        const colNames = columns.map(c => c.name);
+        if (colNames.includes('title') || colNames.includes('location') || colNames.includes('category')) {
+          db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS gallery_clean (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              image TEXT NOT NULL,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+            db.run(`INSERT INTO gallery_clean (id, image, created_at) SELECT id, image, created_at FROM gallery WHERE image IS NOT NULL AND image != ''`);
+            db.run(`DROP TABLE gallery`);
+            db.run(`ALTER TABLE gallery_clean RENAME TO gallery`);
+            console.log('Gallery table successfully migrated to only (id, image, created_at).');
+          });
+        }
+      }
+    });
+
+    // Clean any legacy upload- prefixes in gallery database records
+    db.all("SELECT id, image FROM gallery WHERE image LIKE '%upload-%'", [], (err, rows) => {
+      if (!err && Array.isArray(rows)) {
+        rows.forEach(r => {
+          const cleanPath = r.image.replace('/upload-', '/');
+          db.run("UPDATE gallery SET image = ? WHERE id = ?", [cleanPath, r.id]);
         });
       }
-    }
-  });
-
-  // Clean any legacy upload- prefixes in gallery database records
-  db.all("SELECT id, image FROM gallery WHERE image LIKE '%upload-%'", [], (err, rows) => {
-    if (!err && Array.isArray(rows)) {
-      rows.forEach(r => {
-        const cleanPath = r.image.replace('/upload-', '/');
-        db.run("UPDATE gallery SET image = ? WHERE id = ?", [cleanPath, r.id]);
-      });
-    }
-  });
+    });
+  }
 
   seedInitialData();
 }
 
 function seedInitialData() {
-  const bgVideosDir = path.join(projectRoot, 'app/public/videos');
+  const bgVideosDir = path.join(projectRoot, 'videos');
+  const appPublicVideosDir = path.join(projectRoot, 'app/public/videos');
   safeMkdir(bgVideosDir);
+  safeMkdir(appPublicVideosDir);
 
-  // 1. Purge records pointing to deleted files
-  db.all("SELECT * FROM media_videos", [], (err, rows) => {
-    if (!err && Array.isArray(rows)) {
-      rows.forEach(r => {
-        let fullP = path.join(projectRoot, r.filepath);
-        if (!fs.existsSync(fullP)) {
-          // Check alternate paths
-          const alt1 = path.join(bgVideosDir, r.filename);
-          const alt2 = path.join(projectRoot, 'uploads/videos', r.filename);
-          if (!fs.existsSync(alt1) && !fs.existsSync(alt2)) {
-            db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
-          }
-        }
-      });
-    }
-
-    // 2. Scan app/public/videos folder for background videos and register them
-    try {
-      const bgFiles = fs.readdirSync(bgVideosDir).filter(f => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm'));
-      bgFiles.forEach(file => {
-        const stats = fs.statSync(path.join(bgVideosDir, file));
-        db.get("SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND video_type = 'background'", [file], (err, existing) => {
-          if (!existing) {
-            db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = 'background' AND is_primary = 1", [], (err, primRow) => {
-              const isPrim = (!primRow || primRow.count === 0) ? 1 : 0;
-              db.run(
-                "INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'background', ?, ?)",
-                [file, `app/public/videos/${file}`, isPrim, stats.size]
-              );
-            });
+  // 1. Purge records pointing to deleted files ONLY in local development
+  if (!process.env.VERCEL && !db.isPg) {
+    db.all("SELECT * FROM media_videos", [], (err, rows) => {
+      if (!err && Array.isArray(rows)) {
+        rows.forEach(r => {
+          let fullP = path.join(projectRoot, r.filepath);
+          if (!fs.existsSync(fullP)) {
+            const alt1 = path.join(bgVideosDir, r.filename);
+            const alt2 = path.join(appPublicVideosDir, r.filename);
+            const alt3 = path.join(projectRoot, 'uploads/videos', r.filename);
+            if (!fs.existsSync(alt1) && !fs.existsSync(alt2) && !fs.existsSync(alt3)) {
+              db.run("DELETE FROM media_videos WHERE id = ?", [r.id]);
+            }
           }
         });
-      });
-    } catch (e) {
-      console.error('Error scanning background videos folder:', e);
+      }
+    });
+  }
+
+  // 2. Register Background.mp4 if no background video exists
+  db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = 'background'", [], (err, row) => {
+    if (!err && (!row || Number(row.count) === 0)) {
+      db.run(
+        "INSERT OR IGNORE INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, 'background', 1, ?)",
+        ['Background.mp4', 'videos/Background.mp4', 15420212]
+      );
     }
   });
 
   // Auto-insert Row 1: Master recovery admin (buildername / iambuilder, hashed with salt)
-  // Row 2 will be the first and only registered user credential from the registration form
   db.get("SELECT * FROM admin_users WHERE id = 1", [], (err, masterRow) => {
     if (!err && !masterRow) {
       const masterUser = 'buildername';
@@ -631,14 +766,14 @@ function seedInitialData() {
 
   // Seed site settings
   db.get("SELECT COUNT(*) as count FROM site_settings", [], (err, row) => {
-    if (!err && row.count === 0) {
+    if (!err && (!row || Number(row.count) === 0)) {
       db.run(`
         INSERT INTO site_settings (
-          company_name, company_subtitle, phone, email, location, service_areas,
+          company_name, company_subtitle, site_title, meta_description, phone, email, location, service_areas,
           hero_tagline, hero_headline_find, hero_headline_property, hero_headline_confidence, hero_subtitle,
           facebook_url, instagram_url, whatsapp_number
         ) VALUES (
-          'SK BUILDERS', '& PROPERTY CONSULTANT', '', 'info@skbuilders.com',
+          'SK BUILDERS', '& PROPERTY CONSULTANT', 'SK Builders & Property Consultant', 'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.', '', 'info@skbuilders.com',
           'Poonamallee, Mangadu, Kundrathur, Tamil Nadu - 600056', 'Poonamallee • Mangadu • Kundrathur',
           'BUILDING QUALITY HOMES.', 'Find', 'Right Property', 'Confidence',
           'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.',
@@ -650,11 +785,7 @@ function seedInitialData() {
 
   // Seed services
   db.get("SELECT COUNT(*) as count FROM services", [], (err, row) => {
-    if (!err && row.count === 0) {
-      const insert = db.prepare(`
-        INSERT INTO services (title, description, icon_name, link_url, display_order)
-        VALUES (?, ?, ?, ?, ?)
-      `);
+    if (!err && (!row || Number(row.count) === 0)) {
       const list = [
         ['Houses for Sale', 'Ready-to-move individual houses built with quality and trust.', 'Home', '#properties', 1],
         ['Lands for Sale', 'Residential plots in prime locations. DTCP approved plots available.', 'MapPin', '#properties', 2],
@@ -663,43 +794,51 @@ function seedInitialData() {
         ['Documentation Support', 'Assistance for all property related documents and legal process.', 'FileText', '#contact', 5],
         ['Construction Consultation', 'Planning, estimation, site visit and expert construction advice.', 'Compass', '#contact', 6]
       ];
-      list.forEach(s => insert.run(s[0], s[1], s[2], s[3], s[4]));
-      insert.finalize();
+      list.forEach(s => {
+        db.run(
+          "INSERT INTO services (title, description, icon_name, link_url, display_order) VALUES (?, ?, ?, ?, ?)",
+          [s[0], s[1], s[2], s[3], s[4]]
+        );
+      });
+    }
+  });
+
+  // Seed stats
+  db.get("SELECT COUNT(*) as count FROM stats", [], (err, row) => {
+    if (!err && (!row || Number(row.count) === 0)) {
+      const defaultStats = [
+        ['Home', '40+', 'Homes Built', 1],
+        ['MapPin', '75+', 'Plots Sold', 2],
+        ['Users', '150+', 'Property Deals', 3],
+        ['Users', '100+', 'Happy Families', 4]
+      ];
+      defaultStats.forEach(s => {
+        db.run(
+          "INSERT INTO stats (icon_name, value, label, display_order) VALUES (?, ?, ?, ?)",
+          [s[0], s[1], s[2], s[3]]
+        );
+      });
     }
   });
 
   // Seed testimonials
   db.get("SELECT COUNT(*) as count FROM testimonials", [], (err, row) => {
-    if (!err && (!row || row.count === 0)) {
-      const insert = db.prepare(`
-        INSERT INTO testimonials (client_name, location, quote, rating)
-        VALUES (?, ?, ?, ?)
-      `);
+    if (!err && (!row || Number(row.count) === 0)) {
       const list = [
         ["Ramesh & Family", "Poonamallee", "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.", 5],
         ["Karthik Raja", "Mangadu", "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!", 5],
         ["Suresh Kumar", "Kundrathur", "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.", 5]
       ];
-      list.forEach(t => insert.run(t[0], t[1], t[2], t[3]));
-      insert.finalize();
+      list.forEach(t => {
+        db.run(
+          "INSERT INTO testimonials (client_name, location, quote, rating) VALUES (?, ?, ?, ?)",
+          [t[0], t[1], t[2], t[3]]
+        );
+      });
     }
   });
-
-  // Ensure client feedback table (clean table, no seed data)
-  db.run(`CREATE TABLE IF NOT EXISTS feedback (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_name TEXT NOT NULL,
-    phone TEXT,
-    location TEXT,
-    service TEXT DEFAULT 'General Feedback',
-    rating INTEGER DEFAULT 5,
-    message TEXT NOT NULL,
-    approved INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  // Do not seed mock properties, land, projects, or feedback - tables remain clean for real user/admin data
 }
 
 export default db;
+
 

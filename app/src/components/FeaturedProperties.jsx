@@ -84,6 +84,8 @@ const FeaturedProperties = () => {
           end: `+=${scrollDistance}`,
           scrub: 1.5,
           anticipatePin: 1,
+          pinSpacing: true,
+          refreshPriority: 6,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             const cardCount = track.children.length || 1;
@@ -140,12 +142,6 @@ const FeaturedProperties = () => {
           0.90
         );
       }
-
-      const refreshTimeout = setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 100);
-
-      return () => clearTimeout(refreshTimeout);
     });
 
     // 2. MOBILE: Simple Section View with Manual Horizontal Touch Scroll
@@ -157,7 +153,16 @@ const FeaturedProperties = () => {
       if (track) gsap.set(track, { clearProps: 'all' });
     });
 
-    return () => mm.revert();
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    });
+
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
   }, []);
 
   const handleTabChange = (tab) => {

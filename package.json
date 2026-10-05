@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "python python/extract_frames.py",
     "dev": "concurrently \"vite --host --port 5173\" \"node app/server/server.js\"",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-assets.js",
     "preview": "vite preview --host",
     "server": "node app/server/server.js",
     "frames": "python python/extract_frames.py",
@@ -24,6 +24,7 @@
     "lenis": "^1.3.26",
     "lucide-react": "^0.475.0",
     "multer": "^2.2.0",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.5",

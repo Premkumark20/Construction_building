@@ -3,6 +3,9 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
+if (typeof window !== 'undefined') {
+  window.ScrollTrigger = ScrollTrigger;
+}
 
 const CACHE_KEY = 'sk_site_data_cache';
 
@@ -35,6 +38,13 @@ const defaultServices = [
   { id: 6, title: 'Construction Consultation', description: 'Planning, estimation, site visit and expert construction advice.', icon_name: 'Compass', link_url: '#contact' }
 ];
 
+const defaultStats = [
+  { id: 1, icon_name: 'Home', value: '40+', label: 'Homes Built' },
+  { id: 2, icon_name: 'MapPin', value: '75+', label: 'Plots Sold' },
+  { id: 3, icon_name: 'Users', value: '150+', label: 'Property Deals' },
+  { id: 4, icon_name: 'Users', value: '100+', label: 'Happy Families' }
+];
+
 const getCachedData = () => {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -54,11 +64,13 @@ const saveCachedData = (dataToCache) => {
       settings: dataToCache.settings,
       admin: dataToCache.admin,
       services: dataToCache.services,
+      stats: dataToCache.stats,
       properties: dataToCache.properties,
       land: dataToCache.land,
       projects: dataToCache.projects,
       gallery: dataToCache.gallery,
-      testimonials: dataToCache.testimonials
+      testimonials: dataToCache.testimonials,
+      heroVideo: dataToCache.heroVideo
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(toSave));
   } catch (e) { }
@@ -83,11 +95,13 @@ export const SiteDataProvider = ({ children }) => {
         settings: cached.settings || defaultSettings,
         admin: cached.admin || { phone: '', email: 'info@skbuilders.com' },
         services: Array.isArray(cached.services) && cached.services.length > 0 ? cached.services : defaultServices,
+        stats: Array.isArray(cached.stats) && cached.stats.length > 0 ? cached.stats : defaultStats,
         properties: Array.isArray(cached.properties) ? cached.properties : [],
         land: Array.isArray(cached.land) ? cached.land : [],
         projects: Array.isArray(cached.projects) ? cached.projects : [],
         gallery: Array.isArray(cached.gallery) ? cached.gallery : [],
         testimonials: Array.isArray(cached.testimonials) ? cached.testimonials : [],
+        heroVideo: cached.heroVideo || null,
         loading: false,
         isInitialLoading: false
       };
@@ -97,11 +111,13 @@ export const SiteDataProvider = ({ children }) => {
       settings: defaultSettings,
       admin: { phone: '', email: 'info@skbuilders.com' },
       services: defaultServices,
+      stats: defaultStats,
       properties: [],
       land: [],
       projects: [],
       gallery: [],
       testimonials: [],
+      heroVideo: null,
       loading: true,
       isInitialLoading: true
     };
@@ -125,16 +141,17 @@ export const SiteDataProvider = ({ children }) => {
   const refreshData = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
-
     try {
-      const [settingsRes, servicesRes, propertiesRes, landRes, projectsRes, galleryRes, testimonialsRes] = await Promise.all([
+      const [settingsRes, servicesRes, statsRes, propertiesRes, landRes, projectsRes, galleryRes, testimonialsRes, heroVideoRes] = await Promise.all([
         fetchWithTimeout('/api/settings'),
         fetchWithTimeout('/api/services'),
+        fetchWithTimeout('/api/stats'),
         fetchWithTimeout('/api/properties'),
         fetchWithTimeout('/api/land'),
         fetchWithTimeout('/api/projects'),
         fetchWithTimeout('/api/gallery'),
-        fetchWithTimeout('/api/testimonials')
+        fetchWithTimeout('/api/testimonials'),
+        fetchWithTimeout('/api/media/hero-video')
       ]);
 
       const propsList = Array.isArray(propertiesRes?.properties) ? propertiesRes.properties : (Array.isArray(propertiesRes) ? propertiesRes : null);
@@ -146,17 +163,20 @@ export const SiteDataProvider = ({ children }) => {
           settings: settingsRes?.settings || prev.settings,
           admin: settingsRes?.admin || prev.admin,
           services: Array.isArray(servicesRes) && servicesRes.length > 0 ? servicesRes : prev.services,
+          stats: Array.isArray(statsRes) && statsRes.length > 0 ? statsRes : prev.stats,
           properties: Array.isArray(propsList) ? propsList : prev.properties,
           land: Array.isArray(landList) ? landList : prev.land,
           projects: Array.isArray(projList) ? projList : prev.projects,
           gallery: Array.isArray(galleryRes) ? galleryRes : prev.gallery,
           testimonials: Array.isArray(testimonialsRes) ? testimonialsRes : prev.testimonials,
+          heroVideo: heroVideoRes !== null ? heroVideoRes : prev.heroVideo,
           loading: false,
           isInitialLoading: false
         };
 
         saveCachedData(nextState);
         requestAnimationFrame(() => {
+          ScrollTrigger.sort();
           ScrollTrigger.refresh();
         });
         return nextState;
@@ -183,10 +203,12 @@ export const SiteDataProvider = ({ children }) => {
       refreshData();
     };
     window.addEventListener('sk_site_data_updated', handleCustomUpdate);
+    window.addEventListener('sk_primary_video_updated', handleCustomUpdate);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('sk_site_data_updated', handleCustomUpdate);
+      window.removeEventListener('sk_primary_video_updated', handleCustomUpdate);
     };
   }, [refreshData]);
 
@@ -233,11 +255,13 @@ export const useSiteData = () => {
       settings: defaultSettings,
       admin: { phone: '', email: 'info@skbuilders.com' },
       services: defaultServices,
+      stats: defaultStats,
       properties: [],
       land: [],
       projects: [],
       gallery: [],
       testimonials: [],
+      heroVideo: null,
       loading: false,
       isInitialLoading: false,
       refreshData: () => {}

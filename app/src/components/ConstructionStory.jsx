@@ -18,19 +18,31 @@ const ConstructionStory = () => {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [frameVersion, setFrameVersion] = useState(Date.now());
 
-  const { settings } = useSiteData();
+  const { settings, heroVideo } = useSiteData();
+  const dbHasHero = Boolean(heroVideo?.hasHeroVideo);
 
   const totalFrameCount = isMobile ? 61 : 121;
   const frameFolder = isMobile ? 'mobile' : 'desktop';
 
-  const [isPreloading, setIsPreloading] = useState(true);
-  const [showContent, setShowContent] = useState(false);
-  const [hidePrompt, setHidePrompt] = useState(false);
+  const [hasHeroVideo, setHasHeroVideo] = useState(dbHasHero);
+  const [isPreloading, setIsPreloading] = useState(dbHasHero);
+  const [showContent, setShowContent] = useState(!dbHasHero);
+  const [hidePrompt, setHidePrompt] = useState(!dbHasHero);
   const [hasFramesAvailable, setHasFramesAvailable] = useState(false);
-  const [hasHeroVideo, setHasHeroVideo] = useState(false);
   
   const currentFrameRef = useRef(1);
   const loadedImagesMapRef = useRef({});
+
+  // Synchronize with heroVideo updates from context
+  useEffect(() => {
+    setHasHeroVideo(dbHasHero);
+    if (!dbHasHero) {
+      setHasFramesAvailable(false);
+      setIsPreloading(false);
+      setShowContent(true);
+      setHidePrompt(true);
+    }
+  }, [dbHasHero]);
 
   // Check viewport device type & accessibility settings
   useEffect(() => {
@@ -63,41 +75,20 @@ const ConstructionStory = () => {
   useEffect(() => {
     let isCancelled = false;
 
-    const checkHeroVideoAndFrames = async () => {
-      try {
-        const res = await fetch('/api/media/hero-video');
-        if (res.ok) {
-          const data = await res.json();
-          if (!isCancelled) {
-            const hasHero = Boolean(data && data.hasHeroVideo);
-            setHasHeroVideo(hasHero);
+    // If hero video is NOT present in DB, skip all frame preloading and hero scrolling
+    if (!hasHeroVideo) {
+      setHasFramesAvailable(false);
+      setIsPreloading(false);
+      setShowContent(true);
+      setHidePrompt(true);
+      requestAnimationFrame(() => {
+        ScrollTrigger.sort();
+        ScrollTrigger.refresh();
+      });
+      return;
+    }
 
-            if (!hasHero) {
-              setHasFramesAvailable(false);
-              setIsPreloading(false);
-              setShowContent(true);
-              return;
-            }
-          }
-        } else {
-          if (!isCancelled) {
-            setHasHeroVideo(false);
-            setHasFramesAvailable(false);
-            setIsPreloading(false);
-            setShowContent(true);
-            return;
-          }
-        }
-      } catch (err) {
-        if (!isCancelled) {
-          setHasHeroVideo(false);
-          setHasFramesAvailable(false);
-          setIsPreloading(false);
-          setShowContent(true);
-          return;
-        }
-      }
-
+    const checkHeroVideoAndFrames = () => {
       // If hero video exists and we're on mobile, activate mobile stage
       if (isMobile) {
         if (!isCancelled) {
@@ -160,7 +151,7 @@ const ConstructionStory = () => {
     return () => {
       isCancelled = true;
     };
-  }, [isMobile, frameVersion]);
+  }, [isMobile, frameVersion, hasHeroVideo]);
 
   // Find nearest loaded frame for ultra-smooth scrubbing fallback
   const getClosestLoadedImage = (targetIndex) => {
@@ -249,9 +240,13 @@ const ConstructionStory = () => {
 
   // GSAP ScrollTrigger Responsive Engine
   useEffect(() => {
-    if (prefersReducedMotion) {
+    if (prefersReducedMotion || !hasFramesAvailable || !hasHeroVideo) {
       setShowContent(true);
       setHidePrompt(true);
+      requestAnimationFrame(() => {
+        ScrollTrigger.sort();
+        ScrollTrigger.refresh();
+      });
       return;
     }
 
@@ -273,6 +268,8 @@ const ConstructionStory = () => {
         end: '+=5800',
         scrub: 1.6,
         anticipatePin: 1,
+        pinSpacing: true,
+        refreshPriority: 10,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
           const progress = self.progress;
@@ -298,7 +295,9 @@ const ConstructionStory = () => {
         },
       });
 
-      return () => trigger.kill();
+      return () => {
+        trigger.kill();
+      };
     });
 
     // 2. MOBILE: Pin Top Card -> Scrub Construction -> Retrieve Content -> Smoothly Move to Next Section
@@ -312,6 +311,8 @@ const ConstructionStory = () => {
         end: '+=900',
         scrub: 0.8,
         anticipatePin: 1,
+        pinSpacing: true,
+        refreshPriority: 10,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
           const progress = self.progress;
@@ -335,11 +336,22 @@ const ConstructionStory = () => {
         },
       });
 
-      return () => trigger.kill();
+      return () => {
+        trigger.kill();
+      };
     });
 
-    return () => mm.revert();
-  }, [totalFrameCount, prefersReducedMotion]);
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    });
+
+    return () => {
+      mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
+    };
+  }, [totalFrameCount, prefersReducedMotion, hasFramesAvailable, hasHeroVideo]);
 
   return (
     <section
@@ -347,8 +359,8 @@ const ConstructionStory = () => {
       id="home"
       className="relative z-10 w-full bg-transparent text-white overflow-hidden"
     >
-      {/* 1. MOBILE VIEW: Full-Bleed High-Visibility Stage (Bright Vivid House Background + Left-Aligned Overlay Content) */}
-      <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-black">
+      {/* 1. MOBILE VIEW: High-Visibility Adaptive Stage */}
+      <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-transparent">
         {/* Full-bleed Vivid Completed House Background Image - ONLY if Hero Video exists */}
         {hasHeroVideo && hasFramesAvailable ? (
           <img
@@ -362,14 +374,10 @@ const ConstructionStory = () => {
             alt="Completed Dream Home"
             className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-115 contrast-105"
           />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-[#18181b] via-[#09090b] to-black z-0">
-            <div className="absolute top-10 right-4 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          </div>
-        )}
+        ) : null}
 
         {/* Subtle Dark Gradient Focused on Left Side to Keep Content Highly Visible */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-transparent z-10 pointer-events-none w-[85%]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent z-10 pointer-events-none w-[90%]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 z-10 pointer-events-none" />
 
         {/* Hero Overlay Content Container - Positioned Strictly on Left Side */}
@@ -449,13 +457,15 @@ const ConstructionStory = () => {
         </div>
       </div>
 
-      {/* 2. DESKTOP VIEW: Cinematic Pinned Fullscreen Interactive Storytelling */}
+      {/* 2. DESKTOP VIEW: Adaptive Hero Stage (Cinematic Pinned when frames present, Clean ambient when not) */}
       <div
         ref={pinDesktopRef}
-        className="hidden md:flex w-full h-screen overflow-hidden items-center justify-center relative bg-transparent"
+        className={`hidden md:flex w-full ${
+          hasFramesAvailable && hasHeroVideo ? 'h-screen' : 'h-screen min-h-[600px]'
+        } overflow-hidden items-center justify-start relative bg-transparent px-6 sm:px-12 lg:px-20 z-10`}
       >
         {/* Dark Obsidian Preloader Spinner */}
-        {isPreloading && (
+        {isPreloading && hasHeroVideo && (
           <div className="absolute inset-0 z-40 bg-[#09090b] flex flex-col items-center justify-center text-white p-4">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4 shadow-lg shadow-amber-500/30"></div>
             <p className="text-xs uppercase font-extrabold tracking-widest text-amber-400">
@@ -464,49 +474,25 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* "No Video Available" Container on Right Side of Desktop Hero Stage */}
-        {!hasFramesAvailable && !isPreloading && (
-          <div className="absolute top-24 bottom-10 right-8 lg:right-16 w-full max-w-md lg:max-w-lg z-20 hidden md:flex flex-col justify-center items-center pointer-events-auto">
-            <div className="w-full bg-[#121216]/80 backdrop-blur-2xl border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.8)] text-center relative overflow-hidden group">
-              <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/40 flex items-center justify-center mx-auto mb-5 text-amber-400 shadow-lg shadow-amber-500/20">
-                <VideoOff size={32} />
-              </div>
-              <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full mb-3">
-                <span>HERO SECTION VIDEO</span>
-              </div>
-              <h3 className="text-lg font-black text-white uppercase tracking-wide mb-2">
-                No Video Uploaded
-              </h3>
-              <p className="text-xs text-zinc-300 font-medium leading-relaxed max-w-xs mx-auto mb-6">
-                Upload your site hero video in the Admin Dashboard to activate the cinematic frame-by-frame construction storytelling stage.
-              </p>
-              <div className="flex items-center justify-center gap-2 text-[11px] font-extrabold text-amber-400/90 bg-black/50 border border-amber-500/20 py-2.5 px-4 rounded-xl">
-                <span>Awaiting video upload in Admin Portal</span>
-              </div>
-            </div>
-          </div>
+        {/* Fullscreen Canvas Frame Animation - ONLY rendered if hero video frames available */}
+        {hasFramesAvailable && hasHeroVideo && (
+          <canvas
+            ref={canvasDesktopRef}
+            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 opacity-100"
+          />
         )}
-
-        {/* Fullscreen Canvas Frame Animation */}
-        <canvas
-          ref={canvasDesktopRef}
-          className={`w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 ${
-            hasFramesAvailable ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
 
         {/* Soft Dark Fade Gradient on Left Side */}
         <div
           className={`absolute inset-y-0 left-0 w-full sm:w-2/3 md:w-[55%] bg-gradient-to-r from-[#09090b]/85 via-[#09090b]/40 to-transparent pointer-events-none z-10 transition-opacity duration-700 ${
-            showContent || prefersReducedMotion ? 'opacity-100' : 'opacity-0'
+            showContent || prefersReducedMotion || !hasHeroVideo ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
         {/* Hero Content Overlay on Desktop */}
         <div
-          className={`absolute top-20 sm:top-24 bottom-6 sm:bottom-10 left-4 sm:left-6 right-4 sm:right-6 md:left-14 max-w-xl text-white z-20 flex flex-col justify-center transition-all duration-700 transform ${
-            showContent || prefersReducedMotion
+          className={`relative max-w-xl text-white z-20 flex flex-col justify-center pt-16 pb-6 transition-all duration-700 transform ${
+            showContent || prefersReducedMotion || !hasHeroVideo
               ? 'opacity-100 translate-y-0 scale-100'
               : 'opacity-0 translate-y-8 scale-95 pointer-events-none'
           }`}
@@ -579,7 +565,7 @@ const ConstructionStory = () => {
         </div>
 
         {/* Scroll Prompt */}
-        {!hidePrompt && !showContent && !prefersReducedMotion && hasFramesAvailable && (
+        {!hidePrompt && !showContent && !prefersReducedMotion && hasFramesAvailable && hasHeroVideo && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center justify-center text-white">
             <span className="text-[11px] sm:text-xs uppercase font-black tracking-widest mb-2 text-amber-300 bg-[#09090b]/90 border border-amber-500/40 backdrop-blur-xl px-5 py-2 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.2)] flex items-center gap-2">
               ✨ Scroll Down to See Land Become Your Dream Home

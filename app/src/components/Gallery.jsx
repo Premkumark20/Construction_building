@@ -289,6 +289,7 @@ const Gallery = () => {
         start: 'top top',
         end: '+=2200', // Pinned for smooth Y-axis engagement on desktop
         pinSpacing: true,
+        refreshPriority: 8,
         anticipatePin: 1,
         invalidateOnRefresh: true,
       });
@@ -296,13 +297,15 @@ const Gallery = () => {
 
     // Mobile view (< 769px): No pin section, scrolls naturally!
 
-    const refreshTimer = setTimeout(() => {
+    requestAnimationFrame(() => {
+      ScrollTrigger.sort();
       ScrollTrigger.refresh();
-    }, 200);
+    });
 
     return () => {
-      clearTimeout(refreshTimer);
       mm.revert();
+      ScrollTrigger.sort();
+      ScrollTrigger.refresh();
     };
   }, [sourceItems.length]);
 
