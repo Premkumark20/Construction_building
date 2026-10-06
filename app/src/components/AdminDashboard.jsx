@@ -705,6 +705,16 @@ const AdminDashboard = () => {
   const [videoUrlType, setVideoUrlType] = useState('background');
   const [statusNotice, setStatusNotice] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSavingGallery, setIsSavingGallery] = useState(false);
+  const [isSavingTestimonial, setIsSavingTestimonial] = useState(false);
+  const [isSavingService, setIsSavingService] = useState(false);
+  const [isSavingStat, setIsSavingStat] = useState(false);
+  const [isUploadingHeroVideo, setIsUploadingHeroVideo] = useState(false);
+  const [isUploadingBgVideo, setIsUploadingBgVideo] = useState(false);
+  const [isRegisteringUrl, setIsRegisteringUrl] = useState(false);
 
 
   // Dynamically compute location selection options from Admin Settings -> Service Areas
@@ -1552,6 +1562,7 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchData = async () => {
+    setIsFetchingData(true);
     try {
       const [sRes, srvRes, statRes, propRes, landRes, projRes, galRes, feedRes, testRes, leadRes, vidRes] = await Promise.all([
         fetch('/api/settings').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -1608,12 +1619,14 @@ const AdminDashboard = () => {
       console.error('Error fetching admin data:', e);
     } finally {
       setIsInitialLoading(false);
+      setIsFetchingData(false);
     }
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
+    setIsLoggingIn(true);
     try {
       const res = await fetch('/api/settings/login', {
         method: 'POST',
@@ -1633,6 +1646,8 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       setLoginError('Unable to connect to backend server.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1830,6 +1845,7 @@ const AdminDashboard = () => {
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     setSettingStatusMsg('');
+    setIsSavingSettings(true);
 
     try {
       const company = settingsForm.company_name ?? settings.company_name ?? 'SK BUILDERS';
@@ -1859,6 +1875,8 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error('Error saving settings:', err);
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -2305,6 +2323,7 @@ const AdminDashboard = () => {
     const url = isEdit ? `/api/gallery/${formGal.id}` : '/api/gallery';
     const method = isEdit ? 'PUT' : 'POST';
 
+    setIsSavingGallery(true);
     try {
       const res = await fetch(url, {
         method,
@@ -2326,6 +2345,8 @@ const AdminDashboard = () => {
       console.error('Error saving gallery photo:', err);
       setStatusNotice('Network error while saving gallery photo.');
       setTimeout(() => setStatusNotice(''), 3000);
+    } finally {
+      setIsSavingGallery(false);
     }
   };
 
@@ -2378,6 +2399,7 @@ const AdminDashboard = () => {
     const url = isEdit ? `/api/services/${formService.id}` : '/api/services';
     const method = isEdit ? 'PUT' : 'POST';
 
+    setIsSavingService(true);
     try {
       const res = await fetch(url, {
         method,
@@ -2399,6 +2421,8 @@ const AdminDashboard = () => {
       console.error('Error saving service:', err);
       setStatusNotice('Network error saving service.');
       setTimeout(() => setStatusNotice(''), 3000);
+    } finally {
+      setIsSavingService(false);
     }
   };
 
@@ -2451,6 +2475,7 @@ const AdminDashboard = () => {
     const url = isEdit ? `/api/stats/${formStat.id}` : '/api/stats';
     const method = isEdit ? 'PUT' : 'POST';
 
+    setIsSavingStat(true);
     try {
       const res = await fetch(url, {
         method,
@@ -2472,6 +2497,8 @@ const AdminDashboard = () => {
       console.error('Error saving stat:', err);
       setStatusNotice('Network error saving stat.');
       setTimeout(() => setStatusNotice(''), 3000);
+    } finally {
+      setIsSavingStat(false);
     }
   };
 
@@ -2652,6 +2679,9 @@ const AdminDashboard = () => {
     const customName = isBg ? customBgVideoName : customHeroVideoName;
     if (!file) return;
 
+    if (isBg) setIsUploadingBgVideo(true);
+    else setIsUploadingHeroVideo(true);
+
     if (file.size > 4.5 * 1024 * 1024) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       setStatusNotice(`⚠️ File size is ${sizeMB}MB (Vercel limit is 4.5MB). Attempting upload... If it fails, click "Register from app/public/videos/".`);
@@ -2718,6 +2748,9 @@ const AdminDashboard = () => {
       const targetFilename = (customName || file.name).trim();
       setStatusNotice(`⚠️ Serverless upload failed due to payload size limit. Place file in ${isBg ? 'app/public/videos/' : 'uploads/videos/'}${targetFilename} and click Register below.`);
       setTimeout(() => setStatusNotice(''), 6000);
+    } finally {
+      if (isBg) setIsUploadingBgVideo(false);
+      else setIsUploadingHeroVideo(false);
     }
   };
 
@@ -2788,6 +2821,7 @@ const AdminDashboard = () => {
 
   const handleSaveTestimonial = async (e) => {
     e.preventDefault();
+    setIsSavingTestimonial(true);
     try {
       const url = formTestimonial.id ? `/api/testimonials/${formTestimonial.id}` : '/api/testimonials';
       const method = formTestimonial.id ? 'PUT' : 'POST';
@@ -2805,6 +2839,8 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error('Error saving testimonial:', err);
+    } finally {
+      setIsSavingTestimonial(false);
     }
   };
 
@@ -3247,10 +3283,20 @@ const AdminDashboard = () => {
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 group mt-2 cursor-pointer"
+              disabled={isLoggingIn}
+              className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 group mt-2 cursor-pointer disabled:opacity-50"
             >
-              <ShieldCheck size={17} className="text-black group-hover:scale-110 transition-transform" />
-              <span>Sign In to Dashboard</span>
+              {isLoggingIn ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={17} className="text-black group-hover:scale-110 transition-transform" />
+                  <span>Sign In to Dashboard</span>
+                </>
+              )}
             </button>
           </form>
 
@@ -3275,7 +3321,15 @@ const AdminDashboard = () => {
             <img src={settings.logo_url || '/logo/sk-builders-logo.png'} alt={`${settings?.company_name || 'Admin'} Logo`} className="w-9 h-9 object-contain rounded-md" />
           </div>
           <div>
-            <h1 className="text-base font-black uppercase tracking-tight text-amber-400">{settings?.company_name ? `${settings.company_name} Admin` : 'Admin Portal'}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-black uppercase tracking-tight text-amber-400">{settings?.company_name ? `${settings.company_name} Admin` : 'Admin Portal'}</h1>
+              {isFetchingData && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse">
+                  <div className="w-2 h-2 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  Syncing
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-zinc-400 font-semibold tracking-wider uppercase">{settings?.company_subtitle || 'Management Portal'}</p>
           </div>
         </div>
@@ -3339,8 +3393,11 @@ const AdminDashboard = () => {
 
         {/* TAB 0: DASHBOARD SUMMARY */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          isInitialLoading ? (
+            <AdminLoadingSkeleton />
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
                 <div>
                   <div className="text-2xl font-black text-white">{safeProperties.length}</div>
@@ -3611,7 +3668,8 @@ const AdminDashboard = () => {
               )}
             </div>
           </div>
-        )}
+        )
+      )}
 
         {/* TAB 1: PROPERTIES (HOUSES / BUILDINGS) */}
         {activeTab === 'properties' && (
@@ -4921,9 +4979,19 @@ const AdminDashboard = () => {
                 <div className="flex justify-end pt-4 border-t border-zinc-800">
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-2 transition-all"
+                    disabled={isSavingSettings}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <Save size={16} /> Save Website Settings
+                    {isSavingSettings ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Settings...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} /> <span>Save Website Settings</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -5232,9 +5300,19 @@ const AdminDashboard = () => {
                   {(!selectedHeroVideoFile || selectedHeroVideoFile.size <= 4.5 * 1024 * 1024) && (
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                      disabled={isUploadingHeroVideo}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                     >
-                      <Upload size={14} /> Submit Video
+                      {isUploadingHeroVideo ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Uploading Video...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={14} /> <span>Submit Video</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </form>
@@ -5403,9 +5481,19 @@ const AdminDashboard = () => {
                   {(!selectedBgVideoFile || selectedBgVideoFile.size <= 4.5 * 1024 * 1024) && (
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                      disabled={isUploadingBgVideo}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-5 py-2 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                     >
-                      <Upload size={14} /> Submit Video
+                      {isUploadingBgVideo ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>Uploading Video...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={14} /> <span>Submit Video</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </form>
@@ -7502,8 +7590,21 @@ const AdminDashboard = () => {
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
                   <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase">Cancel</button>
-                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5">
-                    <Save size={14} /> Save Gallery Photo
+                  <button
+                    type="submit"
+                    disabled={isSavingGallery}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingGallery ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Photo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} /> <span>Save Gallery Photo</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -7571,8 +7672,21 @@ const AdminDashboard = () => {
 
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
                   <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
-                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
-                    <Save size={14} /> Save Testimonial
+                  <button
+                    type="submit"
+                    disabled={isSavingTestimonial}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingTestimonial ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Testimonial...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} /> <span>Save Testimonial</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -7640,8 +7754,21 @@ const AdminDashboard = () => {
 
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
                   <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
-                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
-                    <Save size={14} /> Save Service
+                  <button
+                    type="submit"
+                    disabled={isSavingService}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingService ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Service...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} /> <span>Save Service</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -7707,8 +7834,21 @@ const AdminDashboard = () => {
 
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
                   <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-4 py-2 rounded-xl text-xs uppercase cursor-pointer">Cancel</button>
-                  <button type="submit" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer">
-                    <Save size={14} /> Save Stat
+                  <button
+                    type="submit"
+                    disabled={isSavingStat}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingStat ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <span>Saving Stat...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} /> <span>Save Stat</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

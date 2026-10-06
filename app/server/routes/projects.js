@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
+import { uploadFileToBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -248,7 +249,7 @@ router.delete('/:id', (req, res) => {
 });
 
 // CATEGORIZED MULTI-IMAGE UPLOAD for Project (categories: before, construction, progress, completed)
-router.post('/:id/images', upload.array('images', 20), (req, res) => {
+router.post('/:id/images', upload.array('images', 20), async (req, res) => {
   const projectId = req.params.id;
   const category = req.body.category || 'completed';
 
@@ -256,20 +257,29 @@ router.post('/:id/images', upload.array('images', 20), (req, res) => {
     return res.status(400).json({ error: 'No image files uploaded.' });
   }
 
-  db.all('SELECT COUNT(*) as count FROM project_images WHERE project_id = ?', [projectId], (err, rows) => {
+  db.all('SELECT COUNT(*) as count FROM project_images WHERE project_id = ?', [projectId], async (err, rows) => {
     const existingCount = rows[0]?.count || 0;
     const insert = db.prepare('INSERT INTO project_images (project_id, image_url, category, caption, sort_order) VALUES (?, ?, ?, ?, ?)');
 
     const uploadedImages = [];
-    req.files.forEach((file, idx) => {
-      const imgUrl = `/uploads/images/${file.filename}`;
+    for (let idx = 0; idx < req.files.length; idx++) {
+      const file = req.files[idx];
+      let imgUrl = `/uploads/images/${file.filename}`;
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        try {
+          const fileBuffer = fs.readFileSync(file.path);
+          const blobPath = `projects/${Date.now()}-${file.originalname}`;
+          const blobUrl = await uploadFileToBlob(blobPath, fileBuffer, file.mimetype || 'image/jpeg');
+          if (blobUrl) imgUrl = blobUrl;
+        } catch (e) {}
+      }
       insert.run(projectId, imgUrl, category, req.body.caption || '', existingCount + idx);
       uploadedImages.push({ image_url: imgUrl, category });
 
       if (existingCount === 0 && idx === 0) {
         db.run('UPDATE projects SET cover_image = ? WHERE id = ?', [imgUrl, projectId]);
       }
-    });
+    }
 
     insert.finalize((err) => {
       if (err) return res.status(500).json({ error: err.message });

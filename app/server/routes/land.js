@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
+import { uploadFileToBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -259,19 +260,28 @@ router.delete('/:id', (req, res) => {
 });
 
 // MULTI-IMAGE UPLOAD for Land
-router.post('/:id/images', upload.array('images', 20), (req, res) => {
+router.post('/:id/images', upload.array('images', 20), async (req, res) => {
   const landId = req.params.id;
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'No image files uploaded.' });
   }
 
-  db.all('SELECT COUNT(*) as count FROM land_images WHERE land_id = ?', [landId], (err, rows) => {
+  db.all('SELECT COUNT(*) as count FROM land_images WHERE land_id = ?', [landId], async (err, rows) => {
     const existingCount = rows[0]?.count || 0;
     const insert = db.prepare('INSERT INTO land_images (land_id, image_url, sort_order, is_cover) VALUES (?, ?, ?, ?)');
 
     const uploadedImages = [];
-    req.files.forEach((file, idx) => {
-      const imgUrl = `/uploads/images/${file.filename}`;
+    for (let idx = 0; idx < req.files.length; idx++) {
+      const file = req.files[idx];
+      let imgUrl = `/uploads/images/${file.filename}`;
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        try {
+          const fileBuffer = fs.readFileSync(file.path);
+          const blobPath = `land/${Date.now()}-${file.originalname}`;
+          const blobUrl = await uploadFileToBlob(blobPath, fileBuffer, file.mimetype || 'image/jpeg');
+          if (blobUrl) imgUrl = blobUrl;
+        } catch (e) {}
+      }
       const isCover = (existingCount === 0 && idx === 0) ? 1 : 0;
       insert.run(landId, imgUrl, existingCount + idx, isCover);
       uploadedImages.push({ image_url: imgUrl, is_cover: isCover });
@@ -279,7 +289,7 @@ router.post('/:id/images', upload.array('images', 20), (req, res) => {
       if (isCover) {
         db.run('UPDATE land SET image = ? WHERE id = ?', [imgUrl, landId]);
       }
-    });
+    }
 
     insert.finalize((err) => {
       if (err) return res.status(500).json({ error: err.message });

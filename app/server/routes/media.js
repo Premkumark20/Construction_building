@@ -5,6 +5,7 @@ import fs from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
+import { uploadFileToBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -214,7 +215,7 @@ const syncHeroVideos = (callback) => {
 };
 
 // 1. Upload single image
-router.post('/upload-image', upload.single('image'), (req, res) => {
+router.post('/upload-image', upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded.' });
   }
@@ -227,6 +228,21 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
   } else if (section === 'projects') {
     subPath = 'projects/';
   }
+
+  // If Vercel Blob is configured, upload directly to Vercel Blob CDN
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const blobPath = `${subPath || 'misc/'}${Date.now()}-${req.file.originalname}`;
+      const blobUrl = await uploadFileToBlob(blobPath, fileBuffer, req.file.mimetype || 'image/jpeg');
+      if (blobUrl) {
+        return res.json({ imageUrl: blobUrl, filename: req.file.filename });
+      }
+    } catch (err) {
+      console.error('[Blob upload error in /upload-image]:', err);
+    }
+  }
+
   const imageUrl = `/uploads/images/${subPath}${req.file.filename}`;
   res.json({ imageUrl, filename: req.file.filename });
 });

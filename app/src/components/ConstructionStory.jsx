@@ -13,6 +13,8 @@ const ConstructionStory = () => {
   const pinMobileRef = useRef(null);
   const canvasDesktopRef = useRef(null);
   const canvasMobileRef = useRef(null);
+  const mobileVideoRef = useRef(null);
+  const desktopVideoRef = useRef(null);
   
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -29,9 +31,36 @@ const ConstructionStory = () => {
   const [showContent, setShowContent] = useState(!dbHasHero);
   const [hidePrompt, setHidePrompt] = useState(!dbHasHero);
   const [hasFramesAvailable, setHasFramesAvailable] = useState(false);
-  
+  const [bgVideoUrl, setBgVideoUrl] = useState('/videos/Background.mp4');
+
   const currentFrameRef = useRef(1);
   const loadedImagesMapRef = useRef({});
+
+  // Synchronize active background video
+  useEffect(() => {
+    fetch('/api/media/background-video')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.videoUrl) setBgVideoUrl(data.videoUrl);
+      })
+      .catch(() => {});
+  }, [frameVersion]);
+
+  const effectiveVideoUrl = heroVideo?.videoUrl || bgVideoUrl || '/videos/Background.mp4';
+
+  // Ensure background / hero video autoplays smoothly on all mobile & desktop browsers
+  useEffect(() => {
+    if (mobileVideoRef.current) {
+      mobileVideoRef.current.defaultMuted = true;
+      mobileVideoRef.current.muted = true;
+      mobileVideoRef.current.play().catch(() => {});
+    }
+    if (desktopVideoRef.current) {
+      desktopVideoRef.current.defaultMuted = true;
+      desktopVideoRef.current.muted = true;
+      desktopVideoRef.current.play().catch(() => {});
+    }
+  }, [effectiveVideoUrl]);
 
   // Synchronize with heroVideo updates from context
   useEffect(() => {
@@ -361,18 +390,23 @@ const ConstructionStory = () => {
     >
       {/* 1. MOBILE VIEW: High-Visibility Adaptive Stage */}
       <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-transparent">
-        {/* Full-bleed Vivid Completed House Background Image - ONLY if Hero Video exists */}
-        {hasHeroVideo && hasFramesAvailable ? (
-          <img
-            src={`/frames/mobile/frame_last.webp?v=${frameVersion}`}
-            loading="eager"
-            decoding="sync"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = `/frames/desktop/frame_0121.webp?v=${frameVersion}`;
+        {/* Full-bleed Live Hero / Background Video in Mobile View */}
+        {effectiveVideoUrl ? (
+          <video
+            ref={mobileVideoRef}
+            key={`mobile-${effectiveVideoUrl}`}
+            src={effectiveVideoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            webkit-playsinline="true"
+            preload="auto"
+            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
+            onCanPlay={(e) => {
+              e.currentTarget.muted = true;
+              e.currentTarget.play().catch(() => {});
             }}
-            alt="Completed Dream Home"
-            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-115 contrast-105"
           />
         ) : null}
 
@@ -474,13 +508,25 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* Fullscreen Canvas Frame Animation - ONLY rendered if hero video frames available */}
-        {hasFramesAvailable && hasHeroVideo && (
-          <canvas
-            ref={canvasDesktopRef}
-            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 opacity-100"
+        {/* Fullscreen Live Video Background */}
+        {effectiveVideoUrl ? (
+          <video
+            ref={desktopVideoRef}
+            key={`desktop-${effectiveVideoUrl}`}
+            src={effectiveVideoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            webkit-playsinline="true"
+            preload="auto"
+            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 opacity-95 filter brightness-105 contrast-105"
+            onCanPlay={(e) => {
+              e.currentTarget.muted = true;
+              e.currentTarget.play().catch(() => {});
+            }}
           />
-        )}
+        ) : null}
 
         {/* Soft Dark Fade Gradient on Left Side */}
         <div
