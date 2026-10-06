@@ -23,16 +23,22 @@ export async function uploadFileToBlob(filename, dataBuffer, contentType = 'imag
 }
 
 /**
- * Helper to delete a file from Vercel Blob by public URL.
+ * Helper to delete a file (or array of files) from Vercel Blob by public URL.
  */
-export async function deleteFileFromBlob(url) {
+export async function deleteFileFromBlob(urls) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token || !url || !url.includes('vercel-storage.com')) return;
+  if (!token || !urls) return;
 
-  try {
-    await del(url, { token });
-    console.log(`[Vercel Blob Delete Success] ${url}`);
-  } catch (error) {
-    console.error(`[Vercel Blob Delete Error] ${url}:`, error.message);
+  const urlList = Array.isArray(urls) ? urls : [urls];
+  for (const url of urlList) {
+    if (!url || typeof url !== 'string') continue;
+    if (!url.includes('vercel-storage.com') && !url.includes('blob.vercel-storage.com')) continue;
+
+    try {
+      await del(url, { token });
+      console.log(`[Vercel Blob Delete Success] ${url}`);
+    } catch (error) {
+      console.error(`[Vercel Blob Delete Error] ${url}:`, error.message);
+    }
   }
 }

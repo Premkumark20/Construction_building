@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
-import { uploadFileToBlob } from '../utils/blobStorage.js';
+import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -229,25 +229,15 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
   db.get('SELECT image FROM land WHERE id = ?', [id], (err, landRow) => {
-    db.all('SELECT image_url FROM land_images WHERE land_id = ?', [id], (err, imgRows) => {
-      const filesToDelete = [];
-      if (landRow && landRow.image && landRow.image.startsWith('/uploads/')) {
-        filesToDelete.push(landRow.image);
+    db.all('SELECT image_url FROM land_images WHERE land_id = ?', [id], async (err, imgRows) => {
+      if (landRow && landRow.image) {
+        unlinkPhysicalLandImage(landRow.image);
       }
       if (Array.isArray(imgRows)) {
         imgRows.forEach(r => {
-          if (r.image_url && r.image_url.startsWith('/uploads/')) {
-            filesToDelete.push(r.image_url);
-          }
+          if (r.image_url) unlinkPhysicalLandImage(r.image_url);
         });
       }
-
-      filesToDelete.forEach(relPath => {
-        const fullPath = path.join(projectRoot, relPath);
-        if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath); console.log(`[Land Delete] Unlinked file: ${fullPath}`); } catch (e) {}
-        }
-      });
 
       db.run('DELETE FROM land_images WHERE land_id = ?', [id], () => {
         db.run('DELETE FROM land WHERE id = ?', [id], (err) => {
@@ -303,6 +293,8 @@ router.delete('/:id/images/:imageId', (req, res) => {
   db.get('SELECT * FROM land_images WHERE id = ? AND land_id = ?', [req.params.imageId, req.params.id], (err, img) => {
     if (err || !img) return res.status(404).json({ error: 'Image not found' });
 
+    unlinkPhysicalLandImage(img.image_url);
+
     db.run('DELETE FROM land_images WHERE id = ?', [req.params.imageId], () => {
       if (img.is_cover) {
         db.get('SELECT * FROM land_images WHERE land_id = ? ORDER BY id ASC LIMIT 1', [req.params.id], (err, nextImg) => {
@@ -317,10 +309,15 @@ router.delete('/:id/images/:imageId', (req, res) => {
   });
 });
 
-// Helper function to safely delete physical image file from filesystem
-const unlinkPhysicalLandImage = (imageUrl) => {
+// Helper function to safely delete physical image file from filesystem or Vercel Blob
+const unlinkPhysicalLandImage = async (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
   if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
+
+  if (imageUrl.includes('vercel-storage.com') || imageUrl.includes('blob.vercel-storage.com')) {
+    await deleteFileFromBlob(imageUrl);
+    return;
+  }
 
   const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
   const fullPath = path.join(projectRoot, relativePath);

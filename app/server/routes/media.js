@@ -5,7 +5,7 @@ import fs from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
-import { uploadFileToBlob } from '../utils/blobStorage.js';
+import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -247,6 +247,26 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
   res.json({ imageUrl, filename: req.file.filename });
 });
 
+// 1b. Delete single image (from Vercel Blob CDN or local filesystem)
+router.post('/delete-image', async (req, res) => {
+  const { imageUrl } = req.body;
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'imageUrl is required.' });
+  }
+
+  if (imageUrl.includes('vercel-storage.com') || imageUrl.includes('blob.vercel-storage.com')) {
+    await deleteFileFromBlob(imageUrl);
+    return res.json({ success: true, message: 'Image deleted from Vercel Blob storage.' });
+  }
+
+  const rel = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
+  const p = path.join(projectRoot, rel);
+  if (fs.existsSync(p)) {
+    try { fs.unlinkSync(p); } catch (e) {}
+  }
+  res.json({ success: true, message: 'Image deleted from disk.' });
+});
+
 // 2. GET all video files in database (Syncs both background and hero videos)
 router.get('/videos', (req, res) => {
   syncBackgroundVideos(() => {
@@ -296,8 +316,8 @@ router.get('/background-video', (req, res) => {
   });
 });
 
-// 3. Upload new video file (Supports both 'hero' and 'background')
-router.post('/upload-video', upload.single('video'), (req, res) => {
+// 3. Upload new video file (Supports both 'hero' and 'background', persists to Vercel Blob)
+router.post('/upload-video', upload.single('video'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No video file uploaded.' });
   }
@@ -311,10 +331,24 @@ router.post('/upload-video', upload.single('video'), (req, res) => {
   const tempPath = req.file.path;
   const targetDir = videoType === 'background' ? bgVideosDir : videoUploadsDir;
   const targetPath = path.join(targetDir, finalFilename);
-  const relativePath = videoType === 'background' ? `videos/${finalFilename}` : `uploads/videos/${finalFilename}`;
+  let relativePath = videoType === 'background' ? `videos/${finalFilename}` : `uploads/videos/${finalFilename}`;
+
+  // If Vercel Blob is configured, upload video directly to Vercel Blob CDN
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const fileBuffer = fs.readFileSync(tempPath);
+      const blobPath = `videos/${videoType}-${Date.now()}-${finalFilename}`;
+      const blobUrl = await uploadFileToBlob(blobPath, fileBuffer, req.file.mimetype || 'video/mp4');
+      if (blobUrl) {
+        relativePath = blobUrl;
+      }
+    } catch (blobErr) {
+      console.error('[Vercel Blob Video Upload Error]:', blobErr);
+    }
+  }
 
   db.get('SELECT id FROM media_videos WHERE LOWER(filename) = LOWER(?) AND video_type = ?', [finalFilename, videoType], (err, row) => {
-    if (row || fs.existsSync(targetPath)) {
+    if (row || (!relativePath.startsWith('http') && fs.existsSync(targetPath))) {
       try { fs.unlinkSync(tempPath); } catch (e) {}
       return res.status(409).json({
         error: 'FILE_EXISTS',
@@ -467,6 +501,14 @@ router.delete('/video/:id', (req, res) => {
     if (process.env.VERCEL) {
       candidatePaths.push(path.join('/tmp/videos', row.filename));
       candidatePaths.push(path.join('/tmp/uploads/videos', row.filename));
+    }
+
+    // Delete from Vercel Blob if stored on CDN
+    if (row.filepath && (row.filepath.includes('vercel-storage.com') || row.filepath.includes('blob.'))) {
+      deleteFileFromBlob(row.filepath);
+    }
+    if (row.filename && (row.filename.includes('vercel-storage.com') || row.filename.includes('blob.'))) {
+      deleteFileFromBlob(row.filename);
     }
 
     candidatePaths.forEach(p => {

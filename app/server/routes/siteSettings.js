@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
 import { hashUsername, hashPassword, verifyPassword } from '../utils/authCrypto.js';
+import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -367,22 +368,43 @@ const cleanupUploadedLogos = (keepFilename = null) => {
 };
 
 // 4. POST Upload New Logo
-router.post('/upload-logo', uploadLogo.single('logo'), (req, res) => {
+router.post('/upload-logo', uploadLogo.single('logo'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No logo file provided.' });
   }
 
   const newFilename = req.file.filename;
-  const newLogoUrl = `/logo/${newFilename}`;
+  let newLogoUrl = `/logo/${newFilename}`;
 
-  // Clean up any previously uploaded custom logo files from disk
-  cleanupUploadedLogos(newFilename);
-
-  db.run('UPDATE site_settings SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [newLogoUrl], (err2) => {
-    if (err2) {
-      return res.status(500).json({ error: err2.message });
+  // If Vercel Blob is configured, upload logo to Vercel Blob CDN
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const blobPath = `logo/${Date.now()}-${req.file.originalname}`;
+      const blobUrl = await uploadFileToBlob(blobPath, fileBuffer, req.file.mimetype || 'image/png');
+      if (blobUrl) {
+        newLogoUrl = blobUrl;
+      }
+    } catch (err) {
+      console.error('[Blob upload error in /upload-logo]:', err);
     }
-    res.json({ message: 'Logo uploaded successfully!', logo_url: newLogoUrl });
+  }
+
+  // Delete previous custom logo from Vercel Blob if stored there
+  db.get('SELECT logo_url FROM site_settings WHERE id = 1', [], async (err, prevSetting) => {
+    if (prevSetting?.logo_url && (prevSetting.logo_url.includes('vercel-storage.com') || prevSetting.logo_url.includes('blob.vercel-storage.com'))) {
+      await deleteFileFromBlob(prevSetting.logo_url);
+    }
+
+    // Clean up any previously uploaded custom logo files from disk
+    cleanupUploadedLogos(newFilename);
+
+    db.run('UPDATE site_settings SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [newLogoUrl], (err2) => {
+      if (err2) {
+        return res.status(500).json({ error: err2.message });
+      }
+      res.json({ message: 'Logo uploaded successfully!', logo_url: newLogoUrl });
+    });
   });
 });
 
@@ -390,14 +412,21 @@ router.post('/upload-logo', uploadLogo.single('logo'), (req, res) => {
 router.post('/reset-logo', (req, res) => {
   const defaultLogoUrl = '/logo/sk-builders-logo.png';
 
-  // Clean up all uploaded custom logo files from disk
-  cleanupUploadedLogos();
-
-  db.run('UPDATE site_settings SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [defaultLogoUrl], (err2) => {
-    if (err2) {
-      return res.status(500).json({ error: err2.message });
+  // Delete current custom logo from Vercel Blob if stored there
+  db.get('SELECT logo_url FROM site_settings WHERE id = 1', [], async (err, prevSetting) => {
+    if (prevSetting?.logo_url && (prevSetting.logo_url.includes('vercel-storage.com') || prevSetting.logo_url.includes('blob.vercel-storage.com'))) {
+      await deleteFileFromBlob(prevSetting.logo_url);
     }
-    res.json({ message: 'Logo reset to default!', logo_url: defaultLogoUrl });
+
+    // Clean up all uploaded custom logo files from disk
+    cleanupUploadedLogos();
+
+    db.run('UPDATE site_settings SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [defaultLogoUrl], (err2) => {
+      if (err2) {
+        return res.status(500).json({ error: err2.message });
+      }
+      res.json({ message: 'Logo reset to default!', logo_url: defaultLogoUrl });
+    });
   });
 });
 

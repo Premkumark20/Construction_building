@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
-import { uploadFileToBlob } from '../utils/blobStorage.js';
+import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -215,28 +215,18 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
   db.get('SELECT cover_image, image FROM projects WHERE id = ?', [id], (err, projRow) => {
-    db.all('SELECT image_url FROM project_images WHERE project_id = ?', [id], (err, imgRows) => {
-      const filesToDelete = [];
-      if (projRow && projRow.cover_image && projRow.cover_image.startsWith('/uploads/')) {
-        filesToDelete.push(projRow.cover_image);
+    db.all('SELECT image_url FROM project_images WHERE project_id = ?', [id], async (err, imgRows) => {
+      if (projRow && projRow.cover_image) {
+        unlinkPhysicalProjectImage(projRow.cover_image);
       }
-      if (projRow && projRow.image && projRow.image.startsWith('/uploads/')) {
-        filesToDelete.push(projRow.image);
+      if (projRow && projRow.image) {
+        unlinkPhysicalProjectImage(projRow.image);
       }
       if (Array.isArray(imgRows)) {
         imgRows.forEach(r => {
-          if (r.image_url && r.image_url.startsWith('/uploads/')) {
-            filesToDelete.push(r.image_url);
-          }
+          if (r.image_url) unlinkPhysicalProjectImage(r.image_url);
         });
       }
-
-      filesToDelete.forEach(relPath => {
-        const fullPath = path.join(projectRoot, relPath);
-        if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath); console.log(`[Project Delete] Unlinked file: ${fullPath}`); } catch (e) {}
-        }
-      });
 
       db.run('DELETE FROM project_images WHERE project_id = ?', [id], () => {
         db.run('DELETE FROM projects WHERE id = ?', [id], (err) => {
@@ -288,10 +278,15 @@ router.post('/:id/images', upload.array('images', 20), async (req, res) => {
   });
 });
 
-// Helper function to safely delete physical image file from filesystem
-const unlinkPhysicalProjectImage = (imageUrl) => {
+// Helper function to safely delete physical image file from filesystem or Vercel Blob
+const unlinkPhysicalProjectImage = async (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
   if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
+
+  if (imageUrl.includes('vercel-storage.com') || imageUrl.includes('blob.vercel-storage.com')) {
+    await deleteFileFromBlob(imageUrl);
+    return;
+  }
 
   const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
   const fullPath = path.join(projectRoot, relativePath);

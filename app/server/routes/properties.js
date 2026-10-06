@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
-import { uploadFileToBlob } from '../utils/blobStorage.js';
+import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -248,25 +248,15 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const id = req.params.id;
   db.get('SELECT image FROM properties WHERE id = ?', [id], (err, propRow) => {
-    db.all('SELECT image_url FROM property_images WHERE property_id = ?', [id], (err, imgRows) => {
-      const filesToDelete = [];
-      if (propRow && propRow.image && propRow.image.startsWith('/uploads/')) {
-        filesToDelete.push(propRow.image);
+    db.all('SELECT image_url FROM property_images WHERE property_id = ?', [id], async (err, imgRows) => {
+      if (propRow && propRow.image) {
+        unlinkPhysicalPropertyImage(propRow.image);
       }
       if (Array.isArray(imgRows)) {
         imgRows.forEach(r => {
-          if (r.image_url && r.image_url.startsWith('/uploads/')) {
-            filesToDelete.push(r.image_url);
-          }
+          if (r.image_url) unlinkPhysicalPropertyImage(r.image_url);
         });
       }
-
-      filesToDelete.forEach(relPath => {
-        const fullPath = path.join(projectRoot, relPath);
-        if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath); console.log(`[Property Delete] Unlinked file: ${fullPath}`); } catch (e) {}
-        }
-      });
 
       db.run('DELETE FROM property_images WHERE property_id = ?', [id], () => {
         db.run('DELETE FROM properties WHERE id = ?', [id], (err) => {
@@ -317,11 +307,16 @@ router.post('/:id/images', upload.array('images', 20), async (req, res) => {
   });
 });
 
-// Helper function to safely delete physical image file from filesystem
-const unlinkPhysicalPropertyImage = (imageUrl) => {
+// Helper function to safely delete physical image file from filesystem or Vercel Blob
+const unlinkPhysicalPropertyImage = async (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.startsWith('data:')) return;
   // Ignore system logo or default images
   if (imageUrl.includes('logo') || imageUrl.includes('completed-house')) return;
+
+  if (imageUrl.includes('vercel-storage.com') || imageUrl.includes('blob.vercel-storage.com')) {
+    await deleteFileFromBlob(imageUrl);
+    return;
+  }
 
   const relativePath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
   const fullPath = path.join(projectRoot, relativePath);
