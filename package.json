@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "python python/extract_frames.py",
     "dev": "concurrently \"vite --host --port 5173\" \"node app/server/server.js\"",
-    "build": "vite build && node scripts/copy-assets.js",
+    "build": "npx vite build && node scripts/copy-assets.js",
     "preview": "vite preview --host",
     "server": "node app/server/server.js",
     "frames": "python python/extract_frames.py",

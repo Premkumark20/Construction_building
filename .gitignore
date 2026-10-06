@@ -32,12 +32,11 @@ app/server/database/showcase.db
 .cache/
 .temp/
 
-# Uploads, Frames & References
+# Uploads & References
 uploads/
 uploads/images/
 uploads/videos/
 frames/
-app/public/frames/
 reference/
 app/dist/
 dist/

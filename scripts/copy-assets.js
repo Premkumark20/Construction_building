@@ -24,3 +24,5 @@ if (fs.existsSync(distDir)) {
   copyDir(path.resolve('videos'), path.join(distDir, 'videos'));
   console.log('Successfully copied uploads, logo, frames, and videos into dist/ for static serving.');
 }
+
+copyDir(path.resolve('frames'), path.resolve('app/public/frames'));
