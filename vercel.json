@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {
-      "includeFiles": "{app/server/**,uploads/**,logo/**,videos/**,frames/**,app/public/**}"
+      "includeFiles": "app/server/**"
     }
   },
   "rewrites": [

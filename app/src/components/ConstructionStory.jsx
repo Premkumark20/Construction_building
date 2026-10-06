@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, MessageCircle, Home, ShieldCheck, Video, VideoOff, Users } from 'lucide-react';
+import { Phone, MessageCircle, Home, ShieldCheck, Users } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSiteData } from '../hooks/useSiteData';
@@ -10,75 +10,30 @@ gsap.registerPlugin(ScrollTrigger);
 const ConstructionStory = () => {
   const containerRef = useRef(null);
   const pinDesktopRef = useRef(null);
-  const pinMobileRef = useRef(null);
   const canvasDesktopRef = useRef(null);
-  const canvasMobileRef = useRef(null);
-  const mobileVideoRef = useRef(null);
-  const desktopVideoRef = useRef(null);
-  
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [frameVersion, setFrameVersion] = useState(Date.now());
 
-  const { settings, heroVideo } = useSiteData();
-  const dbHasHero = Boolean(heroVideo?.hasHeroVideo);
+  const { settings } = useSiteData();
 
-  const totalFrameCount = isMobile ? 61 : 121;
-  const frameFolder = isMobile ? 'mobile' : 'desktop';
-
-  const [hasHeroVideo, setHasHeroVideo] = useState(dbHasHero);
-  const [isPreloading, setIsPreloading] = useState(dbHasHero);
-  const [showContent, setShowContent] = useState(!dbHasHero);
-  const [hidePrompt, setHidePrompt] = useState(!dbHasHero);
-  const [hasFramesAvailable, setHasFramesAvailable] = useState(false);
-  const [bgVideoUrl, setBgVideoUrl] = useState('/videos/Background.mp4');
+  const totalFrameCount = 121;
+  const [showContent, setShowContent] = useState(false);
+  const [hidePrompt, setHidePrompt] = useState(false);
+  const [hasFramesAvailable, setHasFramesAvailable] = useState(true);
+  const [isPreloading, setIsPreloading] = useState(true);
 
   const currentFrameRef = useRef(1);
   const loadedImagesMapRef = useRef({});
 
-  // Synchronize active background video
-  useEffect(() => {
-    fetch('/api/media/background-video')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.videoUrl) setBgVideoUrl(data.videoUrl);
-      })
-      .catch(() => {});
-  }, [frameVersion]);
-
-  const effectiveVideoUrl = heroVideo?.videoUrl || bgVideoUrl || '/videos/Background.mp4';
-
-  // Ensure background / hero video autoplays smoothly on all mobile & desktop browsers
-  useEffect(() => {
-    if (mobileVideoRef.current) {
-      mobileVideoRef.current.defaultMuted = true;
-      mobileVideoRef.current.muted = true;
-      mobileVideoRef.current.play().catch(() => {});
-    }
-    if (desktopVideoRef.current) {
-      desktopVideoRef.current.defaultMuted = true;
-      desktopVideoRef.current.muted = true;
-      desktopVideoRef.current.play().catch(() => {});
-    }
-  }, [effectiveVideoUrl]);
-
-  // Synchronize with heroVideo updates from context
-  useEffect(() => {
-    setHasHeroVideo(dbHasHero);
-    if (!dbHasHero) {
-      setHasFramesAvailable(false);
-      setIsPreloading(false);
-      setShowContent(true);
-      setHidePrompt(true);
-    }
-  }, [dbHasHero]);
-
-  // Check viewport device type & accessibility settings
+  // Detect mobile & prefers-reduced-motion
   useEffect(() => {
     const handleResize = () => {
       const mobileCheck = window.innerWidth <= 768;
       setIsMobile(mobileCheck);
-      renderFrame(currentFrameRef.current);
+      if (!mobileCheck) {
+        renderFrame(currentFrameRef.current);
+      }
     };
     handleResize();
 
@@ -89,213 +44,135 @@ const ConstructionStory = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Listen to Primary Video Updates for Auto-Loading Frames
-  useEffect(() => {
-    const handleVideoUpdate = () => {
-      setFrameVersion(Date.now());
-    };
-    window.addEventListener('sk_primary_video_updated', handleVideoUpdate);
-    return () => {
-      window.removeEventListener('sk_primary_video_updated', handleVideoUpdate);
-    };
-  }, []);
-
-  // Adaptive Hero Video Check and Frame Preloading
+  // Pre-load Desktop Construction Frames
   useEffect(() => {
     let isCancelled = false;
 
-    // If hero video is NOT present in DB, skip all frame preloading and hero scrolling
-    if (!hasHeroVideo) {
+    loadedImagesMapRef.current = {};
+    setIsPreloading(true);
+
+    const probe = new Image();
+    const frameNum = String(1).padStart(4, '0');
+    probe.src = `/frames/desktop/frame_${frameNum}.webp`;
+
+    probe.onload = () => {
+      if (isCancelled) return;
+      loadedImagesMapRef.current[1] = probe;
+      setHasFramesAvailable(true);
+      setIsPreloading(false);
+      renderFrame(1);
+
+      // Preload remaining frames in background
+      for (let i = 2; i <= totalFrameCount; i++) {
+        const img = new Image();
+        const num = String(i).padStart(4, '0');
+        img.src = `/frames/desktop/frame_${num}.webp`;
+        img.onload = () => {
+          loadedImagesMapRef.current[i] = img;
+          if (currentFrameRef.current === i) {
+            renderFrame(i);
+          }
+        };
+      }
+    };
+
+    probe.onerror = () => {
+      if (isCancelled) return;
       setHasFramesAvailable(false);
       setIsPreloading(false);
       setShowContent(true);
-      setHidePrompt(true);
-      requestAnimationFrame(() => {
-        ScrollTrigger.sort();
-        ScrollTrigger.refresh();
-      });
-      return;
-    }
-
-    const checkHeroVideoAndFrames = () => {
-      // If hero video exists and we're on mobile, activate mobile stage
-      if (isMobile) {
-        if (!isCancelled) {
-          setIsPreloading(false);
-          setShowContent(true);
-          setHasFramesAvailable(true);
-        }
-        return;
-      }
-
-      // Hero video exists on desktop: pre-load desktop frames
-      loadedImagesMapRef.current = {};
-      if (!isCancelled) setIsPreloading(true);
-
-      const safetyTimeout = setTimeout(() => {
-        if (!isCancelled) {
-          setIsPreloading(false);
-          setShowContent(true);
-        }
-      }, 500);
-
-      const probe = new Image();
-      const frameNum = String(1).padStart(4, '0');
-      probe.src = `/frames/desktop/frame_${frameNum}.webp?v=${frameVersion}`;
-
-      probe.onload = () => {
-        if (isCancelled) return;
-        clearTimeout(safetyTimeout);
-        loadedImagesMapRef.current[1] = probe;
-        setHasFramesAvailable(true);
-        setIsPreloading(false);
-        setShowContent(true);
-        renderFrame(1);
-
-        // Load remaining frames in background
-        for (let i = 2; i <= 121; i++) {
-          const img = new Image();
-          const num = String(i).padStart(4, '0');
-          img.src = `/frames/desktop/frame_${num}.webp?v=${frameVersion}`;
-          img.onload = () => {
-            loadedImagesMapRef.current[i] = img;
-            if (currentFrameRef.current === i) {
-              renderFrame(i);
-            }
-          };
-        }
-      };
-
-      probe.onerror = () => {
-        if (isCancelled) return;
-        clearTimeout(safetyTimeout);
-        setHasFramesAvailable(false);
-        setIsPreloading(false);
-        setShowContent(true);
-      };
     };
-
-    checkHeroVideoAndFrames();
 
     return () => {
       isCancelled = true;
     };
-  }, [isMobile, frameVersion, hasHeroVideo]);
+  }, []);
 
-  // Find nearest loaded frame for ultra-smooth scrubbing fallback
+  // Nearest loaded image helper
   const getClosestLoadedImage = (targetIndex) => {
     if (loadedImagesMapRef.current[targetIndex]) {
       return loadedImagesMapRef.current[targetIndex];
     }
-    // Search backward
     for (let i = targetIndex - 1; i >= 1; i--) {
       if (loadedImagesMapRef.current[i]) return loadedImagesMapRef.current[i];
     }
-    // Search forward
     for (let i = targetIndex + 1; i <= totalFrameCount; i++) {
       if (loadedImagesMapRef.current[i]) return loadedImagesMapRef.current[i];
     }
     return null;
   };
 
-  // High-DPI Canvas Rendering Engine for Both Desktop & Mobile Stage
+  // High-DPI Canvas Rendering Engine for Desktop Stage
   const renderFrame = (frameIndex) => {
+    const canvas = canvasDesktopRef.current;
+    if (!canvas) return;
+
     const img = getClosestLoadedImage(frameIndex);
     if (!img || !img.complete || img.naturalWidth === 0) return;
 
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
 
-    // 1. Render Mobile Canvas (Uncropped Fit in Card)
-    const mobileCanvas = canvasMobileRef.current;
-    if (mobileCanvas) {
-      const mCtx = mobileCanvas.getContext('2d');
-      if (mCtx) {
-        const mRect = mobileCanvas.getBoundingClientRect();
-        if (mobileCanvas.width !== mRect.width * dpr || mobileCanvas.height !== mRect.height * dpr) {
-          mobileCanvas.width = mRect.width * dpr;
-          mobileCanvas.height = mRect.height * dpr;
-        }
-        mCtx.save();
-        mCtx.scale(dpr, dpr);
-        mCtx.imageSmoothingEnabled = true;
-        mCtx.imageSmoothingQuality = 'high';
-        mCtx.clearRect(0, 0, mRect.width, mRect.height);
-        mCtx.drawImage(img, 0, 0, mRect.width, mRect.height);
-        mCtx.restore();
-      }
+    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
     }
 
-    // 2. Render Desktop Canvas (Fullscreen High Definition)
-    const desktopCanvas = canvasDesktopRef.current;
-    if (desktopCanvas) {
-      const dCtx = desktopCanvas.getContext('2d');
-      if (dCtx) {
-        const dRect = desktopCanvas.getBoundingClientRect();
-        if (desktopCanvas.width !== dRect.width * dpr || desktopCanvas.height !== dRect.height * dpr) {
-          desktopCanvas.width = dRect.width * dpr;
-          desktopCanvas.height = dRect.height * dpr;
-        }
-        dCtx.save();
-        dCtx.scale(dpr, dpr);
-        dCtx.imageSmoothingEnabled = true;
-        dCtx.imageSmoothingQuality = 'high';
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const canvasRatio = dRect.width / dRect.height;
-        let renderW, renderH, offsetX, offsetY;
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = rect.width / rect.height;
+    let renderW, renderH, offsetX, offsetY;
 
-        if (canvasRatio > imgRatio) {
-          renderW = dRect.width;
-          renderH = dRect.width / imgRatio;
-          offsetX = 0;
-          offsetY = (dRect.height - renderH) / 2;
-        } else {
-          renderH = dRect.height;
-          renderW = dRect.height * imgRatio;
-          if (renderW < dRect.width) {
-            renderW = dRect.width;
-            renderH = dRect.width / imgRatio;
-          }
-          offsetX = (dRect.width - renderW) / 2;
-          offsetY = (dRect.height - renderH) / 2;
-        }
-
-        dCtx.clearRect(0, 0, dRect.width, dRect.height);
-        dCtx.drawImage(img, offsetX, offsetY, renderW, renderH);
-        dCtx.restore();
+    if (canvasRatio > imgRatio) {
+      renderW = rect.width;
+      renderH = rect.width / imgRatio;
+      offsetX = 0;
+      offsetY = (rect.height - renderH) / 2;
+    } else {
+      renderH = rect.height;
+      renderW = rect.height * imgRatio;
+      if (renderW < rect.width) {
+        renderW = rect.width;
+        renderH = rect.width / imgRatio;
       }
+      offsetX = (rect.width - renderW) / 2;
+      offsetY = (rect.height - renderH) / 2;
     }
+
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.drawImage(img, offsetX, offsetY, renderW, renderH);
+    ctx.restore();
   };
 
-  // GSAP ScrollTrigger Responsive Engine
+  // GSAP ScrollTrigger Desktop Frame Scrubbing
   useEffect(() => {
-    if (prefersReducedMotion || !hasFramesAvailable || !hasHeroVideo) {
+    if (isMobile || prefersReducedMotion || !hasFramesAvailable) {
       setShowContent(true);
       setHidePrompt(true);
-      requestAnimationFrame(() => {
-        ScrollTrigger.sort();
-        ScrollTrigger.refresh();
-      });
       return;
     }
 
     const pinDesktop = pinDesktopRef.current;
-    const pinMobile = pinMobileRef.current;
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !pinDesktop) return;
 
     const mm = gsap.matchMedia();
 
-    // 1. DESKTOP: Locked Pinning -> Scrub Construction -> Stay & Retrieve Contents -> Transition to About Us
     mm.add('(min-width: 769px)', () => {
-      if (!pinDesktop) return;
-
       const trigger = ScrollTrigger.create({
         trigger: container,
         pin: pinDesktop,
         start: 'top top',
-        end: '+=5800',
-        scrub: 1.6,
+        end: '+=4500',
+        scrub: 1.2,
         anticipatePin: 1,
         pinSpacing: true,
         refreshPriority: 10,
@@ -303,50 +180,7 @@ const ConstructionStory = () => {
         onUpdate: (self) => {
           const progress = self.progress;
 
-          // Phase 1: Construction Scrubbing (0.0 -> 0.68)
-          if (progress <= 0.68) {
-            const scrubProg = progress / 0.68;
-            const frameIndex = Math.min(
-              totalFrameCount,
-              Math.max(1, Math.floor(scrubProg * (totalFrameCount - 1)) + 1)
-            );
-            currentFrameRef.current = frameIndex;
-            renderFrame(frameIndex);
-            setShowContent(false);
-            setHidePrompt(progress >= 0.10);
-          } else {
-            // Phase 2: Construction Completed -> Stay Pinned & Retrieve Hero Contents (0.68 -> 1.0)
-            currentFrameRef.current = totalFrameCount;
-            renderFrame(totalFrameCount);
-            setShowContent(true);
-            setHidePrompt(true);
-          }
-        },
-      });
-
-      return () => {
-        trigger.kill();
-      };
-    });
-
-    // 2. MOBILE: Pin Top Card -> Scrub Construction -> Retrieve Content -> Smoothly Move to Next Section
-    mm.add('(max-width: 768px)', () => {
-      if (!pinMobile) return;
-
-      const trigger = ScrollTrigger.create({
-        trigger: container,
-        pin: pinMobile,
-        start: 'top top',
-        end: '+=900',
-        scrub: 0.8,
-        anticipatePin: 1,
-        pinSpacing: true,
-        refreshPriority: 10,
-        invalidateOnRefresh: true,
-        onUpdate: (self) => {
-          const progress = self.progress;
-
-          // Phase 1: Construction Scrubbing in Top Card (0.0 -> 0.70)
+          // Phase 1: Construction Scrubbing (0.0 -> 0.70)
           if (progress <= 0.70) {
             const scrubProg = progress / 0.70;
             const frameIndex = Math.min(
@@ -356,11 +190,13 @@ const ConstructionStory = () => {
             currentFrameRef.current = frameIndex;
             renderFrame(frameIndex);
             setShowContent(false);
+            setHidePrompt(progress >= 0.10);
           } else {
-            // Phase 2: Completed House -> Retrieve Content -> Stay Brief Moment -> Smooth Move to Next Section (0.70 -> 1.0)
+            // Phase 2: Finished House -> Reveal Hero Content (0.70 -> 1.0)
             currentFrameRef.current = totalFrameCount;
             renderFrame(totalFrameCount);
             setShowContent(true);
+            setHidePrompt(true);
           }
         },
       });
@@ -380,7 +216,7 @@ const ConstructionStory = () => {
       ScrollTrigger.sort();
       ScrollTrigger.refresh();
     };
-  }, [totalFrameCount, prefersReducedMotion, hasFramesAvailable, hasHeroVideo]);
+  }, [isMobile, prefersReducedMotion, hasFramesAvailable]);
 
   return (
     <section
@@ -388,33 +224,23 @@ const ConstructionStory = () => {
       id="home"
       className="relative z-10 w-full bg-transparent text-white overflow-hidden"
     >
-      {/* 1. MOBILE VIEW: High-Visibility Adaptive Stage */}
+      {/* 1. MOBILE VIEW: Display ONLY static last frame image of video (No video playing) */}
       <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-transparent">
-        {/* Full-bleed Live Hero / Background Video in Mobile View */}
-        {effectiveVideoUrl ? (
-          <video
-            ref={mobileVideoRef}
-            key={`mobile-${effectiveVideoUrl}`}
-            src={effectiveVideoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            webkit-playsinline="true"
-            preload="auto"
-            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
-            onCanPlay={(e) => {
-              e.currentTarget.muted = true;
-              e.currentTarget.play().catch(() => {});
-            }}
-          />
-        ) : null}
+        {/* Static Last Frame Image as Background */}
+        <img
+          src="/frames/mobile/frame_last.webp"
+          alt="SK Builders Completed Project"
+          className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
+          onError={(e) => {
+            e.currentTarget.src = '/frames/desktop/frame_0121.webp';
+          }}
+        />
 
-        {/* Subtle Dark Gradient Focused on Left Side to Keep Content Highly Visible */}
+        {/* Subtle Dark Gradient Overlay for High Readability */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent z-10 pointer-events-none w-[90%]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 z-10 pointer-events-none" />
 
-        {/* Hero Overlay Content Container - Positioned Strictly on Left Side */}
+        {/* Hero Overlay Content Container */}
         <div className="relative z-20 w-full max-w-[340px] sm:max-w-md mr-auto flex flex-col justify-end text-left items-start">
           {/* Top Tagline Badge */}
           <div className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-amber-300 mb-2 bg-black/75 border border-amber-500/40 px-3 py-1 rounded-full w-fit backdrop-blur-md shadow-lg">
@@ -467,7 +293,7 @@ const ConstructionStory = () => {
             </div>
           </div>
 
-          {/* Dynamic Action CTAs */}
+          {/* Action CTAs */}
           <div className="flex items-center gap-3">
             <a
               href={settings.phone ? `tel:+91${settings.phone.replace(/[^0-9]/g, '')}` : '#contact'}
@@ -479,7 +305,7 @@ const ConstructionStory = () => {
 
             {settings.whatsapp_number && (
               <a
-                href={getWhatsAppUrl(settings.whatsapp_number, "Hi, I want to know more about properties/construction.")}
+                href={getWhatsAppUrl(settings.whatsapp_number, 'Hi, I want to know more about properties/construction.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-black/85 hover:bg-black/95 text-amber-400 border border-amber-500/40 font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xl backdrop-blur-md transition-all active:scale-95"
@@ -491,15 +317,13 @@ const ConstructionStory = () => {
         </div>
       </div>
 
-      {/* 2. DESKTOP VIEW: Adaptive Hero Stage (Cinematic Pinned when frames present, Clean ambient when not) */}
+      {/* 2. DESKTOP VIEW: Scroll to Display Construction Video in Frames on Canvas (No video playing) */}
       <div
         ref={pinDesktopRef}
-        className={`hidden md:flex w-full ${
-          hasFramesAvailable && hasHeroVideo ? 'h-screen' : 'h-screen min-h-[600px]'
-        } overflow-hidden items-center justify-start relative bg-transparent px-6 sm:px-12 lg:px-20 z-10`}
+        className="hidden md:flex w-full h-screen min-h-[600px] overflow-hidden items-center justify-start relative bg-transparent px-6 sm:px-12 lg:px-20 z-10"
       >
         {/* Dark Obsidian Preloader Spinner */}
-        {isPreloading && hasHeroVideo && (
+        {isPreloading && (
           <div className="absolute inset-0 z-40 bg-[#09090b] flex flex-col items-center justify-center text-white p-4">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4 shadow-lg shadow-amber-500/30"></div>
             <p className="text-xs uppercase font-extrabold tracking-widest text-amber-400">
@@ -508,37 +332,23 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* Fullscreen Live Video Background */}
-        {effectiveVideoUrl ? (
-          <video
-            ref={desktopVideoRef}
-            key={`desktop-${effectiveVideoUrl}`}
-            src={effectiveVideoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            webkit-playsinline="true"
-            preload="auto"
-            className="w-full h-full object-cover select-none pointer-events-none absolute inset-0 block z-0 transition-opacity duration-500 opacity-95 filter brightness-105 contrast-105"
-            onCanPlay={(e) => {
-              e.currentTarget.muted = true;
-              e.currentTarget.play().catch(() => {});
-            }}
-          />
-        ) : null}
+        {/* Canvas for Desktop Frame Scrubbing */}
+        <canvas
+          ref={canvasDesktopRef}
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0 transition-opacity duration-500"
+        />
 
         {/* Soft Dark Fade Gradient on Left Side */}
         <div
           className={`absolute inset-y-0 left-0 w-full sm:w-2/3 md:w-[55%] bg-gradient-to-r from-[#09090b]/85 via-[#09090b]/40 to-transparent pointer-events-none z-10 transition-opacity duration-700 ${
-            showContent || prefersReducedMotion || !hasHeroVideo ? 'opacity-100' : 'opacity-0'
+            showContent || prefersReducedMotion ? 'opacity-100' : 'opacity-80'
           }`}
         />
 
         {/* Hero Content Overlay on Desktop */}
         <div
           className={`relative max-w-xl text-white z-20 flex flex-col justify-center pt-16 pb-6 transition-all duration-700 transform ${
-            showContent || prefersReducedMotion || !hasHeroVideo
+            showContent || prefersReducedMotion
               ? 'opacity-100 translate-y-0 scale-100'
               : 'opacity-0 translate-y-8 scale-95 pointer-events-none'
           }`}
@@ -599,7 +409,7 @@ const ConstructionStory = () => {
 
             {settings.whatsapp_number && (
               <a
-                href={getWhatsAppUrl(settings.whatsapp_number, "Hi, I want to know more about properties/construction.")}
+                href={getWhatsAppUrl(settings.whatsapp_number, 'Hi, I want to know more about properties/construction.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-zinc-900/90 hover:bg-zinc-800 text-amber-400 border border-amber-500/30 font-extrabold px-4 sm:px-7 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-lg transition-all active:scale-95"
@@ -611,7 +421,7 @@ const ConstructionStory = () => {
         </div>
 
         {/* Scroll Prompt */}
-        {!hidePrompt && !showContent && !prefersReducedMotion && hasFramesAvailable && hasHeroVideo && (
+        {!hidePrompt && !showContent && !prefersReducedMotion && hasFramesAvailable && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center justify-center text-white">
             <span className="text-[11px] sm:text-xs uppercase font-black tracking-widest mb-2 text-amber-300 bg-[#09090b]/90 border border-amber-500/40 backdrop-blur-xl px-5 py-2 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.2)] flex items-center gap-2">
               ✨ Scroll Down to See Land Become Your Dream Home

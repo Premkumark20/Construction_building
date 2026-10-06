@@ -20,5 +20,7 @@ const distDir = path.resolve('dist');
 if (fs.existsSync(distDir)) {
   copyDir(path.resolve('uploads'), path.join(distDir, 'uploads'));
   copyDir(path.resolve('logo'), path.join(distDir, 'logo'));
-  console.log('Successfully copied uploads and logo into dist/ for static serving.');
+  copyDir(path.resolve('frames'), path.join(distDir, 'frames'));
+  copyDir(path.resolve('videos'), path.join(distDir, 'videos'));
+  console.log('Successfully copied uploads, logo, frames, and videos into dist/ for static serving.');
 }
