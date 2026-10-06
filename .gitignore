@@ -37,12 +37,7 @@ uploads/
 uploads/images/
 uploads/videos/
 frames/
-app/public/frames/**
-!app/public/frames/
-!app/public/frames/mobile/
-!app/public/frames/mobile/frame_last.webp
-!app/public/frames/desktop/
-!app/public/frames/desktop/frame_0121.webp
+app/public/frames/
 reference/
 app/dist/
 dist/
