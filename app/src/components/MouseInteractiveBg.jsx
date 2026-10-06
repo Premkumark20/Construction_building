@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { syncChannel } from '../utils/syncManager.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -39,9 +40,34 @@ const MouseInteractiveBg = () => {
 
     window.addEventListener('sk_primary_video_updated', handleVideoUpdate);
     window.addEventListener('sk_site_data_updated', handleVideoUpdate);
+    window.addEventListener('primary_video_updated', handleVideoUpdate);
+    window.addEventListener('data_updated', handleVideoUpdate);
+
+    const handleStorage = (e) => {
+      if (['sk_primary_video_updated', 'primary_video_updated', 'sk_site_data_updated', 'data_updated'].includes(e.key)) {
+        loadBgVideo();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    const handleBroadcast = (e) => {
+      if (e?.data?.type === 'DATA_UPDATED') {
+        loadBgVideo();
+      }
+    };
+    if (syncChannel) {
+      syncChannel.addEventListener('message', handleBroadcast);
+    }
+
     return () => {
       window.removeEventListener('sk_primary_video_updated', handleVideoUpdate);
       window.removeEventListener('sk_site_data_updated', handleVideoUpdate);
+      window.removeEventListener('primary_video_updated', handleVideoUpdate);
+      window.removeEventListener('data_updated', handleVideoUpdate);
+      window.removeEventListener('storage', handleStorage);
+      if (syncChannel) {
+        syncChannel.removeEventListener('message', handleBroadcast);
+      }
     };
   }, []);
 

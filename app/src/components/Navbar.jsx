@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, Image, Wrench, Building, Briefcase, Star, Phone } from 'lucide-react';
-import { useSiteData } from '../hooks/useSiteData.js';
+import { useSiteData, resolveAssetUrl } from '../hooks/useSiteData.jsx';
 import { handlePhoneCall } from '../utils/phoneUtils.js';
 
 const navItems = [
@@ -25,11 +26,28 @@ const mobileNavItems = [
 ];
 
 const Navbar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState('home');
+
+  const getRouteSection = () => {
+    const path = location.pathname;
+    if (path.includes('/property-details') || path.includes('/all-properties')) return 'properties';
+    if (path.includes('/project-details') || path.includes('/all-projects')) return 'projects';
+    if (path.includes('/feedback')) return 'feedback';
+    return 'home';
+  };
+
+  const [activeSection, setActiveSection] = useState(getRouteSection);
   const { settings } = useSiteData();
 
   useEffect(() => {
+    setActiveSection(getRouteSection());
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname !== '/' && location.pathname !== '') return;
+
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
 
@@ -51,10 +69,15 @@ const Navbar = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [location.pathname]);
 
   const scrollToSection = (e, targetId) => {
     e.preventDefault();
+    if (location.pathname !== '/' && location.pathname !== '') {
+      navigate(`/#${targetId}`, { state: { scrollTo: targetId } });
+      return;
+    }
+
     const el = document.getElementById(targetId);
     if (!el) return;
 
@@ -63,10 +86,14 @@ const Navbar = () => {
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const targetY = rect.top + scrollTop - navbarHeight;
 
-    window.scrollTo({
-      top: Math.max(0, targetY),
-      behavior: 'smooth'
-    });
+    if (window.lenis) {
+      window.lenis.scrollTo(el, { offset: -navbarHeight, immediate: false });
+    } else {
+      window.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth'
+      });
+    }
 
     if (window.history.pushState) {
       window.history.pushState(null, '', `#${targetId}`);
@@ -96,11 +123,11 @@ const Navbar = () => {
             onClick={(e) => scrollToSection(e, 'home')}
             className="flex items-center gap-2.5 sm:gap-3 group"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-lg group-hover:border-amber-400 group-hover:scale-105 transition-all duration-300">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-amber-500/40 bg-white flex items-center justify-center shrink-0 shadow-lg group-hover:border-amber-400 group-hover:scale-105 transition-all duration-300">
               <img
-                src={settings.logo_url || '/logo/sk-builders-logo.png'}
+                src={resolveAssetUrl(settings.logo_url || '/logo/sk-builders-logo.png')}
                 alt={`${settings.company_name || 'Company'} Logo`}
-                className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
+                className="w-full h-full object-cover"
               />
             </div>
             <div>

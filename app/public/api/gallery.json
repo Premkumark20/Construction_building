@@ -1,0 +1,57 @@
+[
+  {
+    "id": 17,
+    "image": "/uploads/images/gallery/background 1.png",
+    "created_at": "2026-09-07 14:29:14"
+  },
+  {
+    "id": 15,
+    "image": "/uploads/images/gallery/cc-4.jpg",
+    "created_at": "2026-08-20 17:27:17"
+  },
+  {
+    "id": 12,
+    "image": "/uploads/images/gallery/background 2.jpg",
+    "created_at": "2026-08-20 17:21:54"
+  },
+  {
+    "id": 11,
+    "image": "/uploads/images/gallery/mysql.jpeg",
+    "created_at": "2026-08-20 17:21:35"
+  },
+  {
+    "id": 10,
+    "image": "/uploads/images/gallery/wallpaper1.jpg",
+    "created_at": "2026-08-20 17:21:24"
+  },
+  {
+    "id": 9,
+    "image": "/uploads/images/gallery/lock wallpaper.jpg",
+    "created_at": "2026-08-20 17:20:40"
+  },
+  {
+    "id": 8,
+    "image": "/uploads/images/gallery/futuristic-technological-wallpaper_79603-1093.jpg",
+    "created_at": "2026-08-20 17:20:17"
+  },
+  {
+    "id": 7,
+    "image": "/uploads/images/gallery/wallpaper1.png",
+    "created_at": "2026-08-20 17:20:07"
+  },
+  {
+    "id": 6,
+    "image": "/uploads/images/gallery/lock wallpaper.jpg",
+    "created_at": "2026-08-20 17:19:38"
+  },
+  {
+    "id": 5,
+    "image": "/uploads/images/gallery/file_00000000fe5c61f88088269d82c72317.png",
+    "created_at": "2026-08-20 16:47:51"
+  },
+  {
+    "id": 4,
+    "image": "/uploads/images/gallery/doraemon-logo1.png",
+    "created_at": "2026-08-20 16:45:53"
+  }
+]

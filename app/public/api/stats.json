@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "icon_name": "Home",
+    "value": "25+",
+    "label": "Homes Built",
+    "display_order": 1
+  },
+  {
+    "id": 2,
+    "icon_name": "MapPin",
+    "value": "38+",
+    "label": "Plots Sold",
+    "display_order": 2
+  },
+  {
+    "id": 3,
+    "icon_name": "Users",
+    "value": "40+",
+    "label": "Property Deals",
+    "display_order": 3
+  },
+  {
+    "id": 4,
+    "icon_name": "Users",
+    "value": "75+",
+    "label": "Happy Families",
+    "display_order": 4
+  }
+]

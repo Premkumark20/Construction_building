@@ -309,16 +309,33 @@ const Gallery = () => {
     };
   }, [sourceItems.length]);
 
-  // Lock body scroll when Lightbox is open
+  // Lock background main site scrolling and Lenis momentum scroll when Lightbox is open
   useEffect(() => {
     if (selectedPhoto) {
+      if (typeof window !== 'undefined' && window.lenis) {
+        window.lenis.stop();
+      }
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = 'hidden';
+
+      const preventScroll = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      window.addEventListener('wheel', preventScroll, { passive: false });
+      window.addEventListener('touchmove', preventScroll, { passive: false });
+
+      return () => {
+        if (typeof window !== 'undefined' && window.lenis) {
+          window.lenis.start();
+        }
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        window.removeEventListener('wheel', preventScroll);
+        window.removeEventListener('touchmove', preventScroll);
+      };
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [selectedPhoto]);
 
   return (
@@ -390,11 +407,19 @@ const Gallery = () => {
         </div>
       </div>
 
-      {/* FULLSCREEN SQUARE/RECTANGLE LIGHTBOX MODAL (Tight fit around image, background scroll locked, click backdrop to close) */}
+      {/* FULLSCREEN SQUARE/RECTANGLE LIGHTBOX MODAL (Locked scroll, opaque backdrop, cannot scroll background) */}
       {selectedPhoto && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-fadeIn cursor-pointer select-none"
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6 animate-fadeIn cursor-pointer select-none overscroll-none"
           onClick={() => setSelectedPhoto(null)}
+          onWheel={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
           <div
             className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto p-1.5 sm:p-2 bg-[#121216] border border-amber-500/40 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex items-center justify-center cursor-default"

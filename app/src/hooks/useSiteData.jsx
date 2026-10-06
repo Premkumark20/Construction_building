@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { syncChannel } from '../utils/syncManager.js';
 
 gsap.registerPlugin(ScrollTrigger);
 if (typeof window !== 'undefined') {
@@ -78,6 +79,18 @@ const saveCachedData = (dataToCache) => {
 
 const SiteDataContext = createContext(null);
 
+export const resolveAssetUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const base = import.meta.env.BASE_URL || '/';
+  if (url.startsWith('/')) {
+    return `${base.replace(/\/$/, '')}${url}`;
+  }
+  return `${base}${url}`;
+};
+
 export const SiteDataProvider = ({ children }) => {
   const cached = getCachedData();
   const hasCachedData = !!(
@@ -125,11 +138,22 @@ export const SiteDataProvider = ({ children }) => {
 
   const isFetchingRef = useRef(false);
 
+  const resolveEndpoint = (endpoint) => {
+    const base = import.meta.env.BASE_URL || '/';
+    const clean = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const isGhPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+    if (isGhPages) {
+      return `${base.replace(/\/$/, '')}/${clean}.json`;
+    }
+    return `${base.replace(/\/$/, '')}/${clean}`;
+  };
+
   const fetchWithTimeout = async (url, ms = 3500) => {
+    const targetUrl = resolveEndpoint(url);
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), ms);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(targetUrl, { signal: controller.signal });
       clearTimeout(id);
       return res.ok ? await res.json() : null;
     } catch (e) {
@@ -189,26 +213,64 @@ export const SiteDataProvider = ({ children }) => {
     }
   }, []);
 
+  const lastServerVersionRef = useRef(0);
+
   useEffect(() => {
     refreshData();
 
+    // 1. Storage event listener (cross-tab on same origin)
     const handleStorageChange = (e) => {
-      if (e.key === 'sk_site_data_updated') {
+      if (['sk_site_data_updated', 'data_updated', 'sk_primary_video_updated', 'primary_video_updated'].includes(e.key)) {
         refreshData();
       }
     };
     window.addEventListener('storage', handleStorageChange);
 
+    // 2. Custom window events (same tab/window)
     const handleCustomUpdate = () => {
       refreshData();
     };
     window.addEventListener('sk_site_data_updated', handleCustomUpdate);
+    window.addEventListener('data_updated', handleCustomUpdate);
     window.addEventListener('sk_primary_video_updated', handleCustomUpdate);
+    window.addEventListener('primary_video_updated', handleCustomUpdate);
+
+    // 3. BroadcastChannel (instant 0ms cross-tab sync)
+    const handleBroadcast = (event) => {
+      if (event?.data?.type === 'DATA_UPDATED') {
+        refreshData();
+      }
+    };
+    if (syncChannel) {
+      syncChannel.addEventListener('message', handleBroadcast);
+    }
+
+    // 4. Remote polling for cross-device & mobile sync (polls lightweight /api/sync/version every 2500ms)
+    const versionPollTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/sync/version');
+        if (res.ok) {
+          const { version } = await res.json();
+          if (version && lastServerVersionRef.current > 0 && version > lastServerVersionRef.current) {
+            refreshData();
+          }
+          if (version) {
+            lastServerVersionRef.current = version;
+          }
+        }
+      } catch (e) {}
+    }, 2500);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('sk_site_data_updated', handleCustomUpdate);
+      window.removeEventListener('data_updated', handleCustomUpdate);
       window.removeEventListener('sk_primary_video_updated', handleCustomUpdate);
+      window.removeEventListener('primary_video_updated', handleCustomUpdate);
+      if (syncChannel) {
+        syncChannel.removeEventListener('message', handleBroadcast);
+      }
+      clearInterval(versionPollTimer);
     };
   }, [refreshData]);
 

@@ -54,6 +54,81 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 const router = express.Router();
 
+// Real-time frame extraction process & progress tracker
+let currentExtraction = {
+  isExtracting: false,
+  videoId: null,
+  videoFilename: '',
+  progress: 0,
+  total: 121,
+  ready: 0,
+  status: 'idle',
+  activeProcess: null
+};
+
+export function triggerFrameExtraction(videoInfo) {
+  if (currentExtraction.isExtracting && currentExtraction.activeProcess) {
+    try {
+      currentExtraction.activeProcess.kill();
+    } catch (e) {}
+  }
+
+  currentExtraction = {
+    isExtracting: true,
+    videoId: videoInfo?.id || null,
+    videoFilename: videoInfo?.filename || '',
+    progress: 0,
+    total: 121,
+    ready: 0,
+    status: 'extracting',
+    activeProcess: null
+  };
+
+  console.log(`\n[Auto Frame Extraction] Starting frame extraction for '${currentExtraction.videoFilename}'...`);
+  const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
+  currentExtraction.activeProcess = pyProc;
+
+  pyProc.stdout.on('data', (data) => {
+    const str = data.toString();
+    process.stdout.write(str);
+    const match = str.match(/(\d+)\/(\d+)\s*\((\d+)%\)/);
+    if (match) {
+      currentExtraction.ready = parseInt(match[1], 10);
+      currentExtraction.total = parseInt(match[2], 10);
+      currentExtraction.progress = parseInt(match[3], 10);
+    }
+  });
+
+  pyProc.stderr.on('data', (data) => {
+    process.stderr.write(data.toString());
+  });
+
+  pyProc.on('close', async (code) => {
+    console.log(`\n[Auto Frame Extraction] Extraction process exited with code ${code}.`);
+    if (code === 0) {
+      currentExtraction.ready = 121;
+      currentExtraction.progress = 100;
+      currentExtraction.status = 'syncing_blob';
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        console.log('[Auto Frame Extraction] Uploading frames to Vercel Blob Storage...');
+        try {
+          await syncFramesToBlobStorage();
+          console.log('[Auto Frame Extraction] Uploaded frames to Blob Storage successfully.');
+        } catch (blobErr) {
+          console.error('[Auto Frame Extraction] Blob upload error:', blobErr);
+        }
+      }
+      currentExtraction.status = 'completed';
+    } else {
+      currentExtraction.status = 'error';
+    }
+    currentExtraction.isExtracting = false;
+    currentExtraction.activeProcess = null;
+  });
+
+  return pyProc;
+}
+
 // Helper to auto-sync background videos from videos folder and fallback paths
 const syncBackgroundVideos = (callback) => {
   try {
@@ -384,10 +459,7 @@ router.post('/upload-video', upload.single('video'), async (req, res) => {
         res.json({ id: newId, filename: finalFilename, filepath: relativePath, video_type: videoType, is_primary: setPrimary });
 
         if (videoType === 'hero' && isFirstVideo) {
-          console.log(`\n[Auto Frame Extraction] First Hero video uploaded. Purging old frame cache and extracting...`);
-          const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
-          pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-          pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
+          triggerFrameExtraction({ id: newId, filename: finalFilename });
         }
       });
     });
@@ -474,10 +546,7 @@ router.put('/video/:id/rename', (req, res) => {
       res.json({ id: req.params.id, filename: finalName, filepath: newRelativePath, video_type: videoType });
 
       if (videoType === 'hero' && Number(row.is_primary) === 1) {
-        console.log(`\n[Auto Frame Extraction] Primary Hero video renamed to '${finalName}'. Purging old frames & re-extracting...`);
-        const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
-        pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-        pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
+        triggerFrameExtraction({ id: req.params.id, filename: finalName });
       }
     });
   });
@@ -524,19 +593,13 @@ router.delete('/video/:id', (req, res) => {
             db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [nextPrimary.id], () => {
               res.json({ message: `Primary ${videoType} video deleted, new primary assigned.` });
               if (videoType === 'hero') {
-                console.log(`\n[Auto Frame Extraction] Primary hero video deleted. New primary is '${nextPrimary.filename}'. Purging old frames & re-extracting...`);
-                const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
-                pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-                pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
+                triggerFrameExtraction(nextPrimary);
               }
             });
           } else {
             res.json({ message: `Primary ${videoType} video deleted. No remaining videos.` });
             if (videoType === 'hero') {
-              console.log(`\n[Auto Frame Extraction] Primary hero video deleted with no remaining videos. Purging frames...`);
-              const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
-              pyProc.stdout.on('data', data => process.stdout.write(data.toString()));
-              pyProc.stderr.on('data', data => process.stdout.write(data.toString()));
+              triggerFrameExtraction({ id: null, filename: '' });
             }
           }
         });
@@ -570,10 +633,7 @@ router.post('/set-primary-video', (req, res) => {
         });
 
         if (videoType === 'hero') {
-          console.log(`\n[Auto Frame Extraction] Active Primary Hero Video changed to '${row.filename}'. Purging old frames & extracting new frames...`);
-          const pyProc = spawn('python', ['-u', 'python/extract_frames.py', '--force'], { cwd: projectRoot });
-          pyProc.stdout.on('data', (data) => process.stdout.write(data.toString()));
-          pyProc.stderr.on('data', (data) => process.stderr.write(data.toString()));
+          triggerFrameExtraction(row);
         }
       });
     });
@@ -626,6 +686,183 @@ router.get('/hero-video', (req, res) => {
       res.json({ videoUrl: null, filename: null, hasHeroVideo: false });
     }
   );
+});
+
+// 9. GET frame extraction progress status
+router.get('/frame-progress', (req, res) => {
+  const desktopDir = path.join(projectRoot, 'frames/desktop');
+  let frameCount = 0;
+  try {
+    if (fs.existsSync(desktopDir)) {
+      frameCount = fs.readdirSync(desktopDir).filter(f => f.endsWith('.webp')).length;
+    }
+  } catch (e) {}
+
+  const metaPath = path.join(projectRoot, 'frames/.video_meta.json');
+  let meta = {};
+  try {
+    if (fs.existsSync(metaPath)) {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    }
+  } catch (e) {}
+
+  const target = 121;
+
+  if (currentExtraction.isExtracting) {
+    const ready = Math.max(frameCount, currentExtraction.ready);
+    const progress = Math.min(99, Math.max(currentExtraction.progress, Math.round((ready / target) * 100)));
+    return res.json({
+      isExtracting: true,
+      videoId: currentExtraction.videoId,
+      videoFilename: currentExtraction.videoFilename,
+      total: target,
+      ready,
+      progress,
+      status: currentExtraction.status || 'extracting',
+      meta
+    });
+  }
+
+  // If extraction isn't actively running, but frames on disk are in-progress
+  if (frameCount > 0 && frameCount < target) {
+    return res.json({
+      isExtracting: true,
+      videoId: currentExtraction.videoId,
+      videoFilename: meta.video || currentExtraction.videoFilename,
+      total: target,
+      ready: frameCount,
+      progress: Math.min(99, Math.round((frameCount / target) * 100)),
+      status: 'extracting',
+      meta
+    });
+  }
+
+  const isComplete = frameCount >= target || (Array.isArray(meta.blobUrls) && meta.blobUrls.length >= target);
+  res.json({
+    isExtracting: false,
+    videoId: currentExtraction.videoId,
+    videoFilename: meta.video || currentExtraction.videoFilename,
+    total: target,
+    ready: frameCount,
+    progress: isComplete ? 100 : 0,
+    status: isComplete ? 'completed' : 'idle',
+    meta
+  });
+});
+
+// Helper to sync local extracted WebP frames to Vercel Blob Storage if token exists
+export async function syncFramesToBlobStorage() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return null;
+
+  const metaPath = path.join(projectRoot, 'frames/.video_meta.json');
+  const desktopDir = path.join(projectRoot, 'frames/desktop');
+  if (!fs.existsSync(desktopDir)) return null;
+
+  let meta = {};
+  try {
+    if (fs.existsSync(metaPath)) {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    }
+  } catch (e) {}
+
+  if (Array.isArray(meta.blobUrls) && meta.blobUrls.length === 121) {
+    return meta.blobUrls;
+  }
+
+  const files = fs.readdirSync(desktopDir).filter(f => f.endsWith('.webp')).sort();
+  if (files.length === 0) return null;
+
+  console.log(`[Blob Storage] Uploading ${files.length} extracted WebP frames to Vercel Blob...`);
+  const blobUrls = [];
+  const videoPrefix = (meta.video || 'hero').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  for (const file of files) {
+    const filePath = path.join(desktopDir, file);
+    try {
+      const buffer = fs.readFileSync(filePath);
+      const blobUrl = await uploadFileToBlob(`frames/${videoPrefix}/${file}`, buffer, 'image/webp');
+      if (blobUrl) {
+        blobUrls.push(blobUrl);
+      } else {
+        blobUrls.push(`/frames/desktop/${file}`);
+      }
+    } catch (e) {
+      console.error(`[Blob Storage] Failed to upload ${file}:`, e);
+      blobUrls.push(`/frames/desktop/${file}`);
+    }
+  }
+
+  if (blobUrls.length > 0) {
+    meta.blobUrls = blobUrls;
+    try {
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+    } catch (e) {}
+
+    // Persist blob URLs to active primary hero video row in database
+    try {
+      db.run(
+        "UPDATE media_videos SET frame_urls = ? WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1",
+        [JSON.stringify(blobUrls)]
+      );
+    } catch (dbErr) {
+      console.warn('Could not update frame_urls in DB:', dbErr);
+    }
+  }
+
+  return blobUrls;
+}
+
+// 10. GET frame URLs (fetches from Vercel Blob Storage CDN or local fallback)
+router.get('/frame-urls', async (req, res) => {
+  // 1. Check if active primary video row in DB has stored frame_urls
+  try {
+    const primaryVideo = await new Promise((resolve) => {
+      db.get(
+        "SELECT * FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1 LIMIT 1",
+        [],
+        (err, row) => resolve(err ? null : row)
+      );
+    });
+
+    if (primaryVideo && primaryVideo.frame_urls) {
+      try {
+        const parsed = JSON.parse(primaryVideo.frame_urls);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return res.json({ frameUrls: parsed, count: parsed.length, source: 'blob_db' });
+        }
+      } catch (e) {}
+    }
+  } catch (err) {}
+
+  // 2. Check local frames/.video_meta.json
+  const metaPath = path.join(projectRoot, 'frames/.video_meta.json');
+  let meta = {};
+  try {
+    if (fs.existsSync(metaPath)) {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    }
+  } catch (e) {}
+
+  if (Array.isArray(meta.blobUrls) && meta.blobUrls.length > 0) {
+    return res.json({ frameUrls: meta.blobUrls, count: meta.blobUrls.length, source: 'blob_meta' });
+  }
+
+  // 3. If token present, sync frames now and return blob URLs
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blobUrls = await syncFramesToBlobStorage();
+    if (Array.isArray(blobUrls) && blobUrls.length > 0) {
+      return res.json({ frameUrls: blobUrls, count: blobUrls.length, source: 'blob_synced' });
+    }
+  }
+
+  // 4. Fallback to local files
+  const localUrls = Array.from({ length: 121 }, (_, i) => {
+    const num = String(i + 1).padStart(4, '0');
+    return `/frames/desktop/frame_${num}.webp`;
+  });
+
+  res.json({ frameUrls: localUrls, count: 121, source: 'local' });
 });
 
 export default router;

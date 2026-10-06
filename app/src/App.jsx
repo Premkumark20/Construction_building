@@ -71,25 +71,48 @@ const MainSite = () => {
 
     // Refresh ScrollTrigger calculations and handle scrolling to target section
     const targetId = location.state?.scrollTo || (window.location.hash ? window.location.hash.replace('#', '') : null);
+    let isInitialTargetScroll = !!targetId;
+
+    const performScrollTo = (immediate = true) => {
+      if (!targetId) return;
+      const targetEl = document.getElementById(targetId);
+      if (!targetEl) return;
+      const navbarHeight = 65;
+      const rect = targetEl.getBoundingClientRect();
+      const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const targetTop = rect.top + currentScrollTop - navbarHeight;
+
+      if (lenisInstance) {
+        lenisInstance.scrollTo(targetEl, { offset: -navbarHeight, immediate });
+      } else {
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: immediate ? 'instant' : 'smooth' });
+      }
+
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', `#${targetId}`);
+      }
+    };
+
+    if (targetId) {
+      performScrollTo(true);
+      requestAnimationFrame(() => performScrollTo(true));
+      setTimeout(() => performScrollTo(true), 100);
+      setTimeout(() => performScrollTo(true), 250);
+      setTimeout(() => {
+        performScrollTo(false);
+        isInitialTargetScroll = false;
+      }, 500);
+    }
 
     const timer = setTimeout(() => {
       ScrollTrigger.sort();
       ScrollTrigger.refresh();
-
-      if (targetId) {
-        const targetEl = document.getElementById(targetId);
-        if (targetEl) {
-          if (lenisInstance) {
-            lenisInstance.scrollTo(targetEl, { offset: -60, duration: 1.2 });
-          } else {
-            targetEl.scrollIntoView({ behavior: 'smooth' });
-          }
-        }
-      }
-    }, 250);
+      if (targetId) performScrollTo(true);
+    }, 150);
 
     // Track active visible section and sync hash in URL
     const handleScrollHash = () => {
+      if (isInitialTargetScroll) return;
       const sectionIds = ['home', 'about', 'gallery', 'services', 'properties', 'projects', 'contact'];
       const scrollPosition = window.scrollY + 250;
 
@@ -129,7 +152,7 @@ const MainSite = () => {
   }, [location]);
 
   return (
-    <div className="font-sans text-white bg-transparent antialiased selection:bg-amber-500 selection:text-black pb-16 sm:pb-0 overflow-x-hidden w-full relative">
+    <div className="font-sans text-white bg-transparent antialiased selection:bg-amber-500 selection:text-black overflow-x-hidden w-full relative">
       <MouseInteractiveBg />
       <Navbar />
       <main className="w-full overflow-x-hidden relative z-10 bg-transparent">
@@ -183,6 +206,7 @@ function App() {
         <Route path="/all-projects" element={<AllProjectsPage />} />
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="*" element={<MainSite />} />
       </Routes>
     </SiteDataProvider>
   );

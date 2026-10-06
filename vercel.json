@@ -1,7 +1,14 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "ignoreCommand": "node -e \"if (process.env.VERCEL_GIT_COMMIT_REF === 'gh-pages') process.exit(0); else process.exit(1);\"",
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "github": {
+    "silent": true
+  },
   "functions": {
     "api/index.js": {
       "includeFiles": "app/server/**"

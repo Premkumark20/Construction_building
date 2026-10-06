@@ -37,7 +37,7 @@ app.use('/logo', express.static(path.join(process.cwd(), 'logo')));
 app.use('/videos', express.static(path.join(__dirname, '../public/videos'), { acceptRanges: true }));
 app.use('/videos', express.static(path.join(__dirname, '../../videos'), { acceptRanges: true }));
 app.use('/frames', express.static(path.join(__dirname, '../../frames')));
-app.use('/frames', express.static(path.join(__dirname, '../public/frames')));
+app.use('/frames', express.static(path.join(process.cwd(), 'frames')));
 
 if (process.env.VERCEL) {
   app.use('/uploads', express.static('/tmp/uploads'));
@@ -59,6 +59,26 @@ app.get('/uploads/*', (req, res, next) => {
     }
   }
   next();
+});
+
+// Global server data version tracker for instant live reload across devices
+let serverDataVersion = Date.now();
+
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.path.startsWith('/api')) {
+    if (!req.path.includes('/login') && !req.path.includes('/auth-status')) {
+      res.on('finish', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          serverDataVersion = Date.now();
+        }
+      });
+    }
+  }
+  next();
+});
+
+app.get('/api/sync/version', (req, res) => {
+  res.json({ version: serverDataVersion });
 });
 
 // API Routes

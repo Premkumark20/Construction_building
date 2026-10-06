@@ -44,44 +44,63 @@ const ConstructionStory = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Pre-load Desktop Construction Frames
+  // Pre-load Desktop Construction Frames (from Blob Storage CDN or local fallback)
   useEffect(() => {
     let isCancelled = false;
 
     loadedImagesMapRef.current = {};
     setIsPreloading(true);
 
-    const probe = new Image();
-    const frameNum = String(1).padStart(4, '0');
-    probe.src = `/frames/desktop/frame_${frameNum}.webp`;
+    const base = import.meta.env.BASE_URL || '/';
+    const isGhPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+    const endpoint = isGhPages ? `${base.replace(/\/$/, '')}/api/media/frame-urls.json` : `${base.replace(/\/$/, '')}/api/media/frame-urls`;
 
-    probe.onload = () => {
-      if (isCancelled) return;
-      loadedImagesMapRef.current[1] = probe;
-      setHasFramesAvailable(true);
-      setIsPreloading(false);
-      renderFrame(1);
+    fetch(endpoint)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isCancelled) return;
+        const urls = (data && Array.isArray(data.frameUrls) && data.frameUrls.length > 0)
+          ? data.frameUrls
+          : Array.from({ length: totalFrameCount }, (_, i) => `${base.replace(/\/$/, '')}/frames/desktop/frame_${String(i + 1).padStart(4, '0')}.webp`);
 
-      // Preload remaining frames in background
-      for (let i = 2; i <= totalFrameCount; i++) {
-        const img = new Image();
-        const num = String(i).padStart(4, '0');
-        img.src = `/frames/desktop/frame_${num}.webp`;
-        img.onload = () => {
-          loadedImagesMapRef.current[i] = img;
-          if (currentFrameRef.current === i) {
-            renderFrame(i);
-          }
+        const probe = new Image();
+        probe.src = urls[0];
+
+        probe.onload = () => {
+          if (isCancelled) return;
+          loadedImagesMapRef.current[1] = probe;
+          setHasFramesAvailable(true);
+          setIsPreloading(false);
+          renderFrame(1);
+
+          // Preload remaining frames in background
+          urls.slice(1).forEach((url, idx) => {
+            const frameIndex = idx + 2;
+            const img = new Image();
+            img.src = url;
+            img.onload = () => {
+              if (isCancelled) return;
+              loadedImagesMapRef.current[frameIndex] = img;
+              if (currentFrameRef.current === frameIndex) {
+                renderFrame(frameIndex);
+              }
+            };
+          });
         };
-      }
-    };
 
-    probe.onerror = () => {
-      if (isCancelled) return;
-      setHasFramesAvailable(false);
-      setIsPreloading(false);
-      setShowContent(true);
-    };
+        probe.onerror = () => {
+          if (isCancelled) return;
+          setHasFramesAvailable(false);
+          setIsPreloading(false);
+          setShowContent(true);
+        };
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setHasFramesAvailable(false);
+        setIsPreloading(false);
+        setShowContent(true);
+      });
 
     return () => {
       isCancelled = true;

@@ -1,0 +1,26 @@
+[
+  {
+    "id": 7,
+    "client_name": "Suresh Kumar",
+    "location": "Kundrathur",
+    "quote": "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.",
+    "rating": 5,
+    "created_at": "2026-10-05 12:27:04"
+  },
+  {
+    "id": 6,
+    "client_name": "Karthik Raja",
+    "location": "Mangadu",
+    "quote": "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!",
+    "rating": 5,
+    "created_at": "2026-10-05 12:27:04"
+  },
+  {
+    "id": 5,
+    "client_name": "Ramesh & Family",
+    "location": "Poonamallee",
+    "quote": "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.",
+    "rating": 5,
+    "created_at": "2026-10-05 12:27:04"
+  }
+]

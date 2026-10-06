@@ -1,7 +1,23 @@
 import express from 'express';
 import db from '../database/database.js';
+import { uploadFileToBlob } from '../utils/blobStorage.js';
 
 const router = express.Router();
+
+// Helper: sync current leads to Vercel Blob Storage
+async function syncLeadsToBlobStorage() {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  db.all('SELECT * FROM leads ORDER BY id DESC', [], async (err, rows) => {
+    if (!err && rows) {
+      try {
+        const buffer = Buffer.from(JSON.stringify(rows, null, 2), 'utf-8');
+        await uploadFileToBlob('leads/leads_backup.json', buffer, 'application/json', { addRandomSuffix: false });
+      } catch (e) {
+        console.warn('Notice syncing leads to blob storage:', e.message);
+      }
+    }
+  });
+}
 
 // GET all leads
 router.get('/', (req, res) => {
@@ -41,10 +57,12 @@ router.post('/', (req, res) => {
             console.error('Fatal error inserting lead:', err2.message);
             return res.status(500).json({ error: err2.message });
           }
+          syncLeadsToBlobStorage();
           res.json({ success: true, leadId: this.lastID, message: 'Enquiry received successfully.' });
         }
       );
     }
+    syncLeadsToBlobStorage();
     res.json({ success: true, leadId: this.lastID, message: 'Enquiry received successfully.' });
   });
 });
@@ -56,8 +74,40 @@ router.delete('/:id', (req, res) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
+    syncLeadsToBlobStorage();
     res.json({ success: true, message: 'Lead enquiry deleted successfully.' });
   });
+});
+
+// PATCH update lead status / contact completion
+router.patch('/:id/toggle-contact', (req, res) => {
+  const { id } = req.params;
+  const { contacted, status } = req.body;
+  const isContacted = contacted ? 1 : 0;
+  const leadStatus = status || (isContacted ? 'Contacted' : 'Pending');
+
+  db.run(
+    'UPDATE leads SET contacted = ?, status = ? WHERE id = ?',
+    [isContacted, leadStatus, id],
+    function (err) {
+      if (err) {
+        console.warn('Notice updating lead contacted status, trying contacted only:', err.message);
+        return db.run(
+          'UPDATE leads SET contacted = ? WHERE id = ?',
+          [isContacted, id],
+          function (err2) {
+            if (err2) {
+              return res.status(500).json({ error: err2.message });
+            }
+            syncLeadsToBlobStorage();
+            res.json({ success: true, contacted: isContacted, status: leadStatus });
+          }
+        );
+      }
+      syncLeadsToBlobStorage();
+      res.json({ success: true, contacted: isContacted, status: leadStatus });
+    }
+  );
 });
 
 export default router;

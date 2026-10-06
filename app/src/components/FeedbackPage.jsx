@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Star, Send, CheckCircle, MessageSquare, X, Sparkles, MapPin, Phone, ShieldCheck, MessageCircle } from 'lucide-react';
 import { useSiteData } from '../hooks/useSiteData.js';
+import { triggerDataSync, syncChannel } from '../utils/syncManager.js';
 
 const FeedbackPage = () => {
   const { settings } = useSiteData();
@@ -28,7 +29,15 @@ const FeedbackPage = () => {
   };
 
   const handleCloseTab = () => {
-    window.close();
+    try {
+      if (window.opener && window.history.length <= 1) {
+        window.close();
+        return;
+      }
+    } catch (e) {
+      // ignore
+    }
+    window.location.href = '/';
   };
 
   const fetchFeedbacks = async () => {
@@ -49,6 +58,38 @@ const FeedbackPage = () => {
   useEffect(() => {
     fetchFeedbacks();
     document.title = `Client Feedback & Reviews - ${settings?.company_name || 'SK Builders'}`;
+
+    const handleSync = () => {
+      fetchFeedbacks();
+    };
+
+    window.addEventListener('sk_site_data_updated', handleSync);
+    window.addEventListener('data_updated', handleSync);
+
+    const handleStorage = (e) => {
+      if (['sk_site_data_updated', 'data_updated'].includes(e.key)) {
+        handleSync();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    const handleBroadcast = (e) => {
+      if (e?.data?.type === 'DATA_UPDATED') {
+        handleSync();
+      }
+    };
+    if (syncChannel) {
+      syncChannel.addEventListener('message', handleBroadcast);
+    }
+
+    return () => {
+      window.removeEventListener('sk_site_data_updated', handleSync);
+      window.removeEventListener('data_updated', handleSync);
+      window.removeEventListener('storage', handleStorage);
+      if (syncChannel) {
+        syncChannel.removeEventListener('message', handleBroadcast);
+      }
+    };
   }, [settings?.company_name]);
 
   const handleSubmit = async (e) => {
@@ -83,6 +124,7 @@ const FeedbackPage = () => {
           message: ''
         });
         fetchFeedbacks();
+        triggerDataSync({ section: 'feedback' });
       } else {
         setStatusMsg({ type: 'error', text: data.error || 'Failed to submit feedback. Please try again.' });
       }
@@ -108,11 +150,11 @@ const FeedbackPage = () => {
       <header className="sticky top-0 z-40 bg-[#09090b]/90 backdrop-blur-xl border-b border-amber-500/20 py-2.5 px-4 sm:px-8">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-white border border-amber-500/30 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
               <img
                 src={settings?.logo_url || '/logo/sk-builders-logo.png'}
                 alt={`${settings?.company_name || 'SK Builders'} Logo`}
-                className="w-7 h-7 object-contain"
+                className="w-full h-full object-cover"
               />
             </div>
             <div>
@@ -129,10 +171,10 @@ const FeedbackPage = () => {
             type="button"
             onClick={handleCloseTab}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/90 hover:bg-red-500/20 text-zinc-300 hover:text-red-300 text-xs font-bold border border-zinc-700/80 hover:border-red-500/40 transition-all cursor-pointer group shadow-sm active:scale-95"
-            title="Close this feedback tab"
+            title="Close and return to main website"
           >
             <X size={14} className="group-hover:scale-110 transition-transform text-red-400" />
-            <span>Close Tab</span>
+            <span>Close</span>
           </button>
         </div>
       </header>

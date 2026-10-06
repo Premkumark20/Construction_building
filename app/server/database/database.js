@@ -30,10 +30,7 @@ const initialDirs = [
   path.join(projectRoot, 'videos'),
   path.join(projectRoot, 'frames'),
   path.join(projectRoot, 'frames/desktop'),
-  path.join(projectRoot, 'frames/mobile'),
   path.join(projectRoot, 'app/public/videos'),
-  path.join(projectRoot, 'app/public/frames/desktop'),
-  path.join(projectRoot, 'app/public/frames/mobile'),
 ];
 
 if (process.env.VERCEL) {
@@ -423,7 +420,14 @@ CREATE TABLE IF NOT EXISTS feedback (
 
 function initDatabase() {
   if (db.isPg) {
-    ensureColumns();
+    db.exec(EMBEDDED_SCHEMA, (err) => {
+      if (err) {
+        console.error('Error executing PostgreSQL EMBEDDED_SCHEMA:', err);
+      } else {
+        console.log('PostgreSQL schema initialized successfully.');
+      }
+      ensureColumns();
+    });
     return;
   }
 
@@ -468,15 +472,22 @@ function ensureColumns() {
     }
   };
 
-  if (!db.isPg) {
-    db.run(`CREATE TABLE IF NOT EXISTS stats (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      icon_name TEXT NOT NULL DEFAULT 'Home',
-      value TEXT NOT NULL,
-      label TEXT NOT NULL,
-      display_order INTEGER DEFAULT 1
-    );`);
-  }
+  const statsTableSql = db.isPg
+    ? `CREATE TABLE IF NOT EXISTS stats (
+        id SERIAL PRIMARY KEY,
+        icon_name TEXT NOT NULL DEFAULT 'Home',
+        value TEXT NOT NULL,
+        label TEXT NOT NULL,
+        display_order INTEGER DEFAULT 1
+      );`
+    : `CREATE TABLE IF NOT EXISTS stats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        icon_name TEXT NOT NULL DEFAULT 'Home',
+        value TEXT NOT NULL,
+        label TEXT NOT NULL,
+        display_order INTEGER DEFAULT 1
+      );`;
+  db.run(statsTableSql, () => {});
 
   // Properties table columns
   safeAdd('properties', 'property_id', 'TEXT');
@@ -667,9 +678,12 @@ function ensureColumns() {
   safeAdd('leads', 'email', "TEXT DEFAULT ''");
   safeAdd('leads', 'property_id', 'TEXT');
   safeAdd('leads', 'service', "TEXT DEFAULT 'General Inquiry'");
+  safeAdd('leads', 'status', "TEXT DEFAULT 'Pending'");
+  safeAdd('leads', 'contacted', "INTEGER DEFAULT 0");
   safeAdd('leads', 'message', 'TEXT');
 
   safeAdd('media_videos', 'video_type', "TEXT DEFAULT 'hero'");
+  safeAdd('media_videos', 'frame_urls', "TEXT DEFAULT ''");
 
   if (!db.isPg) {
     // Migrate gallery table to only (id, image, created_at) in SQLite if needed
@@ -805,7 +819,7 @@ function seedInitialData() {
 
   // Seed stats
   db.get("SELECT COUNT(*) as count FROM stats", [], (err, row) => {
-    if (!err && (!row || Number(row.count) === 0)) {
+    if (err || !row || Number(row.count) === 0) {
       const defaultStats = [
         ['Home', '40+', 'Homes Built', 1],
         ['MapPin', '75+', 'Plots Sold', 2],
@@ -821,21 +835,21 @@ function seedInitialData() {
     }
   });
 
-  // Seed testimonials
-  db.get("SELECT COUNT(*) as count FROM testimonials", [], (err, row) => {
-    if (!err && (!row || Number(row.count) === 0)) {
-      const list = [
-        ["Ramesh & Family", "Poonamallee", "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.", 5],
-        ["Karthik Raja", "Mangadu", "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!", 5],
-        ["Suresh Kumar", "Kundrathur", "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.", 5]
-      ];
-      list.forEach(t => {
+  // Seed testimonials - check each default testimonial individually so all 3 are always present
+  const defaultTestimonialList = [
+    ["Ramesh & Family", "Poonamallee", "Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.", 5],
+    ["Karthik Raja", "Mangadu", "Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!", 5],
+    ["Suresh Kumar", "Kundrathur", "Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.", 5]
+  ];
+  defaultTestimonialList.forEach(t => {
+    db.get("SELECT id FROM testimonials WHERE LOWER(client_name) = LOWER(?)", [t[0]], (err, exists) => {
+      if (!err && !exists) {
         db.run(
           "INSERT INTO testimonials (client_name, location, quote, rating) VALUES (?, ?, ?, ?)",
           [t[0], t[1], t[2], t[3]]
         );
-      });
-    }
+      }
+    });
   });
 }
 

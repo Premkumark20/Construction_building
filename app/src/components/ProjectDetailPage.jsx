@@ -121,7 +121,7 @@ const ProjectDetailPage = () => {
         {/* Top Navigation Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <button
-            onClick={() => navigate('/#projects')}
+            onClick={() => navigate('/#projects', { state: { scrollTo: 'projects', immediate: true } })}
             className="inline-flex items-center gap-2 bg-white/10 hover:bg-amber-500 hover:text-black text-white px-4 py-2 rounded-full font-bold text-xs transition-all w-fit cursor-pointer"
           >
             <ChevronLeft size={16} /> Back to Projects Showcase

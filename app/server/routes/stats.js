@@ -5,11 +5,35 @@ const router = express.Router();
 
 // GET all stats
 router.get('/', (req, res) => {
+  const defaultStats = [
+    { id: 1, icon_name: 'Home', value: '40+', label: 'Homes Built', display_order: 1 },
+    { id: 2, icon_name: 'MapPin', value: '75+', label: 'Plots Sold', display_order: 2 },
+    { id: 3, icon_name: 'Users', value: '150+', label: 'Property Deals', display_order: 3 },
+    { id: 4, icon_name: 'Users', value: '100+', label: 'Happy Families', display_order: 4 }
+  ];
+
   db.all('SELECT * FROM stats ORDER BY display_order ASC, id ASC', [], (err, rows) => {
     if (err) {
-      return res.status(500).json({ error: err.message });
+      console.error('Stats query error, creating table and seeding:', err.message);
+      const createTableSql = db.isPg
+        ? 'CREATE TABLE IF NOT EXISTS stats (id SERIAL PRIMARY KEY, icon_name TEXT NOT NULL DEFAULT \'Home\', value TEXT NOT NULL, label TEXT NOT NULL, display_order INTEGER DEFAULT 1)'
+        : 'CREATE TABLE IF NOT EXISTS stats (id INTEGER PRIMARY KEY AUTOINCREMENT, icon_name TEXT NOT NULL DEFAULT \'Home\', value TEXT NOT NULL, label TEXT NOT NULL, display_order INTEGER DEFAULT 1)';
+      db.run(createTableSql, () => {
+        defaultStats.forEach(s => {
+          db.run('INSERT INTO stats (icon_name, value, label, display_order) VALUES (?, ?, ?, ?)', [s.icon_name, s.value, s.label, s.display_order]);
+        });
+      });
+      return res.json(defaultStats);
     }
-    res.json(rows || []);
+
+    if (!rows || rows.length === 0) {
+      defaultStats.forEach(s => {
+        db.run('INSERT INTO stats (icon_name, value, label, display_order) VALUES (?, ?, ?, ?)', [s.icon_name, s.value, s.label, s.display_order]);
+      });
+      return res.json(defaultStats);
+    }
+
+    res.json(rows);
   });
 });
 

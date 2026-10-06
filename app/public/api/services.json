@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "title": "Houses for Sale",
+    "description": "Ready-to-move individual houses built with quality and trust.",
+    "icon_name": "Home",
+    "link_url": "#properties",
+    "display_order": 1
+  },
+  {
+    "id": 2,
+    "title": "Lands for Sale",
+    "description": "Residential plots in prime locations. DTCP approved plots available.",
+    "icon_name": "MapPin",
+    "link_url": "#properties",
+    "display_order": 2
+  },
+  {
+    "id": 3,
+    "title": "Contract House Construction",
+    "description": "We build your dream home on your land with quality and on-time delivery.",
+    "icon_name": "HardHat",
+    "link_url": "#contact",
+    "display_order": 3
+  },
+  {
+    "id": 4,
+    "title": "Property Consultant",
+    "description": "Expert help for buying or selling land and houses. End-to-end guidance.",
+    "icon_name": "Users",
+    "link_url": "#contact",
+    "display_order": 4
+  },
+  {
+    "id": 5,
+    "title": "Documentation Support",
+    "description": "Assistance for all property related documents and legal process.",
+    "icon_name": "FileText",
+    "link_url": "#contact",
+    "display_order": 5
+  },
+  {
+    "id": 6,
+    "title": "Construction Consultation",
+    "description": "Planning, estimation, site visit and expert construction advice.",
+    "icon_name": "Compass",
+    "link_url": "#contact",
+    "display_order": 6
+  }
+]

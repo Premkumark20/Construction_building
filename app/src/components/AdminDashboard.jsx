@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp, Share2, HardHat, Edit3, BarChart2, Zap } from 'lucide-react';
+import { Lock, LogOut, Plus, Trash2, ShieldCheck, Home, MapPin, Users, Settings, Image as ImageIcon, Video, CheckCircle, Upload, X, Save, AlertTriangle, Star, Building, Layers, Eye, EyeOff, FileText, Check, Map, Compass, Phone, User, Sparkles, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, GripVertical, Quote, UserPlus, Mail, ChevronDown, ChevronUp, Share2, HardHat, Edit3, BarChart2, Zap, RefreshCw } from 'lucide-react';
+import { triggerDataSync, syncChannel } from '../utils/syncManager.js';
 
 const renderIconByName = (iconName, size = 18, className = 'text-amber-400') => {
   switch (iconName) {
@@ -26,18 +27,12 @@ const getVideoSrcUrl = (filepath, filename) => {
   return `/videos/${filename || ''}`;
 };
 
-const notifySiteDataUpdated = () => {
-  try {
-    localStorage.setItem('data_updated', Date.now().toString());
-    window.dispatchEvent(new Event('data_updated'));
-  } catch (e) { }
+const notifySiteDataUpdated = (section = 'all') => {
+  triggerDataSync({ section });
 };
 
 const notifyPrimaryVideoUpdated = () => {
-  try {
-    localStorage.setItem('primary_video_updated', Date.now().toString());
-    window.dispatchEvent(new Event('primary_video_updated'));
-  } catch (e) { }
+  triggerDataSync({ section: 'video' });
 };
 
 const formatLastUpdated = (dateStr) => {
@@ -715,7 +710,53 @@ const AdminDashboard = () => {
   const [isUploadingHeroVideo, setIsUploadingHeroVideo] = useState(false);
   const [isUploadingBgVideo, setIsUploadingBgVideo] = useState(false);
   const [isRegisteringUrl, setIsRegisteringUrl] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [serverExtraction, setServerExtraction] = useState({
+    isExtracting: false,
+    videoId: null,
+    progress: 100,
+    status: 'idle'
+  });
 
+  // Live Frame Extraction Progress Polling (fetches live compiler progress from backend continuously)
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const pollProgress = async () => {
+      try {
+        const res = await fetch('/api/media/frame-progress');
+        if (res.ok && isSubscribed) {
+          const data = await res.json();
+          if (data.isExtracting) {
+            setServerExtraction({
+              isExtracting: true,
+              videoId: data.videoId,
+              progress: Math.min(99, Math.max(0, Math.round(data.progress || 0))),
+              status: data.status || 'extracting'
+            });
+          } else {
+            setServerExtraction(prev => {
+              if (prev.isExtracting) {
+                return { isExtracting: false, videoId: null, progress: 100, status: 'completed' };
+              }
+              const isComp = data.status === 'completed' || (data.progress >= 100);
+              return { isExtracting: false, videoId: null, progress: isComp ? 100 : 0, status: data.status || 'idle' };
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error polling frame progress:', e);
+      }
+    };
+
+    pollProgress();
+    const timer = setInterval(pollProgress, 800);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Dynamically compute location selection options from Admin Settings -> Service Areas
   const serviceAreaOptions = getServiceAreaOptions(settingsForm.service_areas || settings?.service_areas, settingsForm.location || settings?.location);
@@ -1605,14 +1646,33 @@ const AdminDashboard = () => {
           confirmPassword: ''
         }));
       }
+      const defaultStatsFallback = [
+        { id: 1, icon_name: 'Home', value: '40+', label: 'Homes Built', display_order: 1 },
+        { id: 2, icon_name: 'MapPin', value: '75+', label: 'Plots Sold', display_order: 2 },
+        { id: 3, icon_name: 'Users', value: '150+', label: 'Property Deals', display_order: 3 },
+        { id: 4, icon_name: 'Users', value: '100+', label: 'Happy Families', display_order: 4 }
+      ];
+      const defaultTestimonialsFallback = [
+        { id: 1, client_name: 'Ramesh & Family', location: 'Poonamallee', quote: 'Professional approach, quality construction and on-time delivery. We are very happy with our new home in Poonamallee.', rating: 5 },
+        { id: 2, client_name: 'Karthik Raja', location: 'Mangadu', quote: 'Transparent dealings and smooth legal registration assistance for our plot in Mangadu. Highly recommended!', rating: 5 },
+        { id: 3, client_name: 'Suresh Kumar', location: 'Kundrathur', quote: 'Built our dream villa with top notch engineering standards and milestone updates. The engineering team made the process effortless.', rating: 5 }
+      ];
       setServices(Array.isArray(srvRes) ? srvRes : []);
-      setStats(Array.isArray(statRes) ? statRes : []);
+      setStats(Array.isArray(statRes) && statRes.length > 0 ? statRes : defaultStatsFallback);
       setProperties(Array.isArray(propRes?.properties) ? propRes.properties : (Array.isArray(propRes) ? propRes : []));
       setLand(Array.isArray(landRes?.land) ? landRes.land : (Array.isArray(landRes) ? landRes : []));
       setProjects(Array.isArray(projRes?.projects) ? projRes.projects : (Array.isArray(projRes) ? projRes : []));
       setGallery(Array.isArray(galRes) ? galRes : []);
-      setFeedbacks(Array.isArray(feedRes) ? feedRes : []);
-      setTestimonials(Array.isArray(testRes) ? testRes : []);
+      let mergedTestimonials = Array.isArray(testRes) && testRes.length > 0 ? [...testRes] : [];
+      defaultTestimonialsFallback.forEach((defT) => {
+        const exists = mergedTestimonials.some(
+          (r) => r.client_name && r.client_name.toLowerCase().trim() === defT.client_name.toLowerCase().trim()
+        );
+        if (!exists) {
+          mergedTestimonials.push(defT);
+        }
+      });
+      setTestimonials(mergedTestimonials);
       setLeads(Array.isArray(leadRes) ? leadRes : []);
       setVideos(Array.isArray(vidRes) ? vidRes : []);
     } catch (e) {
@@ -1622,6 +1682,62 @@ const AdminDashboard = () => {
       setIsFetchingData(false);
     }
   };
+
+  const lastAdminVersionRef = useRef(0);
+
+  // Cross-tab, cross-window, and remote multi-device auto-reload listener for Admin
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleSync = () => {
+      // Background reload data if no modal form is actively open
+      if (!modalType) {
+        fetchData();
+      }
+    };
+
+    // 1. BroadcastChannel message (instant 0ms cross-tab sync)
+    const handleBroadcast = (event) => {
+      if (event?.data?.type === 'DATA_UPDATED') {
+        handleSync();
+      }
+    };
+    if (syncChannel) {
+      syncChannel.addEventListener('message', handleBroadcast);
+    }
+
+    // 2. Storage event
+    const handleStorage = (e) => {
+      if (['sk_site_data_updated', 'data_updated'].includes(e.key)) {
+        handleSync();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Remote version polling (every 3000ms)
+    const adminVersionTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/sync/version');
+        if (res.ok) {
+          const { version } = await res.json();
+          if (version && lastAdminVersionRef.current > 0 && version > lastAdminVersionRef.current) {
+            handleSync();
+          }
+          if (version) {
+            lastAdminVersionRef.current = version;
+          }
+        }
+      } catch (e) {}
+    }, 3000);
+
+    return () => {
+      if (syncChannel) {
+        syncChannel.removeEventListener('message', handleBroadcast);
+      }
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(adminVersionTimer);
+    };
+  }, [isAuthenticated, modalType]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -2773,7 +2889,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Instant Set Primary Video Handler (Updates state immediately & calls backend)
+  // Instant Set Primary Video Handler (Updates state immediately, triggers live pie extraction progress & calls backend)
   const handleSetPrimaryVideo = async (videoId, videoType = 'hero') => {
     setVideos(prev => prev.map(v => {
       const vType = v.video_type || 'hero';
@@ -2783,15 +2899,39 @@ const AdminDashboard = () => {
       return v;
     }));
 
-    const res = await fetch('/api/media/set-primary-video', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId })
-    });
-    if (res.ok) {
-      fetchData();
-      notifySiteDataUpdated();
-      notifyPrimaryVideoUpdated();
+    if (videoType === 'hero') {
+      setServerExtraction({
+        isExtracting: true,
+        videoId,
+        progress: 0,
+        status: 'extracting'
+      });
+
+      try {
+        const res = await fetch('/api/media/set-primary-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoId })
+        });
+        if (res.ok) {
+          fetchData();
+          notifySiteDataUpdated();
+          notifyPrimaryVideoUpdated();
+        }
+      } catch (err) {
+        console.error('Error setting primary video:', err);
+      }
+    } else {
+      const res = await fetch('/api/media/set-primary-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId })
+      });
+      if (res.ok) {
+        fetchData();
+        notifySiteDataUpdated();
+        notifyPrimaryVideoUpdated();
+      }
     }
   };
 
@@ -2907,6 +3047,26 @@ const AdminDashboard = () => {
     setModalType('confirm_delete');
   };
 
+  const handleToggleLeadContacted = async (leadId, currentStatus) => {
+    const nextStatus = currentStatus ? 0 : 1;
+    const nextStatusText = nextStatus ? 'Contacted' : 'Pending';
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, contacted: nextStatus, status: nextStatusText } : l));
+    try {
+      const res = await fetch(`/api/leads/${leadId}/toggle-contact`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contacted: nextStatus, status: nextStatusText })
+      });
+      if (res.ok) {
+        notifySiteDataUpdated('leads');
+        setStatusNotice(nextStatus ? 'Contact completed! Saved to Database & Blob Storage.' : 'Lead marked as pending contact in Database & Blob Storage.');
+        setTimeout(() => setStatusNotice(''), 3500);
+      }
+    } catch (err) {
+      console.error('Error toggling lead contact status:', err);
+    }
+  };
+
   // Safe Arrays
   const safeProperties = Array.isArray(properties) ? properties : [];
   const safeLand = Array.isArray(land) ? land : [];
@@ -2992,9 +3152,9 @@ const AdminDashboard = () => {
           <div className="gold-specular-card bg-[#121216]/95 border border-amber-500/35 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-[0_0_60px_rgba(245,158,11,0.2)] relative z-10 animate-fadeIn">
             {/* Logo & Header */}
             <div className="text-center mb-6 relative z-10">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
+              <div className="w-16 h-16 rounded-2xl bg-white border border-amber-500/40 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
                 {settings?.logo_url ? (
-                  <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-11 h-11 object-contain" />
+                  <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-full h-full object-cover" />
                 ) : (
                   <UserPlus size={28} className="text-amber-400" />
                 )}
@@ -3211,9 +3371,9 @@ const AdminDashboard = () => {
 
           {/* Logo & Header */}
           <div className="text-center mb-8 relative z-10">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
+            <div className="w-16 h-16 rounded-2xl bg-white border border-amber-500/40 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/20 overflow-hidden group hover:scale-105 transition-transform duration-300">
               {settings?.logo_url ? (
-                <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-11 h-11 object-contain" />
+                <img src={settings.logo_url} alt={`${settings?.company_name || 'Company'} Logo`} className="w-full h-full object-cover" />
               ) : (
                 <Lock size={30} className="text-amber-400" />
               )}
@@ -3317,8 +3477,8 @@ const AdminDashboard = () => {
       {/* Header */}
       <header className="bg-[#09090b]/90 backdrop-blur-md text-white py-3.5 px-6 shadow-xl flex items-center justify-between border-b border-amber-500/20 sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl overflow-hidden bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-sm">
-            <img src={settings.logo_url || '/logo/sk-builders-logo.png'} alt={`${settings?.company_name || 'Admin'} Logo`} className="w-9 h-9 object-contain rounded-md" />
+          <div className="w-9 h-9 rounded-xl overflow-hidden bg-white border border-amber-500/30 flex items-center justify-center shrink-0 shadow-sm">
+            <img src={settings.logo_url || '/logo/sk-builders-logo.png'} alt={`${settings?.company_name || 'Admin'} Logo`} className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -3347,17 +3507,29 @@ const AdminDashboard = () => {
 
           <button
             onClick={handleLogout}
-            className="bg-red-500/15 hover:bg-red-500/30 text-red-400 hover:text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border border-red-500/30 cursor-pointer"
+            className="bg-red-500/15 hover:bg-red-500/30 text-red-400 hover:text-white font-extrabold px-3 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all border border-red-500/30 cursor-pointer"
           >
             <LogOut size={14} /> Logout
+          </button>
+
+          <button
+            onClick={() => {
+              window.location.href = '/';
+            }}
+            className="bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 hover:text-white font-extrabold px-2.5 py-2 sm:px-3 rounded-xl text-xs flex items-center gap-1 transition-all border border-zinc-700/70 cursor-pointer hover:border-zinc-500 shadow-sm"
+            title="Close Admin and Return to Main Website"
+            aria-label="Close Admin"
+          >
+            <X size={15} className="text-zinc-400 hover:text-white" />
+            <span className="hidden sm:inline">Close</span>
           </button>
         </div>
       </header>
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
         {statusNotice && (
-          <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs p-4 rounded-2xl shadow-lg flex items-center gap-2 animate-fadeIn backdrop-blur-md">
+          <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs p-3.5 rounded-2xl shadow-lg flex items-center gap-2 animate-fadeIn backdrop-blur-md">
             <CheckCircle size={18} className="text-amber-400 shrink-0" /> {statusNotice}
           </div>
         )}
@@ -3396,96 +3568,99 @@ const AdminDashboard = () => {
           isInitialLoading ? (
             <AdminLoadingSkeleton />
           ) : (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
-                <div>
-                  <div className="text-2xl font-black text-white">{safeProperties.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Total Properties</div>
-                  <div className="text-[11px] text-amber-400 font-bold mt-1">{availableHousesCount} Available Houses</div>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Building size={24} />
-                </div>
-              </div>
-
-              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
-                <div>
-                  <div className="text-2xl font-black text-white">{safeLand.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Total Land Plots</div>
-                  <div className="text-[11px] text-emerald-400 font-bold mt-1">{availableLandCount} Available Plots</div>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
-                  <MapPin size={24} />
-                </div>
-              </div>
-
-              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
-                <div>
-                  <div className="text-2xl font-black text-white">{safeProjects.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Total Projects</div>
-                  <div className="text-[10.5px] text-amber-300 font-bold mt-1 leading-snug">
-                    <div>{completedProjectsCount} Completed • {ongoingProjectsCount} Ongoing</div>
-                    <div>{startedProjectsCount} Started</div>
+            <div className="space-y-4 sm:space-y-5">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3.5">
+                <div className="bg-[#141417]/90 p-3 sm:p-4 rounded-2xl border border-zinc-800/80 hover:border-amber-500/30 shadow-md flex items-center justify-between backdrop-blur-md transition-all">
+                  <div className="min-w-0 pr-1">
+                    <div className="text-xl sm:text-2xl font-black text-white">{safeProperties.length}</div>
+                    <div className="text-[10px] sm:text-[11px] font-extrabold text-zinc-400 uppercase mt-0.5 truncate">Total Properties</div>
+                    <div className="text-[9.5px] sm:text-[10.5px] text-amber-400 font-bold mt-1 truncate">{availableHousesCount} Available Houses</div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Building size={18} />
                   </div>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Home size={24} />
-                </div>
-              </div>
 
-              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
-                <div>
-                  <div className="text-2xl font-black text-white">{safeLeads.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Customer Leads</div>
-                  <div className="text-[11px] text-zinc-400 font-bold mt-1">{soldCount} Properties Sold</div>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Users size={24} />
-                </div>
-              </div>
-
-              <div className="bg-[#18181b]/90 p-5 rounded-3xl border border-zinc-800 shadow-xl flex items-center justify-between backdrop-blur-md">
-                <div>
-                  <div className="text-2xl font-black text-white">{safeFeedbacks.length}</div>
-                  <div className="text-xs font-extrabold text-zinc-400 uppercase mt-0.5">Client Feedbacks</div>
-                  <div className="text-[11px] text-amber-400 font-bold mt-1">
-                    ★ {safeFeedbacks.length > 0 ? (safeFeedbacks.reduce((a, b) => a + (b.rating || 5), 0) / safeFeedbacks.length).toFixed(1) : '5.0'} / 5.0 Rating
+                <div className="bg-[#141417]/90 p-3 sm:p-4 rounded-2xl border border-zinc-800/80 hover:border-emerald-500/30 shadow-md flex items-center justify-between backdrop-blur-md transition-all">
+                  <div className="min-w-0 pr-1">
+                    <div className="text-xl sm:text-2xl font-black text-white">{safeLand.length}</div>
+                    <div className="text-[10px] sm:text-[11px] font-extrabold text-zinc-400 uppercase mt-0.5 truncate">Total Land Plots</div>
+                    <div className="text-[9.5px] sm:text-[10.5px] text-emerald-400 font-bold mt-1 truncate">{availableLandCount} Available Plots</div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                    <MapPin size={18} />
                   </div>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Star size={24} />
+
+                <div className="bg-[#141417]/90 p-3 sm:p-4 rounded-2xl border border-zinc-800/80 hover:border-amber-500/30 shadow-md flex items-center justify-between backdrop-blur-md transition-all">
+                  <div className="min-w-0 pr-1">
+                    <div className="text-xl sm:text-2xl font-black text-white">{safeProjects.length}</div>
+                    <div className="text-[10px] sm:text-[11px] font-extrabold text-zinc-400 uppercase mt-0.5 truncate">Total Projects</div>
+                    <div className="text-[9px] sm:text-[10px] text-amber-300 font-bold mt-1 leading-tight">
+                      <div className="truncate">{completedProjectsCount} Comp • {ongoingProjectsCount} Ong</div>
+                      <div className="truncate">{startedProjectsCount} Started</div>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Home size={18} />
+                  </div>
+                </div>
+
+                <div className="bg-[#141417]/90 p-3 sm:p-4 rounded-2xl border border-zinc-800/80 hover:border-amber-500/30 shadow-md flex items-center justify-between backdrop-blur-md transition-all">
+                  <div className="min-w-0 pr-1">
+                    <div className="text-xl sm:text-2xl font-black text-white">{safeLeads.length}</div>
+                    <div className="text-[10px] sm:text-[11px] font-extrabold text-zinc-400 uppercase mt-0.5 truncate">Customer Leads</div>
+                    <div className="text-[9.5px] sm:text-[10.5px] text-zinc-400 font-bold mt-1 truncate">{soldCount} Sold</div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Users size={18} />
+                  </div>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 bg-[#141417]/90 p-3 sm:p-4 rounded-2xl border border-zinc-800/80 hover:border-amber-500/30 shadow-md flex items-center justify-between backdrop-blur-md transition-all">
+                  <div>
+                    <div className="text-xl sm:text-2xl font-black text-white">{safeFeedbacks.length}</div>
+                    <div className="text-[10px] sm:text-[11px] font-extrabold text-zinc-400 uppercase mt-0.5">Client Feedbacks</div>
+                    <div className="text-[9.5px] sm:text-[10.5px] text-amber-400 font-bold mt-1">
+                      ★ {safeFeedbacks.length > 0 ? (safeFeedbacks.reduce((a, b) => a + (b.rating || 5), 0) / safeFeedbacks.length).toFixed(1) : '5.0'} / 5.0 Rating
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Star size={18} />
+                  </div>
                 </div>
               </div>
-            </div>
 
 
-            {/* Quick Actions Bar */}
-            <div className="bg-[#18181b] border border-amber-500/30 text-white p-6 rounded-3xl shadow-xl flex flex-wrap items-center justify-between gap-4">
+            {/* Quick Actions Bar - Column on Mobile, Row on Desktop */}
+            <div className="bg-[#141417]/90 border border-amber-500/30 text-white p-3.5 sm:p-4 rounded-2xl shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black uppercase text-amber-400">Quick Management Actions</h3>
-                <p className="text-xs text-zinc-300 mt-0.5">Add or manage real business information for your business showcase.</p>
+                <h3 className="text-sm sm:text-base font-extrabold uppercase text-amber-400">Quick Management Actions</h3>
+                <p className="text-[11px] text-zinc-400 mt-0.5">Add or manage real business information for your business showcase.</p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto shrink-0 py-0.5">
                 <button
+                  type="button"
                   onClick={openCreateProperty}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md border border-amber-300/40 cursor-pointer"
+                  className="w-full sm:w-auto justify-center shrink-0 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-3 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-[11px] sm:text-xs uppercase flex items-center gap-1.5 shadow-md border border-amber-300/40 cursor-pointer whitespace-nowrap active:scale-95 transition-all"
                 >
-                  <Plus size={15} /> Add House Property
+                  <Plus size={14} /> Add House Property
                 </button>
 
                 <button
+                  type="button"
                   onClick={openCreateLand}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="w-full sm:w-auto justify-center shrink-0 bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-extrabold px-3 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-[11px] sm:text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer whitespace-nowrap active:scale-95 transition-all"
                 >
-                  <Plus size={15} /> Add Land Plot
+                  <Plus size={14} /> Add Land Plot
                 </button>
 
                 <button
+                  type="button"
                   onClick={openCreateProject}
-                  className="bg-zinc-900 hover:bg-zinc-800 border border-amber-500/30 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="w-full sm:w-auto justify-center shrink-0 bg-zinc-900/90 hover:bg-zinc-800 border border-amber-500/30 text-white font-extrabold px-3 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-[11px] sm:text-xs uppercase flex items-center gap-1.5 shadow-md cursor-pointer whitespace-nowrap active:scale-95 transition-all"
                 >
-                  <Plus size={15} /> Add Construction Project
+                  <Plus size={14} /> Add Construction Project
                 </button>
               </div>
             </div>
@@ -3515,7 +3690,7 @@ const AdminDashboard = () => {
                   No services configured in database. Click "Add Service" above to add one.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
                   {services.map((srv, idx) => {
                     const isBeingDragged = draggedSrvIdx === idx;
                     const isOver = dragOverSrvIdx === idx;
@@ -3528,7 +3703,7 @@ const AdminDashboard = () => {
                         onDragOver={(e) => handleSrvDragOver(e, idx)}
                         onDragLeave={(e) => handleSrvDragLeave(e, idx)}
                         onDrop={(e) => handleSrvDrop(e, idx)}
-                        className={`bg-[#09090b] border p-3.5 rounded-xl flex flex-col justify-between transition-all group shadow-sm cursor-grab active:cursor-grabbing ${
+                        className={`bg-[#09090b] border p-2.5 sm:p-3.5 rounded-xl flex flex-col justify-between transition-all group shadow-sm cursor-grab active:cursor-grabbing ${
                           isBeingDragged
                             ? 'opacity-40 border-amber-500 scale-95'
                             : isOver
@@ -3536,32 +3711,32 @@ const AdminDashboard = () => {
                             : 'border-zinc-800/80 hover:border-amber-500/40'
                         }`}
                       >
-                        <div className="space-y-2">
+                        <div className="space-y-1.5 sm:space-y-2">
                           <div className="flex items-center justify-between">
-                            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                              {renderIconByName(srv.icon_name, 16)}
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              {renderIconByName(srv.icon_name, 14)}
                             </div>
-                            <span className="text-[10px] font-black uppercase text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md font-mono flex items-center gap-1">
-                              <GripVertical size={12} className="text-zinc-500" /> #{idx + 1}
+                            <span className="text-[9.5px] sm:text-[10px] font-black uppercase text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 sm:px-2 py-0.5 rounded-md font-mono flex items-center gap-1">
+                              <GripVertical size={11} className="text-zinc-500" /> #{idx + 1}
                             </span>
                           </div>
                           <div>
-                            <h4 className="font-extrabold text-xs text-white group-hover:text-amber-400 transition-colors">
+                            <h4 className="font-extrabold text-[11px] sm:text-xs text-white group-hover:text-amber-400 transition-colors line-clamp-1">
                               {srv.title}
                             </h4>
-                            <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2 leading-relaxed">
+                            <p className="text-[10px] sm:text-[11px] text-zinc-400 mt-0.5 line-clamp-2 leading-snug">
                               {srv.description}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-1.5 pt-2.5 mt-2.5 border-t border-zinc-900">
+                        <div className="flex items-center justify-end gap-1.5 pt-2 mt-2 border-t border-zinc-900">
                           <button
                             type="button"
                             onClick={() => openEditService(srv)}
-                            className="bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 font-bold px-2.5 py-1 rounded-md text-[11px] uppercase flex items-center gap-1 transition-all cursor-pointer"
+                            className="bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 font-bold px-2 py-1 rounded-md text-[10px] sm:text-[11px] uppercase flex items-center gap-1 transition-all cursor-pointer"
                           >
-                            <Edit3 size={12} /> Edit
+                            <Edit3 size={11} /> Edit
                           </button>
                           <button
                             type="button"
@@ -3569,7 +3744,7 @@ const AdminDashboard = () => {
                             className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
                             title="Delete Service"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
@@ -3604,7 +3779,7 @@ const AdminDashboard = () => {
                   No stats configured in database. Click "Add Stat" above to add one.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                   {stats.map((st, idx) => {
                     const isBeingDragged = draggedStatIdx === idx;
                     const isOver = dragOverStatIdx === idx;
@@ -4103,6 +4278,11 @@ const AdminDashboard = () => {
                             <Home size={28} className="text-amber-400" />
                           </div>
                         )}
+                        {pr.bedrooms && (pr.cover_image || pr.image) && (pr.cover_image || pr.image) !== '/house/completed-house.jpg' && !(pr.cover_image || pr.image).includes('logo') ? (
+                          <span className="absolute bottom-1 left-1 bg-black/80 text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded border border-amber-500/30">
+                            {pr.bedrooms.toString().includes('BHK') ? pr.bedrooms : `${pr.bedrooms} BHK`}
+                          </span>
+                        ) : null}
                       </div>
 
                       <div className="min-w-0 space-y-1.5">
@@ -4110,19 +4290,18 @@ const AdminDashboard = () => {
                           <span className="text-[10px] font-extrabold text-zinc-300 bg-zinc-800/90 px-2 py-0.5 rounded-md border border-zinc-700/50">
                             {pr.project_type || 'Individual House'}
                           </span>
-                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase ${pr.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${pr.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
                             {pr.status || 'Completed'}
                           </span>
-                          {pr.floors && (
-                            <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
-                              {pr.floors} Floors
-                            </span>
-                          )}
-                          {pr.bedrooms && (
-                            <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
-                              {pr.bedrooms.toString().includes('BHK') ? pr.bedrooms : `${pr.bedrooms} BHK`}
-                            </span>
-                          )}
+                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                            {pr.bedrooms ? (pr.bedrooms.toString().includes('BHK') ? pr.bedrooms : `${pr.bedrooms} BHK`) : '3 BHK'}
+                          </span>
+                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                            {pr.floors ? `${pr.floors} Floors` : '2 Floors'}
+                          </span>
+                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">
+                            {pr.rcc_structure || pr.concrete_roof ? 'RCC Frame' : 'East Facing'}
+                          </span>
                         </div>
 
                         <h3 className="font-extrabold text-sm text-white group-hover:text-amber-400 transition-colors line-clamp-1">
@@ -4131,41 +4310,34 @@ const AdminDashboard = () => {
 
                         <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold flex-wrap">
                           <span className="flex items-center gap-1 text-zinc-300">
-                            <MapPin size={13} className="text-amber-400 shrink-0" /> {pr.location || pr.area}
+                            <MapPin size={13} className="text-amber-400 shrink-0" /> {pr.location || pr.area || 'Poonamallee'}
                           </span>
-                          {pr.builtup_area && (
-                            <>
-                              <span className="text-zinc-600">•</span>
-                              <span>Builtup: {pr.builtup_area} {pr.builtup_area_unit || 'sq.ft'}</span>
-                            </>
-                          )}
-                          {pr.plot_area && (
-                            <>
-                              <span className="text-zinc-600">•</span>
-                              <span>Plot: {pr.plot_area} {pr.plot_area_unit || 'sq.ft'}</span>
-                            </>
-                          )}
+                          <span className="text-zinc-600">•</span>
+                          <span>Builtup: {pr.builtup_area || '1500'} {pr.builtup_area_unit || 'sq.ft'}</span>
+                          <span className="text-zinc-600">•</span>
+                          <span>Plot: {pr.plot_area || '1200'} {pr.plot_area_unit || 'sq.ft'}</span>
                           {(pr.completion_date || pr.actual_completion_date) && (
                             <>
                               <span className="text-zinc-600">•</span>
                               <span>Year: {pr.completion_date || pr.actual_completion_date}</span>
                             </>
                           )}
-                          {pr.updated_at && (
-                            <>
-                              <span className="text-zinc-600">•</span>
-                              <span className="text-[11px] text-zinc-500">Updated: {formatLastUpdated(pr.updated_at)}</span>
-                            </>
-                          )}
+                          <span className="text-zinc-600">•</span>
+                          <span className="text-[11px] text-zinc-500">Updated: {formatLastUpdated(pr.updated_at)}</span>
                         </div>
+
+                        <p className="text-[11px] text-zinc-400 line-clamp-1 leading-snug">
+                          {pr.overview || pr.description || 'Full structural construction, brickwork, plastering & premium turnkey handover.'}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Center: Project Status / Scope Container (Strict 50% Horizontal Center) */}
-                    <div className="flex flex-col items-center justify-center justify-self-start md:justify-self-center px-5 py-2.5 bg-[#09090b]/80 border border-zinc-800/90 rounded-xl text-center min-w-[150px] shadow-inner">
+                    {/* Center: Project Status & Delivery Container (Strict 50% Horizontal Center, matching Properties & Land) */}
+                    <div className="flex flex-col items-center justify-center justify-self-start md:justify-self-center px-5 py-2.5 bg-[#09090b]/90 border border-zinc-800/90 rounded-xl text-center min-w-[150px] shadow-inner">
                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">PROJECT STATUS</span>
-                      <span className={`text-sm font-black uppercase leading-tight ${pr.status === 'Completed' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {pr.status || 'Completed'}
+                      <span className="text-base font-black text-amber-400 leading-tight">{pr.status || 'Completed'}</span>
+                      <span className="text-[9px] font-bold text-emerald-400/90 uppercase tracking-tight mt-0.5">
+                        {pr.completion_date || pr.actual_completion_date || 'Turnkey Handover'}
                       </span>
                     </div>
 
@@ -4576,6 +4748,7 @@ const AdminDashboard = () => {
               <div className="space-y-4">
                 {safeLeads.map((l) => {
                   const cleanPhone = (l.phone || '').replace(/[^0-9]/g, '');
+                  const isContacted = l.contacted === 1 || l.contacted === true || l.status === 'Contacted' || l.status === 'Completed';
                   const serviceColor =
                     l.service === 'House Construction'
                       ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
@@ -4588,12 +4761,20 @@ const AdminDashboard = () => {
                   return (
                     <div
                       key={l.id}
-                      className="bg-gradient-to-br from-[#18181b] to-[#121216] p-3.5 sm:p-4 rounded-xl border border-zinc-800 hover:border-amber-500/40 shadow-lg transition-all space-y-2.5"
+                      className={`p-3.5 sm:p-4 rounded-xl border transition-all space-y-2.5 shadow-md ${
+                        isContacted
+                          ? 'bg-gradient-to-br from-[#272a34] to-[#1f222a] border-emerald-500/60 ring-1 ring-emerald-500/30 shadow-emerald-950/20'
+                          : 'bg-gradient-to-br from-[#18181b] to-[#121216] border-zinc-800 hover:border-amber-500/40'
+                      }`}
                     >
                       {/* Top Header: Client Info & Time */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xs shrink-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 border ${
+                            isContacted
+                              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                              : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                          }`}>
                             {(l.name || 'C').charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -4602,6 +4783,11 @@ const AdminDashboard = () => {
                               <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${serviceColor}`}>
                                 {l.service || 'Quick Inquiry'}
                               </span>
+                              {isContacted && (
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 flex items-center gap-1">
+                                  <Check size={11} className="stroke-[3]" /> Contacted
+                                </span>
+                              )}
                               {l.property_id && (
                                 <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
                                   Ref: #{l.property_id}
@@ -4635,8 +4821,23 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Bottom: Quick Contact Actions & Delete - Left-aligned with reduced width */}
+                      {/* Bottom: Quick Contact Actions, Complete Contact Tick Button & Delete */}
                       <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        {/* Complete Contact Tick Icon Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLeadContacted(l.id, isContacted)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 shadow-sm ${
+                            isContacted
+                              ? 'bg-emerald-500 hover:bg-emerald-400 text-black border border-emerald-400 shadow-emerald-500/20 font-black'
+                              : 'bg-zinc-800 hover:bg-emerald-500/20 text-zinc-300 hover:text-emerald-400 border border-zinc-700 hover:border-emerald-500/40'
+                          }`}
+                          title={isContacted ? "Contact completed! Click to mark as pending" : "Click to mark complete contact"}
+                        >
+                          <Check size={14} className={isContacted ? "text-black stroke-[3]" : "text-emerald-400 stroke-[2.5]"} />
+                          <span>{isContacted ? 'Contact Completed' : 'Complete Contact'}</span>
+                        </button>
+
                         {/* Direct Phone Call Button */}
                         {cleanPhone ? (
                           <a
@@ -4665,7 +4866,7 @@ const AdminDashboard = () => {
                         <button
                           type="button"
                           onClick={() => requestDeleteLead(l.id, l.name)}
-                          className="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-red-400 bg-zinc-900/90 hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/30 transition-all cursor-pointer flex items-center justify-center gap-1 text-xs font-bold shrink-0 active:scale-95"
+                          className="px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-red-400 bg-zinc-900/90 hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/30 transition-all cursor-pointer flex items-center justify-center gap-1 text-xs font-bold shrink-0 active:scale-95 ml-auto"
                           title="Delete Lead"
                         >
                           <Trash2 size={12} className="text-red-400/80" />
@@ -4826,15 +5027,15 @@ const AdminDashboard = () => {
                     <div className="relative group">
                       <div
                         onClick={() => logoInputRef.current && logoInputRef.current.click()}
-                        className="w-20 h-20 rounded-full bg-[#18181b] border-2 border-amber-500/40 hover:border-amber-400 flex items-center justify-center p-2 cursor-pointer shadow-md transition-all group-hover:scale-105 overflow-hidden"
-                        title="Click circled logo to upload new image"
+                        className="w-20 h-20 rounded-2xl bg-white border-2 border-amber-500/40 hover:border-amber-400 flex items-center justify-center p-1.5 cursor-pointer shadow-md transition-all group-hover:scale-105 overflow-hidden"
+                        title="Click logo to upload new image"
                       >
                         <img
                           src={settings.logo_url || '/logo/sk-builders-logo.png'}
                           alt="Company Logo"
-                          className="w-full h-full object-contain rounded-full"
+                          className="w-full h-full object-contain"
                         />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-full flex items-center justify-center transition-opacity">
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity">
                           <Upload size={18} className="text-amber-400" />
                         </div>
                       </div>
@@ -5336,65 +5537,120 @@ const AdminDashboard = () => {
                         No construction videos found. Upload a video above.
                       </div>
                     ) : (
-                      heroVideos.map((vid) => (
-                        <div
-                          key={vid.id}
-                          className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all ${
-                            Boolean(vid.is_primary) ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' : 'bg-[#09090b] border-zinc-800/80 hover:border-amber-500/30'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                              <Video size={18} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
-                                <span className="truncate">{vid.filename}</span>
-                                {Boolean(vid.is_primary) && (
-                                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
-                                    <Star size={10} fill="currentColor" /> PRIMARY
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] font-mono text-zinc-400 truncate mt-1">
-                                {vid.filepath || `uploads/videos/${vid.filename}`} • Updated: {formatLastUpdated(vid.created_at)}
-                              </div>
-                            </div>
-                          </div>
+                      heroVideos.map((vid) => {
+                        const isVidPrimary = Boolean(vid.is_primary);
+                        const isThisVidExtracting = serverExtraction.isExtracting && (serverExtraction.videoId ? serverExtraction.videoId === vid.id : isVidPrimary);
+                        const currentPct = isThisVidExtracting ? serverExtraction.progress : (isVidPrimary ? 100 : 0);
+                        const radius = 16;
+                        const circumference = 2 * Math.PI * radius;
+                        const strokeOffset = circumference * (1 - (currentPct / 100));
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {!Boolean(vid.is_primary) && (
+                        return (
+                          <div
+                            key={vid.id}
+                            className={`p-3.5 sm:p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 transition-all ${
+                              isVidPrimary ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' : 'bg-[#09090b] border-zinc-800/80 hover:border-amber-500/30'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                                <Video size={18} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                                  <span className="truncate">{vid.filename}</span>
+                                  {isVidPrimary && (
+                                    <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                                      <Star size={10} fill="currentColor" /> PRIMARY
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] font-mono text-zinc-400 truncate mt-1">
+                                  {vid.filepath || `uploads/videos/${vid.filename}`} • Updated: {formatLastUpdated(vid.created_at)}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Frame Extraction Pie Percent Progress Meter */}
+                            {(isVidPrimary || isThisVidExtracting) && (
+                              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-amber-500/30 shrink-0">
+                                <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
+                                  <svg className="w-11 h-11 -rotate-90 transform" viewBox="0 0 44 44">
+                                    <circle
+                                      cx="22"
+                                      cy="22"
+                                      r={radius}
+                                      className="text-zinc-800"
+                                      strokeWidth="3"
+                                      stroke="currentColor"
+                                      fill="transparent"
+                                    />
+                                    <circle
+                                      cx="22"
+                                      cy="22"
+                                      r={radius}
+                                      className="text-amber-400 transition-all duration-300 ease-out"
+                                      strokeWidth="3"
+                                      strokeDasharray={circumference}
+                                      strokeDashoffset={strokeOffset}
+                                      strokeLinecap="round"
+                                      stroke="currentColor"
+                                      fill="transparent"
+                                    />
+                                  </svg>
+                                  <span className="absolute text-[10px] font-black text-amber-300 tracking-tighter">
+                                    {Math.round(currentPct)}%
+                                  </span>
+                                </div>
+                                <div className="text-left">
+                                  <div className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1.5 leading-none">
+                                    {isThisVidExtracting ? (
+                                      <>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
+                                        <span>Extracting Frames...</span>
+                                      </>
+                                    ) : (
+                                      <span>Frames Ready</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                              {!isVidPrimary && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetPrimaryVideo(vid.id, 'hero')}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 border border-zinc-800 hover:border-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                  title="Set as Primary Hero Video & Extract Frames"
+                                >
+                                  <Star size={18} />
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => handleSetPrimaryVideo(vid.id, 'hero')}
-                                className="p-2 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
-                                title="Set as Primary Hero Video"
+                                onClick={() => {
+                                  setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
+                                  setModalType('rename_video');
+                                }}
+                                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
+                                title="Rename Video"
                               >
-                                <Star size={18} />
+                                <Edit3 size={16} />
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setVideoRename({ id: vid.id, currentName: vid.filename, newName: vid.filename });
-                                setModalType('rename_video');
-                              }}
-                              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
-                              title="Rename Video"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => requestDeleteVideo(vid.id, vid.filename)}
-                              className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-                              title="Delete Video"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => requestDeleteVideo(vid.id, vid.filename)}
+                                className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                                title="Delete Video"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -7937,13 +8193,23 @@ const AdminDashboard = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    disabled={isResettingData}
+                    onClick={async () => {
+                      await performActualReset();
                       setModalType(null);
-                      performActualReset();
                     }}
-                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-red-900/30 transition-all cursor-pointer flex items-center gap-2"
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-50 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase shadow-lg shadow-red-900/30 transition-all cursor-pointer flex items-center gap-2"
                   >
-                    <Trash2 size={15} /> Yes, Purge Selected Data
+                    {isResettingData ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Purging Data...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={15} /> Yes, Purge Selected Data
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -7958,8 +8224,43 @@ const AdminDashboard = () => {
                 <h3 className="text-lg font-black text-white">Confirm Deletion</h3>
                 <p className="text-xs text-zinc-300 font-medium px-4">{deleteConfig.title}</p>
                 <div className="flex items-center justify-center gap-3 pt-4 border-t border-zinc-800">
-                  <button type="button" onClick={() => setModalType(null)} className="bg-zinc-800 text-zinc-300 font-bold px-5 py-2.5 rounded-xl text-xs uppercase">Cancel</button>
-                  <button type="button" onClick={() => deleteConfig.onConfirm()} className="bg-red-600 hover:bg-red-700 text-white font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md">Yes, Delete</button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => setModalType(null)}
+                    className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 font-bold px-5 py-2.5 rounded-xl text-xs uppercase cursor-pointer transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={async () => {
+                      setIsDeleting(true);
+                      try {
+                        if (deleteConfig.onConfirm) {
+                          await deleteConfig.onConfirm();
+                        }
+                      } catch (err) {
+                        console.error('Delete error:', err);
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-60 text-white font-extrabold px-6 py-2.5 rounded-xl text-xs uppercase shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        <span>Yes, Delete</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
