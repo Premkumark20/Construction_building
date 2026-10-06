@@ -285,6 +285,8 @@ CREATE TABLE IF NOT EXISTS leads (
   service TEXT DEFAULT 'General Inquiry',
   property_id TEXT,
   message TEXT,
+  status TEXT DEFAULT 'Pending',
+  contacted INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
