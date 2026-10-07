@@ -53,6 +53,330 @@ if (process.env.VERCEL) {
 
 initialDirs.forEach(d => safeMkdir(d));
 
+const EMBEDDED_SCHEMA = `
+CREATE TABLE IF NOT EXISTS admin_users (
+  id SERIAL PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  facebook TEXT DEFAULT '',
+  instagram TEXT DEFAULT '',
+  whatsapp TEXT DEFAULT '',
+  display_username TEXT DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  id SERIAL PRIMARY KEY,
+  company_name TEXT NOT NULL DEFAULT 'SK BUILDERS',
+  company_subtitle TEXT NOT NULL DEFAULT '& PROPERTY CONSULTANT',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT 'info@skbuilders.com',
+  location TEXT NOT NULL DEFAULT 'Poonamallee, Mangadu, Kundrathur, Tamil Nadu - 600056',
+  service_areas TEXT NOT NULL DEFAULT 'Poonamallee • Mangadu • Kundrathur',
+  hero_tagline TEXT NOT NULL DEFAULT 'BUILDING QUALITY HOMES.',
+  hero_headline_find TEXT NOT NULL DEFAULT 'Find',
+  hero_headline_property TEXT NOT NULL DEFAULT 'Right Property',
+  hero_headline_confidence TEXT NOT NULL DEFAULT 'Confidence',
+  hero_subtitle TEXT NOT NULL DEFAULT 'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.',
+  facebook_url TEXT DEFAULT 'https://facebook.com',
+  instagram_url TEXT DEFAULT 'https://instagram.com',
+  whatsapp_number TEXT DEFAULT '',
+  logo_url TEXT DEFAULT '/logo/sk-builders-logo.png',
+  site_title TEXT DEFAULT 'SK Builders & Property Consultant',
+  meta_description TEXT DEFAULT '',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS services (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  icon_name TEXT NOT NULL DEFAULT 'Home',
+  link_url TEXT NOT NULL DEFAULT '#properties',
+  display_order INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS stats (
+  id SERIAL PRIMARY KEY,
+  icon_name TEXT NOT NULL DEFAULT 'Home',
+  value TEXT NOT NULL,
+  label TEXT NOT NULL,
+  display_order INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS properties (
+  id SERIAL PRIMARY KEY,
+  property_id TEXT,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL,
+  listing_type TEXT NOT NULL DEFAULT 'For Sale',
+  status TEXT NOT NULL DEFAULT 'Available',
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  landmark TEXT,
+  price TEXT NOT NULL,
+  price_display_type TEXT DEFAULT 'Exact Price',
+  negotiable TEXT DEFAULT 'Yes',
+  price_per_sqft TEXT,
+  bhk TEXT,
+  builtup_area TEXT,
+  plot_area TEXT,
+  facing TEXT,
+  floors TEXT,
+  furnished_status TEXT,
+  age_of_property TEXT,
+  possession_status TEXT,
+  bathrooms TEXT,
+  balconies TEXT,
+  parking TEXT,
+  water_source TEXT,
+  power_backup TEXT,
+  description TEXT,
+  features TEXT,
+  image TEXT,
+  images TEXT,
+  video_url TEXT,
+  featured INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS land (
+  id SERIAL PRIMARY KEY,
+  land_id TEXT,
+  title TEXT NOT NULL,
+  land_type TEXT NOT NULL DEFAULT 'Residential Plot',
+  listing_type TEXT NOT NULL DEFAULT 'For Sale',
+  status TEXT NOT NULL DEFAULT 'Available',
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  landmark TEXT,
+  total_price TEXT,
+  price TEXT,
+  price_display_type TEXT DEFAULT 'Exact Price',
+  negotiable TEXT DEFAULT 'Yes',
+  price_per_sqft TEXT,
+  plot_area TEXT NOT NULL,
+  plot_area_unit TEXT DEFAULT 'sq.ft',
+  frontage TEXT,
+  length TEXT,
+  width TEXT,
+  facing TEXT DEFAULT 'East',
+  road_width TEXT,
+  road_width_unit TEXT DEFAULT 'ft',
+  road_type TEXT,
+  road_facing TEXT,
+  corner_plot TEXT DEFAULT 'No',
+  eb_available INTEGER DEFAULT 0,
+  water_available INTEGER DEFAULT 0,
+  drainage_available INTEGER DEFAULT 0,
+  borewell_available INTEGER DEFAULT 0,
+  approval_status TEXT DEFAULT 'Not Provided',
+  patta_status TEXT DEFAULT 'Not Provided',
+  ec_status TEXT DEFAULT 'Not Provided',
+  parent_documents_status TEXT DEFAULT 'Not Provided',
+  sale_deed_status TEXT DEFAULT 'Not Provided',
+  approval_documents_status TEXT DEFAULT 'Not Provided',
+  other_documents TEXT,
+  nearby_school TEXT,
+  nearby_hospital TEXT,
+  nearby_bus_stop TEXT,
+  nearby_railway TEXT,
+  nearby_main_road TEXT,
+  nearby_shopping TEXT,
+  short_description TEXT,
+  full_description TEXT,
+  description TEXT,
+  highlights TEXT,
+  image TEXT,
+  published INTEGER DEFAULT 1,
+  featured INTEGER DEFAULT 0,
+  location TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS land_plots (
+  id SERIAL PRIMARY KEY,
+  property_id TEXT,
+  title TEXT NOT NULL,
+  land_type TEXT NOT NULL DEFAULT 'Residential Land',
+  status TEXT NOT NULL DEFAULT 'Available',
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  landmark TEXT,
+  total_price TEXT NOT NULL,
+  price_display_type TEXT DEFAULT 'Exact Price',
+  negotiable TEXT DEFAULT 'Yes',
+  price_per_sqft TEXT,
+  plot_area TEXT NOT NULL,
+  plot_area_unit TEXT DEFAULT 'sq.ft',
+  plot_dimensions TEXT,
+  plot_length TEXT,
+  plot_breadth TEXT,
+  road_width TEXT,
+  road_width_unit TEXT DEFAULT 'feet',
+  facing TEXT,
+  boundary_wall TEXT DEFAULT 'No',
+  corner_plot TEXT DEFAULT 'No',
+  gated_community TEXT DEFAULT 'No',
+  dtcp_approved TEXT DEFAULT 'Yes',
+  rera_approved TEXT DEFAULT 'No',
+  cmda_approved TEXT DEFAULT 'No',
+  patta_status TEXT DEFAULT 'Yes',
+  soil_type TEXT,
+  water_source TEXT,
+  electricity TEXT DEFAULT 'Yes',
+  drainage TEXT DEFAULT 'No',
+  description TEXT,
+  features TEXT,
+  image TEXT,
+  images TEXT,
+  video_url TEXT,
+  featured INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id SERIAL PRIMARY KEY,
+  project_id TEXT,
+  name TEXT,
+  title TEXT,
+  project_type TEXT DEFAULT 'Individual House',
+  status TEXT NOT NULL DEFAULT 'Under Construction',
+  current_step INTEGER NOT NULL DEFAULT 1,
+  start_date TEXT,
+  expected_completion_date TEXT,
+  actual_completion_date TEXT,
+  estimated_completion TEXT,
+  actual_completion TEXT,
+  location TEXT,
+  address TEXT,
+  area TEXT,
+  city TEXT DEFAULT 'Chennai',
+  pincode TEXT,
+  maps_url TEXT,
+  latitude TEXT,
+  longitude TEXT,
+  plot_area TEXT,
+  plot_area_unit TEXT DEFAULT 'sq.ft',
+  builtup_area TEXT,
+  builtup_area_unit TEXT DEFAULT 'sq.ft',
+  floors TEXT,
+  bedrooms TEXT,
+  bathrooms TEXT,
+  rcc_structure INTEGER DEFAULT 0,
+  concrete_roof INTEGER DEFAULT 0,
+  compound_wall INTEGER DEFAULT 0,
+  gate INTEGER DEFAULT 0,
+  parking INTEGER DEFAULT 0,
+  water_connection INTEGER DEFAULT 0,
+  electrical_work INTEGER DEFAULT 0,
+  plumbing INTEGER DEFAULT 0,
+  painting INTEGER DEFAULT 0,
+  interior_work INTEGER DEFAULT 0,
+  client_name TEXT,
+  total_area TEXT,
+  budget TEXT,
+  overview TEXT,
+  description TEXT,
+  construction_details TEXT,
+  special_features TEXT,
+  challenges TEXT,
+  solutions TEXT,
+  completion_date TEXT,
+  specifications TEXT,
+  cover_image TEXT,
+  image TEXT,
+  video_url TEXT,
+  published INTEGER DEFAULT 1,
+  featured INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS project_stages (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL,
+  step_number INTEGER NOT NULL,
+  stage_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  completion_percentage INTEGER DEFAULT 0,
+  start_date TEXT,
+  completion_date TEXT,
+  notes TEXT,
+  images TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gallery (
+  id SERIAL PRIMARY KEY,
+  image TEXT NOT NULL,
+  title TEXT DEFAULT 'Gallery Photo',
+  category TEXT DEFAULT 'General',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS testimonials (
+  id SERIAL PRIMARY KEY,
+  client_name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  quote TEXT NOT NULL,
+  rating INTEGER DEFAULT 5,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS leads (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT DEFAULT '',
+  service TEXT DEFAULT 'General Inquiry',
+  property_id TEXT,
+  message TEXT,
+  status TEXT DEFAULT 'Pending',
+  contacted INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS media_videos (
+  id SERIAL PRIMARY KEY,
+  filename TEXT NOT NULL,
+  filepath TEXT NOT NULL,
+  video_type TEXT DEFAULT 'hero',
+  is_primary INTEGER DEFAULT 0,
+  file_size BIGINT DEFAULT 0,
+  frame_urls TEXT DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id SERIAL PRIMARY KEY,
+  client_name TEXT NOT NULL,
+  phone TEXT,
+  location TEXT,
+  service TEXT DEFAULT 'General Feedback',
+  rating INTEGER DEFAULT 5,
+  message TEXT NOT NULL,
+  approved INTEGER DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 const postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING;
 
 let db;
@@ -230,244 +554,28 @@ if (postgresUrl) {
   }
 }
 
-const EMBEDDED_SCHEMA = `
-CREATE TABLE IF NOT EXISTS admin_users (
-  id SERIAL PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
-  password TEXT NOT NULL,
-  phone TEXT DEFAULT '',
-  email TEXT DEFAULT '',
-  facebook TEXT DEFAULT '',
-  instagram TEXT DEFAULT '',
-  whatsapp TEXT DEFAULT '',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS site_settings (
-  id SERIAL PRIMARY KEY,
-  company_name TEXT NOT NULL DEFAULT 'SK BUILDERS',
-  company_subtitle TEXT NOT NULL DEFAULT '& PROPERTY CONSULTANT',
-  phone TEXT NOT NULL DEFAULT '',
-  email TEXT NOT NULL DEFAULT 'info@skbuilders.com',
-  location TEXT NOT NULL DEFAULT 'Poonamallee, Mangadu, Kundrathur, Tamil Nadu - 600056',
-  service_areas TEXT NOT NULL DEFAULT 'Poonamallee • Mangadu • Kundrathur',
-  hero_tagline TEXT NOT NULL DEFAULT 'BUILDING QUALITY HOMES.',
-  hero_headline_find TEXT NOT NULL DEFAULT 'Find',
-  hero_headline_property TEXT NOT NULL DEFAULT 'Right Property',
-  hero_headline_confidence TEXT NOT NULL DEFAULT 'Confidence',
-  hero_subtitle TEXT NOT NULL DEFAULT 'We build individual houses, offer residential land plots, execute contract house construction, and provide expert property consultation in Poonamallee, Mangadu & Kundrathur.',
-  facebook_url TEXT DEFAULT 'https://facebook.com',
-  instagram_url TEXT DEFAULT 'https://instagram.com',
-  whatsapp_number TEXT DEFAULT '',
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS services (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  icon_name TEXT NOT NULL DEFAULT 'Home',
-  link_url TEXT NOT NULL DEFAULT '#properties',
-  display_order INTEGER DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS stats (
-  id SERIAL PRIMARY KEY,
-  icon_name TEXT NOT NULL DEFAULT 'Home',
-  value TEXT NOT NULL,
-  label TEXT NOT NULL,
-  display_order INTEGER DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS properties (
-  id SERIAL PRIMARY KEY,
-  property_id TEXT,
-  title TEXT NOT NULL,
-  type TEXT NOT NULL,
-  listing_type TEXT NOT NULL DEFAULT 'For Sale',
-  status TEXT NOT NULL DEFAULT 'Available',
-  address TEXT,
-  area TEXT,
-  city TEXT DEFAULT 'Chennai',
-  pincode TEXT,
-  maps_url TEXT,
-  latitude TEXT,
-  longitude TEXT,
-  landmark TEXT,
-  price TEXT NOT NULL,
-  price_display_type TEXT DEFAULT 'Exact Price',
-  negotiable TEXT DEFAULT 'Yes',
-  price_per_sqft TEXT,
-  bhk TEXT,
-  builtup_area TEXT,
-  plot_area TEXT,
-  facing TEXT,
-  floors TEXT,
-  furnished_status TEXT,
-  age_of_property TEXT,
-  possession_status TEXT,
-  bathrooms TEXT,
-  balconies TEXT,
-  parking TEXT,
-  water_source TEXT,
-  power_backup TEXT,
-  description TEXT,
-  features TEXT,
-  image TEXT,
-  images TEXT,
-  video_url TEXT,
-  featured INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS land_plots (
-  id SERIAL PRIMARY KEY,
-  property_id TEXT,
-  title TEXT NOT NULL,
-  land_type TEXT NOT NULL DEFAULT 'Residential Land',
-  status TEXT NOT NULL DEFAULT 'Available',
-  address TEXT,
-  area TEXT,
-  city TEXT DEFAULT 'Chennai',
-  pincode TEXT,
-  maps_url TEXT,
-  latitude TEXT,
-  longitude TEXT,
-  landmark TEXT,
-  total_price TEXT NOT NULL,
-  price_display_type TEXT DEFAULT 'Exact Price',
-  negotiable TEXT DEFAULT 'Yes',
-  price_per_sqft TEXT,
-  plot_area TEXT NOT NULL,
-  plot_area_unit TEXT DEFAULT 'sq.ft',
-  plot_dimensions TEXT,
-  plot_length TEXT,
-  plot_breadth TEXT,
-  road_width TEXT,
-  road_width_unit TEXT DEFAULT 'feet',
-  facing TEXT,
-  boundary_wall TEXT DEFAULT 'No',
-  corner_plot TEXT DEFAULT 'No',
-  gated_community TEXT DEFAULT 'No',
-  dtcp_approved TEXT DEFAULT 'Yes',
-  rera_approved TEXT DEFAULT 'No',
-  cmda_approved TEXT DEFAULT 'No',
-  patta_status TEXT DEFAULT 'Yes',
-  soil_type TEXT,
-  water_source TEXT,
-  electricity TEXT DEFAULT 'Yes',
-  drainage TEXT DEFAULT 'No',
-  description TEXT,
-  features TEXT,
-  image TEXT,
-  images TEXT,
-  video_url TEXT,
-  featured INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS projects (
-  id SERIAL PRIMARY KEY,
-  project_id TEXT,
-  name TEXT NOT NULL,
-  category TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Under Construction',
-  current_step INTEGER NOT NULL DEFAULT 1,
-  start_date TEXT,
-  estimated_completion TEXT,
-  actual_completion TEXT,
-  location TEXT,
-  address TEXT,
-  area TEXT,
-  city TEXT DEFAULT 'Chennai',
-  pincode TEXT,
-  maps_url TEXT,
-  client_name TEXT,
-  project_type TEXT,
-  total_area TEXT,
-  budget TEXT,
-  description TEXT,
-  specifications TEXT,
-  cover_image TEXT,
-  image TEXT,
-  video_url TEXT,
-  featured INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS project_stages (
-  id SERIAL PRIMARY KEY,
-  project_id INTEGER NOT NULL,
-  step_number INTEGER NOT NULL,
-  stage_name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  completion_percentage INTEGER DEFAULT 0,
-  start_date TEXT,
-  completion_date TEXT,
-  notes TEXT,
-  images TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS gallery (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  image_url TEXT NOT NULL,
-  category TEXT DEFAULT 'General',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS testimonials (
-  id SERIAL PRIMARY KEY,
-  client_name TEXT NOT NULL,
-  location TEXT NOT NULL,
-  quote TEXT NOT NULL,
-  rating INTEGER DEFAULT 5,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS leads (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  email TEXT DEFAULT '',
-  service TEXT DEFAULT 'General Inquiry',
-  property_id TEXT,
-  message TEXT,
-  status TEXT DEFAULT 'Pending',
-  contacted INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS media_videos (
-  id SERIAL PRIMARY KEY,
-  filename TEXT NOT NULL,
-  filepath TEXT NOT NULL,
-  video_type TEXT DEFAULT 'hero',
-  is_primary INTEGER DEFAULT 0,
-  file_size INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS feedback (
-  id SERIAL PRIMARY KEY,
-  client_name TEXT NOT NULL,
-  phone TEXT,
-  location TEXT,
-  service TEXT DEFAULT 'General Feedback',
-  rating INTEGER DEFAULT 5,
-  message TEXT NOT NULL,
-  approved INTEGER DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-`;
-
 function initDatabase() {
   if (db.isPg) {
-    db.exec(EMBEDDED_SCHEMA, (err) => {
+    let pgSql = '';
+    const pgCandidates = [
+      path.join(__dirname, 'pg-schema.sql'),
+      path.join(process.cwd(), 'app/server/database/pg-schema.sql'),
+      path.join(projectRoot, 'app/server/database/pg-schema.sql')
+    ];
+    for (const p of pgCandidates) {
+      try {
+        if (p && fs.existsSync(p)) {
+          pgSql = fs.readFileSync(p, 'utf8');
+          if (pgSql) break;
+        }
+      } catch (e) {}
+    }
+    if (!pgSql) {
+      pgSql = EMBEDDED_SCHEMA;
+    }
+    db.exec(pgSql, (err) => {
       if (err) {
-        console.error('Error executing PostgreSQL EMBEDDED_SCHEMA:', err);
+        console.error('Error executing PostgreSQL schema:', err.message);
       } else {
         console.log('PostgreSQL schema initialized successfully.');
       }

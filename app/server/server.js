@@ -100,6 +100,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'SK Builders API', timestamp: new Date().toISOString() });
 });
 
+// Explicit 404 handler for missing static assets routed to Express
+app.use(['/uploads', '/frames', '/videos', '/logo'], (req, res) => {
+  res.status(404).json({ error: 'Asset not found' });
+});
+
+// Global Express error handler
+app.use((err, req, res, next) => {
+  console.error('[Unhandled Express Error]:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err.message || 'Internal Server Error' });
+  }
+});
+
 if (!process.env.VERCEL) {
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`SK Builders Express Backend Server listening on http://0.0.0.0:${PORT}`);

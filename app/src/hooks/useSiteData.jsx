@@ -8,7 +8,7 @@ if (typeof window !== 'undefined') {
   window.ScrollTrigger = ScrollTrigger;
 }
 
-const CACHE_KEY = 'sk_site_data_cache';
+const CACHE_KEY = 'sk_site_data_cache_v2';
 
 const defaultSettings = {
   company_name: 'SK BUILDERS',
@@ -48,10 +48,19 @@ const defaultStats = [
 
 const getCachedData = () => {
   try {
+    // Purge legacy v1 cache if exists
+    localStorage.removeItem('sk_site_data_cache');
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        const hasLegacyMock =
+          (Array.isArray(parsed.gallery) && parsed.gallery.some(g => typeof g?.image === 'string' && (g.image.includes('background 1.png') || g.image.includes('mysql.jpeg') || g.image.includes('wallpaper1')))) ||
+          (Array.isArray(parsed.properties) && parsed.properties.some(p => typeof p?.image === 'string' && p.image.includes('wallpaper1')));
+        if (hasLegacyMock) {
+          localStorage.removeItem(CACHE_KEY);
+          return null;
+        }
         return parsed;
       }
     }

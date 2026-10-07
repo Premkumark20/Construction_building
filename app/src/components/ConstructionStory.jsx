@@ -251,7 +251,8 @@ const ConstructionStory = () => {
           alt="SK Builders Completed Project"
           className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
           onError={(e) => {
-            e.currentTarget.src = '/frames/desktop/frame_0121.webp';
+            e.currentTarget.onerror = null;
+            e.currentTarget.style.display = 'none';
           }}
         />
 
