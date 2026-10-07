@@ -37,6 +37,8 @@ uploads/
 uploads/images/
 uploads/videos/
 frames/
+**/frames/
+app/public/frames/
 reference/
 app/dist/
 dist/

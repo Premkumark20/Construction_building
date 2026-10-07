@@ -714,7 +714,15 @@ const AdminDashboard = () => {
   const [serverExtraction, setServerExtraction] = useState({
     isExtracting: false,
     videoId: null,
-    progress: 100,
+    progress: 0,
+    status: 'idle'
+  });
+  const [clientExtraction, setClientExtraction] = useState({
+    isExtracting: false,
+    videoId: null,
+    progress: 0,
+    current: 0,
+    total: 121,
     status: 'idle'
   });
 
@@ -728,24 +736,26 @@ const AdminDashboard = () => {
         if (res.ok && isSubscribed) {
           const data = await res.json();
           if (data.isExtracting) {
+            // Server Python extraction is running — show live progress (server side caps at 99 while running)
             setServerExtraction({
               isExtracting: true,
               videoId: data.videoId,
-              progress: Math.min(99, Math.max(0, Math.round(data.progress || 0))),
+              progress: Math.max(0, Math.round(data.progress || 0)),
               status: data.status || 'extracting'
             });
           } else {
             setServerExtraction(prev => {
               if (prev.isExtracting) {
+                // Was extracting, now done → jump to 100%
                 return { isExtracting: false, videoId: null, progress: 100, status: 'completed' };
               }
-              const isComp = data.status === 'completed' || (data.progress >= 100);
+              const isComp = data.hasFrames || data.status === 'completed' || (data.progress >= 100);
               return { isExtracting: false, videoId: null, progress: isComp ? 100 : 0, status: data.status || 'idle' };
             });
           }
         }
       } catch (e) {
-        console.error('Error polling frame progress:', e);
+        // Silent error
       }
     };
 
@@ -2795,8 +2805,19 @@ const AdminDashboard = () => {
     const customName = isBg ? customBgVideoName : customHeroVideoName;
     if (!file) return;
 
-    if (isBg) setIsUploadingBgVideo(true);
-    else setIsUploadingHeroVideo(true);
+    if (isBg) {
+      setIsUploadingBgVideo(true);
+    } else {
+      setIsUploadingHeroVideo(true);
+      setClientExtraction({
+        isExtracting: true,
+        videoId: 'uploading',
+        progress: 8,
+        current: 0,
+        total: 121,
+        status: 'Uploading video to Vercel Blob Storage...'
+      });
+    }
 
     if (file.size > 4.5 * 1024 * 1024) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
@@ -2826,12 +2847,16 @@ const AdminDashboard = () => {
           setTimeout(() => { if (bgRenameInputRef.current) bgRenameInputRef.current.focus(); }, 50);
         } else {
           setHeroDupError(true);
+          setClientExtraction({ isExtracting: false, videoId: null, progress: 0, current: 0, total: 121, status: 'idle' });
           setTimeout(() => { if (heroRenameInputRef.current) heroRenameInputRef.current.focus(); }, 50);
         }
         return;
       }
 
       if (res.status === 413) {
+        if (!isBg) {
+          setClientExtraction({ isExtracting: false, videoId: null, progress: 0, current: 0, total: 121, status: 'idle' });
+        }
         const targetFilename = (customName || file.name).trim();
         setStatusNotice(`⚠️ Video file exceeds Vercel 4.5MB upload limit! Place file in ${isBg ? 'app/public/videos/' : 'uploads/videos/'}${targetFilename} and click Register below.`);
         setTimeout(() => setStatusNotice(''), 6000);
@@ -2839,6 +2864,7 @@ const AdminDashboard = () => {
       }
 
       if (res.ok) {
+        const uploadedFileRef = file;
         if (isBg) {
           setSelectedBgVideoFile(null);
           setCustomBgVideoName('');
@@ -2855,12 +2881,22 @@ const AdminDashboard = () => {
         notifySiteDataUpdated();
         notifyPrimaryVideoUpdated();
         setTimeout(() => setStatusNotice(''), 3000);
+
+        if (!isBg && data && data.id) {
+          handleGenerateFramesInBrowser(data, uploadedFileRef);
+        }
       } else {
+        if (!isBg) {
+          setClientExtraction({ isExtracting: false, videoId: null, progress: 0, current: 0, total: 121, status: 'idle' });
+        }
         setStatusNotice(data.error || 'Failed to upload video.');
         setTimeout(() => setStatusNotice(''), 4000);
       }
     } catch (err) {
       console.error('Error uploading video:', err);
+      if (!isBg) {
+        setClientExtraction({ isExtracting: false, videoId: null, progress: 0, current: 0, total: 121, status: 'idle' });
+      }
       const targetFilename = (customName || file.name).trim();
       setStatusNotice(`⚠️ Serverless upload failed due to payload size limit. Place file in ${isBg ? 'app/public/videos/' : 'uploads/videos/'}${targetFilename} and click Register below.`);
       setTimeout(() => setStatusNotice(''), 6000);
@@ -2889,37 +2925,218 @@ const AdminDashboard = () => {
     }
   };
 
-  // Instant Set Primary Video Handler (Updates state immediately, triggers live pie extraction progress & calls backend)
+  // Browser-based Client Frame Extractor (Extracts 121 WebP frames in canvas & uploads to Vercel Blob)
+  const handleGenerateFramesInBrowser = async (vid, optionalFile = null) => {
+    if (!vid) return;
+    const targetId = vid.id;
+    const videoName = vid.filename || 'hero';
+    const videoSrc = optionalFile
+      ? URL.createObjectURL(optionalFile)
+      : getVideoSrcUrl(vid.filepath, vid.filename);
+
+    setClientExtraction({
+      isExtracting: true,
+      videoId: targetId,
+      progress: 0,
+      current: 0,
+      total: 121,
+      status: 'Initializing...'
+    });
+
+    let objectUrl = null;
+
+    try {
+      if (optionalFile) {
+        objectUrl = videoSrc;
+      } else {
+        setClientExtraction(prev => ({ ...prev, status: 'Fetching video stream...' }));
+        const resp = await fetch(videoSrc);
+        if (!resp.ok) throw new Error(`Could not fetch video (${resp.status})`);
+        const blob = await resp.blob();
+        objectUrl = URL.createObjectURL(blob);
+      }
+
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.src = objectUrl;
+
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Failed to load video metadata'));
+        setTimeout(() => reject(new Error('Video loading timed out after 30s')), 30000);
+      });
+
+      const duration = video.duration;
+      if (!duration || isNaN(duration)) {
+        throw new Error('Invalid video duration');
+      }
+
+      const canvas = document.createElement('canvas');
+      let width = video.videoWidth || 1280;
+      let height = video.videoHeight || 720;
+      if (width > 1280) {
+        height = Math.round((height * 1280) / width);
+        width = 1280;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      const totalFrames = 121;
+      const allBlobUrls = [];
+      let batch = [];
+      const batchSize = 10;
+
+      const seekTo = (time) => new Promise((resolve) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+        video.currentTime = Math.min(duration, Math.max(0, time));
+        setTimeout(() => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        }, 1500);
+      });
+
+      for (let i = 0; i < totalFrames; i++) {
+        const targetTime = totalFrames > 1 ? (i / (totalFrames - 1)) * duration : 0;
+        await seekTo(targetTime);
+
+        ctx.drawImage(video, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/webp', 0.82);
+        const filename = `frame_${String(i + 1).padStart(4, '0')}.webp`;
+        batch.push({ filename, data: dataUrl });
+
+        const currentCount = i + 1;
+        const isFinalFrame = i === totalFrames - 1;
+        // Use true percentage (not capped at 99) so the last frame naturally shows 100 after upload
+        const progressPct = Math.max(1, Math.round((currentCount / totalFrames) * 100));
+        // Show in-progress percentage (cap at 98) until batch is actually uploaded
+        setClientExtraction(prev => ({
+          ...prev,
+          current: currentCount,
+          progress: isFinalFrame ? prev.progress : Math.min(98, progressPct),
+          status: 'Extracting'
+        }));
+
+        if (batch.length >= batchSize || isFinalFrame) {
+          const cleanPrefix = videoName.replace(/[^a-zA-Z0-9_-]/g, '_');
+          // Send true progressPct (can be 100 on final batch) so server correctly sets isExtracting=false
+          const uploadRes = await fetch('/api/media/upload-frames-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              videoId: targetId,
+              videoPrefix: cleanPrefix,
+              frames: batch,
+              currentCount,
+              totalFrames,
+              progress: progressPct
+            })
+          });
+
+          if (uploadRes.ok) {
+            const resData = await uploadRes.json();
+            if (Array.isArray(resData.uploadedUrls)) {
+              resData.uploadedUrls.forEach(u => allBlobUrls.push(u.url));
+            }
+          }
+          batch = [];
+
+          // After final batch upload completes, immediately show 100%
+          if (isFinalFrame) {
+            setClientExtraction(prev => ({ ...prev, current: totalFrames, progress: 100, status: 'Uploading to Blob...' }));
+          }
+        }
+      }
+
+      setClientExtraction(prev => ({
+        ...prev,
+        progress: 100,
+        status: 'Saving frame metadata...'
+      }));
+
+      if (allBlobUrls.length > 0) {
+        await fetch('/api/media/save-frame-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId: targetId,
+            frameUrls: allBlobUrls
+          })
+        });
+      }
+
+      if (objectUrl && !optionalFile) {
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      setClientExtraction({
+        isExtracting: false,
+        videoId: null,
+        progress: 100,
+        current: 121,
+        total: 121,
+        status: 'completed'
+      });
+
+      setStatusNotice('🎉 121 Frames extracted and uploaded to Vercel Blob successfully!');
+      setTimeout(() => setStatusNotice(''), 5000);
+      fetchData();
+      notifySiteDataUpdated();
+      notifyPrimaryVideoUpdated();
+    } catch (err) {
+      console.error('Frame Extraction Error:', err);
+      setClientExtraction({
+        isExtracting: false,
+        videoId: null,
+        progress: 0,
+        current: 0,
+        total: 121,
+        status: 'error'
+      });
+      setStatusNotice(`⚠️ Frame extraction error: ${err.message}`);
+      setTimeout(() => setStatusNotice(''), 5000);
+    }
+  };
+
+  // Instant Set Primary Video Handler
   const handleSetPrimaryVideo = async (videoId, videoType = 'hero') => {
+    const targetVid = videos.find(v => v.id === videoId);
+
+    // 1. Instantly update client state: clear all old frames and mark new video as primary
     setVideos(prev => prev.map(v => {
       const vType = v.video_type || 'hero';
       if (vType === videoType) {
-        return { ...v, is_primary: v.id === videoId ? 1 : 0 };
+        return { ...v, is_primary: v.id === videoId ? 1 : 0, frame_urls: null };
       }
       return v;
     }));
 
     if (videoType === 'hero') {
-      setServerExtraction({
-        isExtracting: true,
-        videoId,
-        progress: 0,
-        status: 'extracting'
-      });
-
       try {
+        // 2. Call backend: instant deletes entire old frames from Vercel Blob and clears DB
         const res = await fetch('/api/media/set-primary-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ videoId })
         });
         if (res.ok) {
-          fetchData();
           notifySiteDataUpdated();
           notifyPrimaryVideoUpdated();
         }
       } catch (err) {
         console.error('Error setting primary video:', err);
+      }
+
+      // 3. Automatically extract new frames for the new primary video with live frame progress
+      if (targetVid) {
+        handleGenerateFramesInBrowser(targetVid);
       }
     } else {
       const res = await fetch('/api/media/set-primary-video', {
@@ -5539,9 +5756,33 @@ const AdminDashboard = () => {
                     ) : (
                       heroVideos.map((vid) => {
                         const isVidPrimary = Boolean(vid.is_primary);
-                        const isThisVidExtracting = serverExtraction.isExtracting && (serverExtraction.videoId ? serverExtraction.videoId === vid.id : isVidPrimary);
-                        const currentPct = isThisVidExtracting ? serverExtraction.progress : (isVidPrimary ? 100 : 0);
-                        const radius = 16;
+                        let vidFrames = [];
+                        try {
+                          vidFrames = typeof vid.frame_urls === 'string' ? JSON.parse(vid.frame_urls) : (vid.frame_urls || []);
+                        } catch (e) {}
+                        // Only the active primary video has the 3D frames ready on the site
+                        const hasRealFrames = isVidPrimary && Array.isArray(vidFrames) && vidFrames.length > 0;
+                        const isClientExtracting = clientExtraction.isExtracting && (clientExtraction.videoId === vid.id || (clientExtraction.videoId === 'uploading' && isVidPrimary));
+                        const isServerExtracting = serverExtraction.isExtracting && isVidPrimary && (serverExtraction.videoId ? serverExtraction.videoId === vid.id : true);
+                        const isThisVidExtracting = isClientExtracting || isServerExtracting;
+
+                        let currentPct = 0;
+                        let statusText = 'No Frames';
+                        if (isClientExtracting) {
+                          currentPct = clientExtraction.progress;
+                          statusText = clientExtraction.status;
+                        } else if (isServerExtracting) {
+                          currentPct = serverExtraction.progress;
+                          statusText = 'Extracting (Server)...';
+                        } else if (hasRealFrames) {
+                          currentPct = 100;
+                          statusText = 'Frames Ready';
+                        } else {
+                          currentPct = 0;
+                          statusText = 'Frames Not Generated';
+                        }
+
+                        const radius = 20;
                         const circumference = 2 * Math.PI * radius;
                         const strokeOffset = circumference * (1 - (currentPct / 100));
 
@@ -5571,51 +5812,65 @@ const AdminDashboard = () => {
                               </div>
                             </div>
 
-                            {/* Frame Extraction Pie Percent Progress Meter */}
-                            {(isVidPrimary || isThisVidExtracting) && (
-                              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-amber-500/30 shrink-0">
-                                <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
-                                  <svg className="w-11 h-11 -rotate-90 transform" viewBox="0 0 44 44">
-                                    <circle
-                                      cx="22"
-                                      cy="22"
-                                      r={radius}
-                                      className="text-zinc-800"
-                                      strokeWidth="3"
-                                      stroke="currentColor"
-                                      fill="transparent"
-                                    />
-                                    <circle
-                                      cx="22"
-                                      cy="22"
-                                      r={radius}
-                                      className="text-amber-400 transition-all duration-300 ease-out"
-                                      strokeWidth="3"
-                                      strokeDasharray={circumference}
-                                      strokeDashoffset={strokeOffset}
-                                      strokeLinecap="round"
-                                      stroke="currentColor"
-                                      fill="transparent"
-                                    />
-                                  </svg>
-                                  <span className="absolute text-[10px] font-black text-amber-300 tracking-tighter">
-                                    {Math.round(currentPct)}%
-                                  </span>
-                                </div>
-                                <div className="text-left">
-                                  <div className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1.5 leading-none">
-                                    {isThisVidExtracting ? (
-                                      <>
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
-                                        <span>Extracting Frames...</span>
-                                      </>
-                                    ) : (
-                                      <span>Frames Ready</span>
-                                    )}
+                            {/* Frame Extraction Status / Progress (Image 2 style - Amber/Gold, No Green) */}
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              {isThisVidExtracting ? (
+                                /* 1. Live Extracting State (Image 2 style) */
+                                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-amber-500/40 shadow-sm">
+                                  <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
+                                    <svg className="w-10 h-10 -rotate-90 transform" viewBox="0 0 44 44">
+                                      <circle cx="22" cy="22" r={radius} className="text-zinc-800" strokeWidth="3.5" stroke="currentColor" fill="transparent" />
+                                      <circle
+                                        cx="22"
+                                        cy="22"
+                                        r={radius}
+                                        className="text-amber-400 transition-all duration-300 ease-out"
+                                        strokeWidth="3.5"
+                                        strokeDasharray={circumference}
+                                        strokeDashoffset={strokeOffset}
+                                        strokeLinecap="round"
+                                        stroke="currentColor"
+                                        fill="transparent"
+                                      />
+                                    </svg>
+                                    <span className="absolute text-[10px] font-black text-amber-400 tracking-tighter">
+                                      {Math.round(currentPct)}%
+                                    </span>
+                                  </div>
+                                  <div className="text-left">
+                                    <div className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1.5 leading-none">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
+                                      <span className="truncate max-w-[180px]">Extracting</span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              ) : hasRealFrames ? (
+                                /* 2. Frames Ready (Image 2 style - Amber/Gold, No Green) */
+                                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-amber-500/40 shadow-sm">
+                                  <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
+                                    <svg className="w-10 h-10 -rotate-90 transform" viewBox="0 0 44 44">
+                                      <circle cx="22" cy="22" r={radius} className="text-zinc-800" strokeWidth="3.5" stroke="currentColor" fill="transparent" />
+                                      <circle
+                                        cx="22"
+                                        cy="22"
+                                        r={radius}
+                                        className="text-amber-400"
+                                        strokeWidth="3.5"
+                                        strokeDasharray={circumference}
+                                        strokeDashoffset={0}
+                                        strokeLinecap="round"
+                                        stroke="currentColor"
+                                        fill="transparent"
+                                      />
+                                    </svg>
+                                    <span className="absolute text-[10px] font-black text-amber-400">100%</span>
+                                  </div>
+                                  <div className="text-left">
+                                    <div className="text-[11px] font-extrabold text-amber-400 leading-none">Frames Ready</div>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
 
                             <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
                               {!isVidPrimary && (

@@ -20,18 +20,32 @@ const ConstructionStory = () => {
   const totalFrameCount = 121;
   const [showContent, setShowContent] = useState(false);
   const [hidePrompt, setHidePrompt] = useState(false);
-  const [hasFramesAvailable, setHasFramesAvailable] = useState(true);
+  const [hasFramesAvailable, setHasFramesAvailable] = useState(false);
   const [isPreloading, setIsPreloading] = useState(true);
+  const [mobileLastFrameUrl, setMobileLastFrameUrl] = useState(null);
+  const [bgVideoUrl, setBgVideoUrl] = useState('/videos/Background.mp4');
 
   const currentFrameRef = useRef(1);
   const loadedImagesMapRef = useRef({});
+
+  // Fetch active background video (defaults to /videos/Background.mp4) for fallback playback when frames are not yet generated
+  useEffect(() => {
+    fetch('/api/media/background-video')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.videoUrl) {
+          setBgVideoUrl(data.videoUrl);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Detect mobile & prefers-reduced-motion
   useEffect(() => {
     const handleResize = () => {
       const mobileCheck = window.innerWidth <= 768;
       setIsMobile(mobileCheck);
-      if (!mobileCheck) {
+      if (!mobileCheck && hasFramesAvailable) {
         renderFrame(currentFrameRef.current);
       }
     };
@@ -42,7 +56,7 @@ const ConstructionStory = () => {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [hasFramesAvailable]);
 
   // Pre-load Desktop Construction Frames (from Blob Storage CDN or local fallback)
   useEffect(() => {
@@ -59,9 +73,16 @@ const ConstructionStory = () => {
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (isCancelled) return;
-        const urls = (data && Array.isArray(data.frameUrls) && data.frameUrls.length > 0)
-          ? data.frameUrls
-          : Array.from({ length: totalFrameCount }, (_, i) => `${base.replace(/\/$/, '')}/frames/desktop/frame_${String(i + 1).padStart(4, '0')}.webp`);
+        // If no frames exist, gracefully finish loading without firing 404 requests
+        if (!data || !Array.isArray(data.frameUrls) || data.frameUrls.length === 0) {
+          setHasFramesAvailable(false);
+          setIsPreloading(false);
+          setShowContent(true);
+          return;
+        }
+
+        const urls = data.frameUrls;
+        setMobileLastFrameUrl(urls[urls.length - 1]);
 
         const probe = new Image();
         probe.src = urls[0];
@@ -243,18 +264,34 @@ const ConstructionStory = () => {
       id="home"
       className="relative z-10 w-full bg-transparent text-white overflow-hidden"
     >
-      {/* 1. MOBILE VIEW: Display ONLY static last frame image of video (No video playing) */}
+      {/* 1. MOBILE VIEW: Display static last frame image of video, or hero video fallback */}
       <div className="relative md:hidden w-full h-[100dvh] min-h-[560px] max-h-[850px] overflow-hidden flex flex-col justify-end p-4 sm:p-5 pt-16 pb-20 z-10 bg-transparent">
-        {/* Static Last Frame Image as Background */}
-        <img
-          src="/frames/mobile/frame_last.webp"
-          alt="SK Builders Completed Project"
-          className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.style.display = 'none';
-          }}
-        />
+        {/* Background: Static Last Frame if frames exist, otherwise hero video fallback */}
+        {mobileLastFrameUrl ? (
+          <img
+            src={mobileLastFrameUrl}
+            alt="SK Builders Completed Project"
+            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none filter brightness-105 contrast-105"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            src={bgVideoUrl}
+            className="absolute inset-0 w-full h-full object-cover object-center z-0 select-none opacity-85"
+            onError={(e) => {
+              if (e.currentTarget.src !== window.location.origin + '/videos/Background.mp4') {
+                e.currentTarget.src = '/videos/Background.mp4';
+              }
+            }}
+          />
+        )}
 
         {/* Subtle Dark Gradient Overlay for High Readability */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent z-10 pointer-events-none w-[90%]" />
@@ -352,11 +389,27 @@ const ConstructionStory = () => {
           </div>
         )}
 
-        {/* Canvas for Desktop Frame Scrubbing */}
-        <canvas
-          ref={canvasDesktopRef}
-          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0 transition-opacity duration-500"
-        />
+        {/* Canvas for Desktop Frame Scrubbing (when frames are available) or Hero Video Fallback */}
+        {hasFramesAvailable ? (
+          <canvas
+            ref={canvasDesktopRef}
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0 transition-opacity duration-500"
+          />
+        ) : (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            src={bgVideoUrl}
+            className="absolute inset-0 w-full h-full object-cover object-center select-none pointer-events-none z-0 opacity-80"
+            onError={(e) => {
+              if (e.currentTarget.src !== window.location.origin + '/videos/Background.mp4') {
+                e.currentTarget.src = '/videos/Background.mp4';
+              }
+            }}
+          />
+        )}
 
         {/* Soft Dark Fade Gradient on Left Side */}
         <div

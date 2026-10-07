@@ -5,7 +5,7 @@ import fs from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
-import { uploadFileToBlob, deleteFileFromBlob } from '../utils/blobStorage.js';
+import { uploadFileToBlob, deleteFileFromBlob, deleteAllFrameBlobs } from '../utils/blobStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -347,11 +347,13 @@ router.get('/videos', (req, res) => {
   syncBackgroundVideos(() => {
     syncHeroVideos(() => {
       db.run("UPDATE media_videos SET video_type = 'hero' WHERE video_type IS NULL OR video_type = ''", [], () => {
-        db.all('SELECT * FROM media_videos ORDER BY video_type ASC, is_primary DESC, id DESC', [], (err, rows) => {
-          if (err) {
-            return res.status(500).json({ error: err.message });
-          }
-          const safeRows = Array.isArray(rows) ? rows : [];
+        // Enforce that only primary hero video retains frame_urls
+        db.run("UPDATE media_videos SET frame_urls = NULL WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 0", [], () => {
+          db.all('SELECT * FROM media_videos ORDER BY video_type ASC, is_primary DESC, id DESC', [], (err, rows) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+            const safeRows = Array.isArray(rows) ? rows : [];
 
           // Check if Hero has a primary
           const heroRows = safeRows.filter(r => r.video_type === 'hero');
@@ -367,7 +369,8 @@ router.get('/videos', (req, res) => {
             bgRows[0].is_primary = 1;
           }
 
-          res.json(safeRows);
+            res.json(safeRows);
+          });
         });
       });
     });
@@ -379,13 +382,19 @@ router.get('/background-video', (req, res) => {
   syncBackgroundVideos(() => {
     db.get("SELECT * FROM media_videos WHERE video_type = 'background' AND is_primary = 1 LIMIT 1", [], (err, row) => {
       if (!err && row) {
-        return res.json({ videoUrl: `/videos/${row.filename}`, filename: row.filename, video: row });
+        const url = row.filepath && (row.filepath.startsWith('http://') || row.filepath.startsWith('https://'))
+          ? row.filepath
+          : `/videos/${row.filename}`;
+        return res.json({ videoUrl: url, filename: row.filename, video: row });
       }
       db.get("SELECT * FROM media_videos WHERE video_type = 'background' LIMIT 1", [], (err, fallbackRow) => {
         if (!err && fallbackRow) {
-          return res.json({ videoUrl: `/videos/${fallbackRow.filename}`, filename: fallbackRow.filename, video: fallbackRow });
+          const url = fallbackRow.filepath && (fallbackRow.filepath.startsWith('http://') || fallbackRow.filepath.startsWith('https://'))
+            ? fallbackRow.filepath
+            : `/videos/${fallbackRow.filename}`;
+          return res.json({ videoUrl: url, filename: fallbackRow.filename, video: fallbackRow });
         }
-        res.json({ videoUrl: '', filename: '', video: null });
+        res.json({ videoUrl: '/videos/Background.mp4', filename: 'Background.mp4', video: null });
       });
     });
   });
@@ -447,20 +456,17 @@ router.post('/upload-video', upload.single('video'), async (req, res) => {
     }
 
     db.get("SELECT COUNT(*) as count FROM media_videos WHERE video_type = ?", [videoType], (err, countRow) => {
-      const isFirstVideo = (!err && countRow.count === 0);
-      const setPrimary = isFirstVideo ? 1 : 0;
+      const setPrimary = 1; // Newly uploaded video in Admin becomes the active primary video
 
-      const sql = `INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, ?, ?, ?)`;
-      db.run(sql, [finalFilename, relativePath, videoType, setPrimary, req.file.size], function (err) {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-        const newId = this.lastID;
-        res.json({ id: newId, filename: finalFilename, filepath: relativePath, video_type: videoType, is_primary: setPrimary });
-
-        if (videoType === 'hero' && isFirstVideo) {
-          triggerFrameExtraction({ id: newId, filename: finalFilename });
-        }
+      db.run("UPDATE media_videos SET is_primary = 0 WHERE video_type = ? OR (video_type IS NULL AND ? = 'hero')", [videoType, videoType], () => {
+        const sql = `INSERT INTO media_videos (filename, filepath, video_type, is_primary, file_size) VALUES (?, ?, ?, ?, ?)`;
+        db.run(sql, [finalFilename, relativePath, videoType, setPrimary, req.file.size], function (err) {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          const newId = this.lastID;
+          res.json({ id: newId, filename: finalFilename, filepath: relativePath, video_type: videoType, is_primary: setPrimary });
+        });
       });
     });
   });
@@ -610,19 +616,49 @@ router.delete('/video/:id', (req, res) => {
   });
 });
 
-// 6. Set Primary Video for Hero OR Background
-router.post('/set-primary-video', (req, res) => {
+// Helper to clear all old frames from Vercel Blob, disk, and database
+export async function clearAllFrames() {
+  try {
+    await deleteAllFrameBlobs();
+  } catch (delErr) {
+    console.warn('[clearAllFrames] Vercel Blob deletion warning:', delErr.message);
+  }
+
+  try {
+    const desktopDir = path.join(projectRoot, 'frames/desktop');
+    const mobileDir = path.join(projectRoot, 'frames/mobile');
+    const metaPath = path.join(projectRoot, 'frames/.video_meta.json');
+    if (fs.existsSync(desktopDir)) fs.rmSync(desktopDir, { recursive: true, force: true });
+    if (fs.existsSync(mobileDir)) fs.rmSync(mobileDir, { recursive: true, force: true });
+    if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+  } catch (fsErr) {}
+
+  await new Promise((resolve) => {
+    db.run(
+      "UPDATE media_videos SET frame_urls = NULL WHERE video_type = 'hero' OR video_type IS NULL OR video_type = ''",
+      () => resolve()
+    );
+  });
+}
+
+// 6. Set Primary Video for Hero OR Background (Instant-deletes old frames when changing primary)
+router.post('/set-primary-video', async (req, res) => {
   const { videoId } = req.body;
   if (!videoId) {
     return res.status(400).json({ error: 'videoId is required.' });
   }
 
-  db.get('SELECT * FROM media_videos WHERE id = ?', [videoId], (err, row) => {
+  db.get('SELECT * FROM media_videos WHERE id = ?', [videoId], async (err, row) => {
     if (err || !row) {
       return res.status(404).json({ error: 'Target video not found.' });
     }
 
     const videoType = row.video_type || 'hero';
+
+    if (videoType === 'hero') {
+      // Instant delete entire old frames from Blob, disk, and DB before setting new primary
+      await clearAllFrames();
+    }
 
     db.run('UPDATE media_videos SET is_primary = 0 WHERE video_type = ?', [videoType], () => {
       db.run('UPDATE media_videos SET is_primary = 1 WHERE id = ?', [videoId], () => {
@@ -631,13 +667,19 @@ router.post('/set-primary-video', (req, res) => {
           video: row.filename,
           video_type: videoType
         });
-
-        if (videoType === 'hero') {
-          triggerFrameExtraction(row);
-        }
       });
     });
   });
+});
+
+// 6b. Dedicated endpoint to instant clear all old frames
+router.post('/clear-old-frames', async (req, res) => {
+  try {
+    await clearAllFrames();
+    res.json({ success: true, message: 'All old frames deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 7. GET active primary background video (for all site sections)
@@ -689,7 +731,8 @@ router.get('/hero-video', (req, res) => {
 });
 
 // 9. GET frame extraction progress status
-router.get('/frame-progress', (req, res) => {
+router.get('/frame-progress', async (req, res) => {
+  const target = 121;
   const desktopDir = path.join(projectRoot, 'frames/desktop');
   let frameCount = 0;
   try {
@@ -706,48 +749,179 @@ router.get('/frame-progress', (req, res) => {
     }
   } catch (e) {}
 
-  const target = 121;
+  // Fetch active primary video from database to check stored frame_urls
+  let dbFrameUrls = [];
+  let primaryVideo = null;
+  try {
+    primaryVideo = await new Promise((resolve) => {
+      db.get(
+        "SELECT * FROM media_videos WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1 LIMIT 1",
+        [],
+        (err, row) => resolve(err ? null : row)
+      );
+    });
+    if (primaryVideo && primaryVideo.frame_urls) {
+      const parsed = JSON.parse(primaryVideo.frame_urls);
+      if (Array.isArray(parsed)) {
+        dbFrameUrls = parsed;
+      }
+    }
+  } catch (err) {}
+
+  const effectiveCount = Math.max(frameCount, dbFrameUrls.length, (Array.isArray(meta.blobUrls) ? meta.blobUrls.length : 0));
+  const isComplete = effectiveCount >= target || (dbFrameUrls.length > 0 && dbFrameUrls.length >= 60);
 
   if (currentExtraction.isExtracting) {
-    const ready = Math.max(frameCount, currentExtraction.ready);
-    const progress = Math.min(99, Math.max(currentExtraction.progress, Math.round((ready / target) * 100)));
+    const ready = currentExtraction.ready;
+    const progress = Math.min(99, Math.max(1, currentExtraction.progress));
     return res.json({
       isExtracting: true,
-      videoId: currentExtraction.videoId,
-      videoFilename: currentExtraction.videoFilename,
+      videoId: currentExtraction.videoId || primaryVideo?.id,
+      videoFilename: currentExtraction.videoFilename || primaryVideo?.filename,
       total: target,
       ready,
       progress,
       status: currentExtraction.status || 'extracting',
-      meta
+      meta,
+      hasFrames: isComplete
     });
   }
 
-  // If extraction isn't actively running, but frames on disk are in-progress
-  if (frameCount > 0 && frameCount < target) {
-    return res.json({
-      isExtracting: true,
-      videoId: currentExtraction.videoId,
-      videoFilename: meta.video || currentExtraction.videoFilename,
-      total: target,
-      ready: frameCount,
-      progress: Math.min(99, Math.round((frameCount / target) * 100)),
-      status: 'extracting',
-      meta
-    });
-  }
-
-  const isComplete = frameCount >= target || (Array.isArray(meta.blobUrls) && meta.blobUrls.length >= target);
   res.json({
     isExtracting: false,
-    videoId: currentExtraction.videoId,
-    videoFilename: meta.video || currentExtraction.videoFilename,
+    videoId: primaryVideo?.id || currentExtraction.videoId || null,
+    videoFilename: primaryVideo?.filename || meta.video || currentExtraction.videoFilename || '',
     total: target,
-    ready: frameCount,
+    ready: effectiveCount,
     progress: isComplete ? 100 : 0,
     status: isComplete ? 'completed' : 'idle',
-    meta
+    meta,
+    hasFrames: isComplete
   });
+});
+
+// 9b. Batch upload client-extracted WebP frames directly to Vercel Blob Storage
+router.post('/upload-frames-batch', async (req, res) => {
+  const { videoId, videoPrefix = 'hero', frames = [], allFrameUrls = [] } = req.body;
+  if (!Array.isArray(frames) || frames.length === 0) {
+    return res.status(400).json({ error: 'No frames provided in batch.' });
+  }
+
+  const cleanPrefix = String(videoPrefix).replace(/[^a-zA-Z0-9_-]/g, '_') || 'hero';
+  const currentCount = Number(req.body.currentCount) || frames.length;
+  const totalFrames = Number(req.body.totalFrames) || 121;
+  const progressPct = Number(req.body.progress) || Math.min(100, Math.round((currentCount / totalFrames) * 100));
+  const isComplete = progressPct >= 100 || currentCount >= totalFrames;
+
+  // Only update in-memory state if the server-side Python process is NOT actively running.
+  // If Python is running, its stdout already drives currentExtraction — don't overwrite with client batch data.
+  const serverPyIsRunning = currentExtraction.isExtracting && currentExtraction.activeProcess;
+  if (!serverPyIsRunning) {
+    currentExtraction = {
+      isExtracting: !isComplete,
+      videoId: videoId || null,
+      videoFilename: cleanPrefix,
+      ready: currentCount,
+      total: totalFrames,
+      progress: progressPct,
+      status: isComplete ? 'completed' : 'extracting',
+      activeProcess: null
+    };
+  }
+
+  // Live compiler / server console output matching frontend 1-to-1
+  const barLen = 20;
+  const filledLen = Math.round((barLen * Math.min(100, progressPct)) / 100);
+  const bar = '='.repeat(filledLen) + '.'.repeat(Math.max(0, barLen - filledLen));
+  console.log(`[Client Frame Extraction] [${bar}] ${currentCount}/${totalFrames} (${progressPct}%)`);
+
+  const uploadedUrls = [];
+
+  for (const item of frames) {
+    if (!item.filename || !item.data) continue;
+    try {
+      const base64Data = item.data.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const blobPath = `frames/${cleanPrefix}/${item.filename}`;
+      let finalUrl = null;
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        finalUrl = await uploadFileToBlob(blobPath, buffer, 'image/webp');
+      }
+      if (!finalUrl) {
+        const localDest = path.join(projectRoot, 'frames/desktop', item.filename);
+        try {
+          fs.mkdirSync(path.dirname(localDest), { recursive: true });
+          fs.writeFileSync(localDest, buffer);
+          finalUrl = `/frames/desktop/${item.filename}`;
+        } catch (localErr) {}
+      }
+      if (finalUrl) {
+        uploadedUrls.push({ filename: item.filename, url: finalUrl });
+      }
+    } catch (e) {
+      console.error(`[Upload Frame Batch Error] ${item.filename}:`, e.message);
+    }
+  }
+
+  // If allFrameUrls is included, update DB row
+  if (Array.isArray(allFrameUrls) && allFrameUrls.length > 0) {
+    try {
+      const urlsJson = JSON.stringify(allFrameUrls);
+      if (videoId) {
+        db.run("UPDATE media_videos SET frame_urls = ? WHERE id = ?", [urlsJson, videoId]);
+      } else {
+        db.run(
+          "UPDATE media_videos SET frame_urls = ? WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1",
+          [urlsJson]
+        );
+      }
+    } catch (dbErr) {
+      console.warn('Failed to save frame_urls to DB in upload-frames-batch:', dbErr.message);
+    }
+  }
+
+  res.json({
+    success: true,
+    uploadedCount: uploadedUrls.length,
+    uploadedUrls,
+    progress: progressPct,
+    currentCount,
+    totalFrames
+  });
+});
+
+// 9c. Save complete frame URLs array in database
+router.post('/save-frame-urls', (req, res) => {
+  const { videoId, frameUrls } = req.body;
+  if (!Array.isArray(frameUrls) || frameUrls.length === 0) {
+    return res.status(400).json({ error: 'frameUrls array is required.' });
+  }
+
+  currentExtraction = {
+    isExtracting: false,
+    videoId: videoId || null,
+    videoFilename: '',
+    ready: frameUrls.length,
+    total: 121,
+    progress: 100,
+    status: 'completed'
+  };
+  console.log(`[Frame Extraction] [====================] ${frameUrls.length}/121 (100%) - Completed & Saved!`);
+
+  const urlsJson = JSON.stringify(frameUrls);
+  const cb = (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true, count: frameUrls.length });
+  };
+  if (videoId) {
+    db.run("UPDATE media_videos SET frame_urls = ? WHERE id = ?", [urlsJson, videoId], cb);
+  } else {
+    db.run(
+      "UPDATE media_videos SET frame_urls = ? WHERE (video_type = 'hero' OR video_type IS NULL OR video_type = '') AND is_primary = 1",
+      [urlsJson],
+      cb
+    );
+  }
 });
 
 // Helper to sync local extracted WebP frames to Vercel Blob Storage if token exists
@@ -848,7 +1022,7 @@ router.get('/frame-urls', async (req, res) => {
     return res.json({ frameUrls: meta.blobUrls, count: meta.blobUrls.length, source: 'blob_meta' });
   }
 
-  // 3. If token present, sync frames now and return blob URLs
+  // 3. If token present and local frames exist, sync frames now and return blob URLs
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const blobUrls = await syncFramesToBlobStorage();
     if (Array.isArray(blobUrls) && blobUrls.length > 0) {
@@ -856,13 +1030,20 @@ router.get('/frame-urls', async (req, res) => {
     }
   }
 
-  // 4. Fallback to local files
-  const localUrls = Array.from({ length: 121 }, (_, i) => {
-    const num = String(i + 1).padStart(4, '0');
-    return `/frames/desktop/frame_${num}.webp`;
-  });
+  // 4. Fallback to local files ONLY if they actually exist on disk
+  const desktopDir = path.join(projectRoot, 'frames/desktop');
+  try {
+    if (fs.existsSync(desktopDir)) {
+      const localFiles = fs.readdirSync(desktopDir).filter(f => f.endsWith('.webp')).sort();
+      if (localFiles.length > 0) {
+        const localUrls = localFiles.map(f => `/frames/desktop/${f}`);
+        return res.json({ frameUrls: localUrls, count: localUrls.length, source: 'local' });
+      }
+    }
+  } catch (e) {}
 
-  res.json({ frameUrls: localUrls, count: 121, source: 'local' });
+  // 5. Clean empty response if no frames exist
+  res.json({ frameUrls: [], count: 0, source: 'none' });
 });
 
 export default router;

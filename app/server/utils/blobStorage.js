@@ -1,4 +1,4 @@
-import { put, del } from '@vercel/blob';
+import { put, del, list } from '@vercel/blob';
 
 /**
  * Helper to upload buffer, stream, or base64 to Vercel Blob Storage.
@@ -41,5 +41,30 @@ export async function deleteFileFromBlob(urls) {
     } catch (error) {
       console.error(`[Vercel Blob Delete Error] ${url}:`, error.message);
     }
+  }
+}
+
+/**
+ * Helper to delete all frame files under frames/ prefix from Vercel Blob Storage.
+ */
+export async function deleteAllFrameBlobs() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return;
+
+  try {
+    let hasMore = true;
+    let cursor = undefined;
+    while (hasMore) {
+      const response = await list({ prefix: 'frames/', token, cursor, limit: 1000 });
+      if (response && response.blobs && response.blobs.length > 0) {
+        const urls = response.blobs.map(b => b.url);
+        await del(urls, { token });
+        console.log(`[Vercel Blob] Deleted ${urls.length} frame blobs under frames/`);
+      }
+      hasMore = response?.hasMore;
+      cursor = response?.cursor;
+    }
+  } catch (error) {
+    console.error('[Vercel Blob] Error deleting frame blobs:', error.message);
   }
 }
